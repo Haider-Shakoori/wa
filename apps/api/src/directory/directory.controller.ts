@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
-import { ApiAccessGuard, type ApiApiAuthenticatedRequest } from '../auth/api-access.guard';
+import { ApiAccessGuard, type ApiAuthenticatedRequest } from '../auth/api-access.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
