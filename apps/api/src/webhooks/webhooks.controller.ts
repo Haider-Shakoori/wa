@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { ApiAccessGuard, type ApiAuthenticatedRequest } from '../auth/api-access.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
@@ -7,24 +7,26 @@ import { CreateWebhookDto, UpdateWebhookDto } from './webhooks.dto';
 import { WebhooksService } from './webhooks.service';
 
 @Controller('v1/webhooks')
-@UseGuards(JwtAuthGuard, PermissionGuard)
-@RequirePermissions(PERMISSIONS.WEBHOOKS_MANAGE)
+@UseGuards(ApiAccessGuard, PermissionGuard)
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}
 
   @Get()
-  list(@Req() request: AuthenticatedRequest) {
+  @RequirePermissions(PERMISSIONS.WEBHOOKS_READ)
+  list(@Req() request: ApiAuthenticatedRequest) {
     return this.webhooks.list(request.auth.org);
   }
 
   @Post()
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateWebhookDto) {
+  @RequirePermissions(PERMISSIONS.WEBHOOKS_MANAGE)
+  create(@Req() request: ApiAuthenticatedRequest, @Body() body: CreateWebhookDto) {
     return this.webhooks.create(request.auth.org, body);
   }
 
   @Patch(':endpointId')
+  @RequirePermissions(PERMISSIONS.WEBHOOKS_MANAGE)
   update(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('endpointId') endpointId: string,
     @Body() body: UpdateWebhookDto,
   ) {
@@ -32,12 +34,14 @@ export class WebhooksController {
   }
 
   @Delete(':endpointId')
-  remove(@Req() request: AuthenticatedRequest, @Param('endpointId') endpointId: string) {
+  @RequirePermissions(PERMISSIONS.WEBHOOKS_MANAGE)
+  remove(@Req() request: ApiAuthenticatedRequest, @Param('endpointId') endpointId: string) {
     return this.webhooks.remove(request.auth.org, endpointId);
   }
 
   @Get(':endpointId/deliveries')
-  deliveries(@Req() request: AuthenticatedRequest, @Param('endpointId') endpointId: string) {
+  @RequirePermissions(PERMISSIONS.WEBHOOKS_READ)
+  deliveries(@Req() request: ApiAuthenticatedRequest, @Param('endpointId') endpointId: string) {
     return this.webhooks.deliveries(request.auth.org, endpointId);
   }
 }
