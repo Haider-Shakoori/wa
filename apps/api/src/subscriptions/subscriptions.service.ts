@@ -70,6 +70,20 @@ export class SubscriptionsService {
     };
   }
 
+  async listPlans() {
+    const result = await this.db.query(
+      `SELECT code, name, max_sessions, monthly_messages, max_api_keys
+       FROM subscription_plans
+       WHERE active = true
+       ORDER BY max_sessions ASC`,
+    );
+    return result.rows;
+  }
+
+  async assertActive(organizationId: string) {
+    return this.getActiveSubscription(organizationId);
+  }
+
   async assertCanCreateSession(organizationId: string) {
     const subscription = await this.getActiveSubscription(organizationId);
     const result = await this.db.query<{ count: string }>(
