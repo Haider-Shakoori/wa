@@ -3,15 +3,22 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 
+const sections = ['Overview','Organizations','Sessions','Subscriptions','Payments','Infrastructure','Providers','Diagnostics'];
+
 export default function PlatformPage() {
   const [token,setToken] = useState('');
+  const [active,setActive] = useState('Overview');
   const [overview,setOverview] = useState<any>(null);
   const [tenants,setTenants] = useState<any[]>([]);
+  const [sessions,setSessions] = useState<any[]>([]);
+  const [subscriptions,setSubscriptions] = useState<any[]>([]);
   const [workers,setWorkers] = useState<any[]>([]);
   const [queues,setQueues] = useState<any>(null);
   const [errors,setErrors] = useState<any>(null);
   const [payments,setPayments] = useState<any[]>([]);
+  const [providers,setProviders] = useState<any[]>([]);
   const [error,setError] = useState('');
+  const [notice,setNotice] = useState('');
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
 
@@ -19,15 +26,26 @@ export default function PlatformPage() {
     if (!current) return;
     setError('');
     try {
-      const [o,t,w,q,e,p] = await Promise.all([
+      const [o,t,s,subs,w,q,e,p,providerRows] = await Promise.all([
         api('/v1/platform/overview',current),
         api('/v1/platform/tenants',current),
+        api('/v1/platform/sessions',current),
+        api('/v1/platform/subscriptions',current),
         api('/v1/platform/workers',current),
         api('/v1/platform/queues',current),
         api('/v1/platform/errors',current),
         api('/v1/platform/payments',current),
+        api('/v1/billing/providers',current),
       ]);
-      setOverview(o); setTenants(t as any[]); setWorkers(w as any[]); setQueues(q); setErrors(e); setPayments(p as any[]);
+      setOverview(o);
+      setTenants(t as any[]);
+      setSessions(s as any[]);
+      setSubscriptions(subs as any[]);
+      setWorkers(w as any[]);
+      setQueues(q);
+      setErrors(e);
+      setPayments(p as any[]);
+      setProviders(providerRows as any[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
     }
@@ -35,55 +53,127 @@ export default function PlatformPage() {
 
   useEffect(()=>{ void refresh(); },[token]);
 
-  return <main className="content platform-page">
-    <header className="topbar">
-      <div><p className="eyebrow">relayWA platform</p><h1>Operations center</h1></div>
-      <button className="secondary-button" onClick={()=>void refresh()}>Refresh</button>
-    </header>
-    {error && <div className="alert">{error}</div>}
-    <section className="metric-grid">
-      <Metric label="Organizations" value={overview?.organizations ?? 0}/>
-      <Metric label="Users" value={overview?.users ?? 0}/>
-      <Metric label="Connected sessions" value={overview?.sessions?.connected ?? 0}/>
-      <Metric label="Failed webhooks" value={overview?.failedWebhooks ?? 0}/>
-    </section>
+  async function approveManual(paymentId:string) {
+    setError(''); setNotice('');
+    try {
+      await api('/v1/billing/admin/manual/' + paymentId + '/approve', token, { method:'POST' });
+      setNotice('Manual payment approved and the subscription was activated.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to approve manual payment');
+    }
+  }
 
-    <section className="two-column">
-      <Panel title="Worker health">
-        {workers.length ? workers.map((w)=><div className="session-row" key={w.worker_id}><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned</span></div><span className="state state-connected"><span className="state-dot"/>leased</span></div>) : <Empty text="No active workers found."/>}
-      </Panel>
-      <Panel title="Queue health">
-        <pre className="ops-pre">{JSON.stringify(queues ?? {},null,2)}</pre>
-      </Panel>
-    </section>
+  async function toggleProvider(provider:any) {
+    setError(''); setNotice('');
+    try {
+      await api('/v1/billing/admin/providers',token,{
+        method:'POST',
+        body:JSON.stringify({
+          provider:provider.provider,
+          enabled:!provider.enabled,
+          publicConfig:provider.public_config ?? {},
+        }),
+      });
+      setNotice(provider.provider + ' was ' + (provider.enabled ? 'disabled' : 'enabled') + '.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update payment provider');
+    }
+  }
 
-    <section className="panel" style={{marginTop:14}}>
-      <div className="panel-head"><div><p className="eyebrow">Tenants</p><h2>Organizations</h2></div></div>
-      <div className="activity-table">
-        <div className="table-row table-head"><span>Name</span><span>Plan</span><span>Sessions</span><span>Subscription</span></div>
-        {tenants.map((t)=><div className="table-row" key={t.id}><span>{t.name}</span><span>{t.plan_code ?? '—'}</span><span>{t.sessions}</span><span>{t.subscription_status ?? '—'}</span></div>)}
+  const connected = overview?.sessions?.connected ?? 0;
+  const failedMessages = overview?.messages?.failed ?? 0;
+  const pendingManual = payments.filter((p)=>p.provider === 'manual' && p.status === 'pending').length;
+  const healthyWorkers = workers.filter((w)=>new Date(w.lease_expires_at).getTime() > Date.now()).length;
+
+  return <div className="app-shell platform-shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>Platform Admin</span></div></div>
+      <nav>{sections.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
+      <div className="sidebar-bottom">
+        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
+        <div className="status-pill"><span className="live-dot"/>Platform administration</div>
       </div>
-    </section>
+    </aside>
 
-    <section className="panel" style={{marginTop:14}}>
-      <div className="panel-head"><div><p className="eyebrow">Revenue operations</p><h2>Recent payments</h2></div></div>
-      <div className="activity-table">
-        <div className="table-row table-head"><span>Organization</span><span>Provider</span><span>Plan</span><span>Status</span></div>
-        {payments.map((p)=><div className="table-row" key={p.id}><span>{p.organization_name}</span><span>{p.provider}</span><span>{p.plan_code}</span><span>{p.status}</span></div>)}
-      </div>
-    </section>
+    <main className="content platform-page">
+      <header className="topbar">
+        <div><p className="eyebrow">relayWA platform</p><h1>{active}</h1></div>
+        <div className="top-actions"><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
+      </header>
 
-    <section className="panel" style={{marginTop:14}}>
-      <div className="panel-head"><div><p className="eyebrow">Diagnostics</p><h2>Recent errors</h2></div></div>
-      <pre className="ops-pre">{JSON.stringify(errors ?? {},null,2)}</pre>
-    </section>
-  </main>;
+      {error && <div className="alert">{error}</div>}
+      {notice && <div className="success-alert">{notice}</div>}
+
+      {active === 'Overview' && <>
+        <section className="platform-hero">
+          <div><p className="eyebrow">SaaS control plane</p><h2>Operate every relayWA tenant, WhatsApp session and subscription from one place.</h2><p className="muted">Platform-wide visibility for customer organizations, session health, queue activity, payments, workers and failures.</p></div>
+          <div className="platform-health"><span className="live-dot"/><strong>{healthyWorkers ? 'Workers online' : 'Check workers'}</strong><small>{healthyWorkers} active worker lease{healthyWorkers===1?'':'s'}</small></div>
+        </section>
+        <section className="platform-metrics">
+          <Metric label="Organizations" value={overview?.organizations ?? 0} detail="Customer tenants"/>
+          <Metric label="Connected sessions" value={connected} detail={sessions.length + ' total sessions'}/>
+          <Metric label="Users" value={overview?.users ?? 0} detail="Platform accounts"/>
+          <Metric label="Pending manual payments" value={pendingManual} detail="Needs review"/>
+          <Metric label="Failed outbound" value={failedMessages} detail="Message failures"/>
+          <Metric label="Failed webhooks" value={overview?.failedWebhooks ?? 0} detail="Delivery failures"/>
+        </section>
+        <section className="two-column">
+          <Panel title="Recent organizations">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No organizations yet."/>}</Panel>
+          <Panel title="WhatsApp health">{sessions.slice(0,6).map((s)=><SessionRow key={s.id} session={s}/>)}{!sessions.length && <Empty text="No sessions yet."/>}</Panel>
+        </section>
+      </>}
+
+      {active === 'Organizations' && <TableSection eyebrow="Tenants" title="Customer organizations" subtitle="Organization, plan, membership and session footprint.">
+        <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Created</span></div>
+        {tenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span>{date(t.created_at)}</span></div>)}
+      </TableSection>}
+
+      {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
+        <div className="platform-row platform-row-head"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Worker</span><span>Last connected</span></div>
+        {sessions.map((s)=><div className="platform-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span></div>)}
+      </TableSection>}
+
+      {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
+        <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span></div>
+        {subscriptions.map((s)=><div className="platform-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span>{s.plan_code}</span><span><Badge value={s.status}/></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span></div>)}
+      </TableSection>}
+
+      {active === 'Payments' && <TableSection eyebrow="Revenue" title="Payments" subtitle="Stripe and manual payment activity across all tenants.">
+        <div className="platform-row platform-row-head"><span>Organization</span><span>Provider</span><span>Plan</span><span>Amount</span><span>Status</span><span>Action</span></div>
+        {payments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
+      </TableSection>}
+
+      {active === 'Infrastructure' && <section className="two-column">
+        <Panel title="Worker leases">{workers.map((w)=><div className="session-row" key={w.worker_id}><div className="session-avatar small">WK</div><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned</span></div><Badge value={new Date(w.lease_expires_at).getTime()>Date.now()?'healthy':'expired'}/></div>)}{!workers.length && <Empty text="No workers found."/>}</Panel>
+        <Panel title="Queue state"><QueueSummary queues={queues}/></Panel>
+      </section>}
+
+      {active === 'Providers' && <section className="panel">
+        <PanelHeading eyebrow="Payments" title="Payment providers" subtitle="Enable or disable platform-level payment methods. Secrets remain environment-only."/>
+        <div className="provider-grid">{providers.map((provider)=><article className="provider-card" key={provider.provider}><div><p className="eyebrow">{provider.provider}</p><h3>{provider.provider==='stripe'?'Stripe Checkout':'Manual / offline'}</h3></div><Badge value={provider.enabled?'enabled':'disabled'}/><p className="muted">{provider.provider==='stripe'?'Online card payments through Stripe Checkout.':'For bank transfer, cash or locally arranged payments.'}</p><button className={provider.enabled?'secondary-button':'primary-button'} onClick={()=>void toggleProvider(provider)}>{provider.enabled?'Disable':'Enable'}</button></article>)}</div>
+      </section>}
+
+      {active === 'Diagnostics' && <section className="diagnostics-grid"><Diagnostic title="Session errors" rows={errors?.sessions ?? []}/><Diagnostic title="Message errors" rows={errors?.messages ?? []}/><Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []}/></section>}
+    </main>
+  </div>;
 }
 
-function Metric({label,value}:{label:string;value:number|string}) {
-  return <article className="metric-card"><p>{label}</p><strong>{value}</strong><span>Platform-wide</span></article>;
+function Metric({label,value,detail}:{label:string;value:number|string;detail:string}) { return <article className="metric-card"><p>{label}</p><strong>{value}</strong><span>{detail}</span></article>; }
+function Panel({title,children}:{title:string;children:React.ReactNode}) { return <section className="panel"><div className="panel-head"><h2>{title}</h2></div>{children}</section>; }
+function PanelHeading({eyebrow,title,subtitle}:{eyebrow:string;title:string;subtitle:string}) { return <div className="panel-head"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p className="muted panel-subtitle">{subtitle}</p></div></div>; }
+function TableSection({eyebrow,title,subtitle,children}:{eyebrow:string;title:string;subtitle:string;children:React.ReactNode}) { return <section className="panel"><PanelHeading eyebrow={eyebrow} title={title} subtitle={subtitle}/><div className="platform-table">{children}</div></section>; }
+function TenantRow({tenant}:{tenant:any}) { return <div className="session-row"><div className="session-avatar small">{tenant.name?.slice(0,2).toUpperCase()}</div><div className="grow"><strong>{tenant.name}</strong><span>{tenant.plan_code ?? 'No plan'} · {tenant.sessions} sessions</span></div><Badge value={tenant.subscription_status ?? 'none'}/></div>; }
+function SessionRow({session}:{session:any}) { return <div className="session-row"><div className="session-avatar small">WA</div><div className="grow"><strong>{session.name}</strong><span>{session.phone_number ? '+' + session.phone_number : session.organization_name}</span></div><Badge value={session.status}/></div>; }
+function Badge({value}:{value:string}) { const safe=String(value || 'unknown').replace(/_/g,' '); return <span className={'state state-' + value}><span className="state-dot"/>{safe}</span>; }
+
+function QueueSummary({queues}:{queues:any}) {
+  const groups=[['Messages',queues?.messages],['Webhooks',queues?.webhooks],['Commands',queues?.commands]];
+  return <div className="queue-summary">{groups.map(([label,rows]:any)=><div className="queue-group" key={label}><strong>{label}</strong><div>{(rows??[]).map((r:any)=><span key={r.status}><b>{r.count}</b>{r.status}</span>)}</div></div>)}</div>;
 }
-function Panel({title,children}:{title:string;children:React.ReactNode}) {
-  return <section className="panel"><div className="panel-head"><h2>{title}</h2></div>{children}</section>;
-}
+
+function Diagnostic({title,rows}:{title:string;rows:any[]}) { return <section className="panel"><div className="panel-head"><h2>{title}</h2><span className="count-badge">{rows.length}</span></div>{rows.length?rows.slice(0,30).map((r,i)=><div className="diagnostic-row" key={r.id??i}><strong>{r.name ?? r.status ?? 'Error'}</strong><span>{r.last_connection_error ?? r.last_error ?? 'Unknown error'}</span><small>{date(r.updated_at)}</small></div>):<Empty text="No recent errors."/>}</section>; }
 function Empty({text}:{text:string}) { return <div className="empty">{text}</div>; }
+function date(value?:string|null) { if (!value) return '—'; return new Date(value).toLocaleString(); }
+function money(cents:number,currency:string) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:currency||'USD'}).format((Number(cents)||0)/100); } catch { return String((Number(cents)||0)/100) + ' ' + (currency||''); } }
