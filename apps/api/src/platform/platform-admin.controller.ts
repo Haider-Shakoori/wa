@@ -14,6 +14,12 @@ export class PlatformAdminController {
   @Get('tenants')
   tenants() { return this.platform.tenants(); }
 
+  @Get('sessions')
+  sessions() { return this.platform.sessions(); }
+
+  @Get('subscriptions')
+  subscriptions() { return this.platform.subscriptions(); }
+
   @Get('workers')
   workers() { return this.platform.workers(); }
 
