@@ -1,6 +1,6 @@
 {
   "name": "@wa/api",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
     "start": "node dist/main.js",
-    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_auth_tenancy.sql && psql \"$DATABASE_URL\" -f migrations/002_rbac_platform_admin.sql && psql \"$DATABASE_URL\" -f migrations/003_whatsapp_sessions.sql"
+    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_auth_tenancy.sql && psql \"$DATABASE_URL\" -f migrations/002_rbac_platform_admin.sql && psql \"$DATABASE_URL\" -f migrations/003_whatsapp_sessions.sql && psql \"$DATABASE_URL\" -f migrations/004_linked_device_qr.sql"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",
@@ -19,6 +19,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
@@ -27,6 +28,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.5",
+    "@types/qrcode": "^1.5.5",
     "typescript": "^5.9.0"
   }
 }
