@@ -372,6 +372,73 @@ export class SessionStore {
     );
   }
 
+  async listDispatchReadyMessages(limit = 100) {
+    const result = await this.pool.query(
+      `SELECT id, scheduled_at, next_attempt_at, priority, max_attempts
+       FROM whatsapp_messages
+       WHERE direction = 'outbound'
+         AND status IN ('queued','scheduled','retrying')
+         AND next_attempt_at <= now()
+         AND bull_job_id IS NULL
+       ORDER BY priority ASC, next_attempt_at ASC, queued_at ASC
+       LIMIT $1`,
+      [limit],
+    );
+    return result.rows;
+  }
+
+  async markMessageEnqueued(messageId, jobId) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET bull_job_id = $1,
+           status = CASE WHEN status = 'scheduled' THEN 'scheduled' ELSE 'queued' END,
+           updated_at = now()
+       WHERE id = $2 AND bull_job_id IS NULL`,
+      [jobId, messageId],
+    );
+  }
+
+  async claimOutboundMessageById(messageId) {
+    const result = await this.pool.query(
+      `UPDATE whatsapp_messages m
+       SET status = 'claimed', worker_id = $1, claimed_at = now(),
+           attempts = attempts + 1, updated_at = now()
+       FROM whatsapp_sessions s
+       WHERE m.id = $2
+         AND m.session_id = s.id
+         AND m.direction = 'outbound'
+         AND m.status IN ('queued','scheduled','retrying','claimed')
+         AND s.deleted_at IS NULL
+         AND s.status = 'connected'
+         AND s.worker_id = $1
+         AND s.worker_lease_expires_at > now()
+       RETURNING m.*`,
+      [this.workerId, messageId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async deferRateLimitedMessage(messageId, retryAt) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET rate_limited_until = $1, updated_at = now()
+       WHERE id = $2`,
+      [retryAt, messageId],
+    );
+  }
+
+  async markMessageAttemptFailed(messageId, error, retrying) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = $1,
+           last_error = $2,
+           next_attempt_at = CASE WHEN $1 = 'retrying' THEN now() ELSE next_attempt_at END,
+           updated_at = now()
+       WHERE id = $3 AND worker_id = $4`,
+      [retrying ? 'retrying' : 'failed', String(error?.message ?? error).slice(0, 2000), messageId, this.workerId],
+    );
+  }
+
   async claimNextOutboundMessage() {
     const client = await this.pool.connect();
     try {
@@ -480,7 +547,7 @@ export class SessionStore {
     await this.pool.query(
       `UPDATE whatsapp_messages
        SET status = 'sent', provider_message_id = $1, sent_at = now(),
-           last_error = NULL, updated_at = now()
+           last_error = NULL, bull_job_id = NULL, updated_at = now()
        WHERE id = $2 AND worker_id = $3`,
       [providerMessageId, messageId, this.workerId],
     );
@@ -489,7 +556,8 @@ export class SessionStore {
   async markMessageFailed(messageId, error) {
     await this.pool.query(
       `UPDATE whatsapp_messages
-       SET status = 'failed', last_error = $1, failed_at = now(), updated_at = now()
+       SET status = 'failed', last_error = $1, failed_at = now(),
+           bull_job_id = NULL, updated_at = now()
        WHERE id = $2 AND worker_id = $3`,
       [String(error?.message ?? error).slice(0, 2000), messageId, this.workerId],
     );
