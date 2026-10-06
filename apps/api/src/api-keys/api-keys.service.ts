@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { CreateApiKeyDto } from './api-keys.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ApiKeysService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async list(organizationId: string) {
     const result = await this.db.query(
@@ -38,6 +42,8 @@ export class ApiKeysService {
       );
       if (!session.rows[0]) throw new NotFoundException('Session not found');
     }
+
+    await this.subscriptions.assertCanCreateApiKey(organizationId);
 
     const prefix = tokenType === 'session' ? 'rw_session_' : 'rw_live_';
     const secret = randomBytes(32).toString('base64url');
