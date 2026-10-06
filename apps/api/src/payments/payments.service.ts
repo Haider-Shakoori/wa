@@ -95,6 +95,27 @@ export class PaymentsService {
     const paymentId = session.metadata?.relaywa_payment_id;
     if (!paymentId) throw new BadRequestException('Missing relayWA payment metadata');
 
+    if (session.payment_status !== 'paid') {
+      return { pending: true };
+    }
+
+    const pending = await this.db.query<any>(
+      `SELECT organization_id, plan_code, billing_interval, amount_cents, currency
+       FROM payments
+       WHERE id = $1 AND provider = 'stripe' AND status = 'pending'
+       LIMIT 1`,
+      [paymentId],
+    );
+    const expected = pending.rows[0];
+    if (!expected) return { duplicate: true };
+
+    if (
+      Number(session.amount_total ?? -1) !== Number(expected.amount_cents) ||
+      String(session.currency ?? '').toUpperCase() !== String(expected.currency).toUpperCase()
+    ) {
+      throw new BadRequestException('Stripe payment amount or currency mismatch');
+    }
+
     const result = await this.db.query<any>(
       `UPDATE payments
        SET status = 'paid', provider_payment_id = $1, paid_at = now(), updated_at = now()
