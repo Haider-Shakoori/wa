@@ -1,4 +1,12 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateCheckoutDto {
   @IsString()
@@ -22,9 +30,10 @@ export class UpdateProviderDto {
   @IsIn(['stripe','manual'])
   provider!: 'stripe' | 'manual';
 
-  @IsIn([true, false])
+  @IsBoolean()
   enabled!: boolean;
 
   @IsOptional()
+  @IsObject()
   publicConfig?: Record<string, unknown>;
 }
