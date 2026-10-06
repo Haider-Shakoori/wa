@@ -18,7 +18,8 @@ export function createMessageQueue({ redisUrl, store, sessions }) {
       const message = await store.claimOutboundMessageById(job.data.messageId);
       if (!message) return { skipped: true };
 
-      const allowed = await store.consumeSessionRateLimit(
+      const allowed = await consumeSessionRateLimit(
+        queue,
         message.session_id,
         Number(process.env.MESSAGE_RATE_LIMIT_MAX ?? 20),
         Number(process.env.MESSAGE_RATE_LIMIT_WINDOW_MS ?? 10000),
@@ -26,8 +27,7 @@ export function createMessageQueue({ redisUrl, store, sessions }) {
 
       if (!allowed.ok) {
         await store.deferRateLimitedMessage(message.id, allowed.retryAt);
-        await job.moveToDelayed(allowed.retryAt.getTime());
-        return { rateLimited: true };
+        await sleep(Math.max(0, allowed.retryAt.getTime() - Date.now()));
       }
 
       try {
@@ -107,12 +107,34 @@ export async function pumpReadyMessages({ store, messageQueue, signal }) {
   }
 }
 
+async function consumeSessionRateLimit(queue, sessionId, max, windowMs) {
+  const client = await queue.client;
+  const key = `relaywa:rate:session:${sessionId}`;
+  const result = await client.eval(
+    `local current = redis.call('INCR', KEYS[1])
+     if current == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+     local ttl = redis.call('PTTL', KEYS[1])
+     return {current, ttl}`,
+    1,
+    key,
+    String(windowMs),
+  );
+
+  const [countRaw, ttlRaw] = result;
+  const count = Number(countRaw);
+  const ttl = Math.max(Number(ttlRaw), 1);
+  return {
+    ok: count <= max,
+    retryAt: new Date(Date.now() + ttl),
+  };
+}
+
 function sleep(ms, signal) {
   return new Promise((resolve) => {
-    if (signal.aborted) return resolve();
+    if (signal?.aborted) return resolve();
     const timer = setTimeout(resolve, ms);
     timer.unref();
-    signal.addEventListener('abort', () => {
+    signal?.addEventListener('abort', () => {
       clearTimeout(timer);
       resolve();
     }, { once: true });
