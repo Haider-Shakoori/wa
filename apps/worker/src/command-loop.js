@@ -11,7 +11,11 @@ export async function runCommandLoop({ store, sessions, signal }) {
     const message = await store.claimNextOutboundMessage();
     if (message) {
       try {
-        await sessions.sendText(message.session_id, message);
+        if (message.message_type === 'text') {
+          await sessions.sendText(message.session_id, message);
+        } else {
+          await sessions.sendMedia(message.session_id, message);
+        }
       } catch (error) {
         await store.markMessageFailed(message.id, error);
       }

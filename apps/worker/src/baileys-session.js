@@ -7,6 +7,7 @@ import pino from 'pino';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { syncSessionProfile } from './profile-sync.js';
+import { fetchMedia } from './media-fetch.js';
 
 const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'silent' });
 const RECONNECT_DELAYS_MS = [1500, 3000, 7000, 15000, 30000, 60000];
@@ -137,6 +138,54 @@ export class BaileysSessionManager {
       messageId: message.id,
       providerMessageId,
       recipient: message.recipient_phone,
+    });
+    return { providerMessageId };
+  }
+
+  async sendMedia(sessionId, message) {
+    const socket = this.sockets.get(sessionId);
+    if (!socket) throw new Error('Session socket is not active');
+
+    const buffer = await fetchMedia(message);
+    let payload;
+
+    if (message.message_type === 'image') {
+      payload = {
+        image: buffer,
+        mimetype: message.media_mime_type,
+        caption: message.media_caption || undefined,
+      };
+    } else if (message.message_type === 'video') {
+      payload = {
+        video: buffer,
+        mimetype: message.media_mime_type,
+        caption: message.media_caption || undefined,
+      };
+    } else if (message.message_type === 'audio') {
+      payload = {
+        audio: buffer,
+        mimetype: message.media_mime_type,
+        ptt: Boolean(message.voice_note),
+      };
+    } else if (message.message_type === 'document') {
+      payload = {
+        document: buffer,
+        mimetype: message.media_mime_type,
+        fileName: message.media_file_name || 'document',
+        caption: message.media_caption || undefined,
+      };
+    } else {
+      throw new Error(`Unsupported media type: ${message.message_type}`);
+    }
+
+    const result = await socket.sendMessage(message.recipient_jid, payload);
+    const providerMessageId = result?.key?.id ?? null;
+    await this.store.markMessageSent(message.id, providerMessageId);
+    await this.store.event(sessionId, 'message.sent', {
+      messageId: message.id,
+      providerMessageId,
+      recipient: message.recipient_phone,
+      messageType: message.message_type,
     });
     return { providerMessageId };
   }
