@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto, RegisterDto } from './auth.dto';
 import type { AuthTokenPayload } from './auth.types';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 type UserRow = { id: string; email: string; name: string; password_hash: string };
 type MembershipRow = { id: string; organization_id: string };
@@ -14,6 +15,7 @@ export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async register(input: RegisterDto) {
@@ -40,6 +42,8 @@ export class AuthService {
         [membershipId, organizationId, userId, 'owner'],
       );
     });
+
+    await this.subscriptions.createTrial(organizationId);
 
     return this.issueTokens({ id: userId, email, name: input.name.trim() }, { id: membershipId, organization_id: organizationId });
   }

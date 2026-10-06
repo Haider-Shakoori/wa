@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import type { SessionStatus } from './session-status';
 import { CreateSessionDto } from './sessions.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 type SessionRow = {
   id: string;
@@ -36,7 +37,10 @@ const SESSION_SELECT = `
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async list(organizationId: string) {
     const result = await this.db.query<SessionRow>(
@@ -57,6 +61,8 @@ export class SessionsService {
       [organizationId, input.name.trim()],
     );
     if (duplicate.rowCount) throw new ConflictException('Session name already exists');
+
+    await this.subscriptions.assertCanCreateSession(organizationId);
 
     const id = randomUUID();
     const result = await this.db.query<SessionRow>(
@@ -88,6 +94,9 @@ export class SessionsService {
     action: 'connect' | 'restart' | 'logout',
   ) {
     await this.get(organizationId, sessionId);
+    if (action !== 'logout') {
+      await this.subscriptions.assertActive(organizationId);
+    }
     const commandId = randomUUID();
 
     await this.db.query(
