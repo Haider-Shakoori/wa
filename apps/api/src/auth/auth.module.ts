@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionGuard } from './permission.guard';
 import { PlatformAdminGuard } from './platform-admin.guard';
+import { ApiAccessGuard } from './api-access.guard';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { PlatformAdminGuard } from './platform-admin.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, PermissionGuard, PlatformAdminGuard],
-  exports: [JwtAuthGuard, PermissionGuard, PlatformAdminGuard],
+  providers: [AuthService, JwtAuthGuard, ApiAccessGuard, PermissionGuard, PlatformAdminGuard],
+  exports: [JwtAuthGuard, ApiAccessGuard, PermissionGuard, PlatformAdminGuard],
 })
 export class AuthModule {}

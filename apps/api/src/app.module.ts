@@ -8,6 +8,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
 import { DirectoryModule } from './directory/directory.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     MessagesModule,
     DirectoryModule,
     WebhooksModule,
+    ApiKeysModule,
   ],
   controllers: [AppController],
 })

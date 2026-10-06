@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { ApiAccessGuard, type ApiAuthenticatedRequest } from '../auth/api-access.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
@@ -14,14 +14,14 @@ import {
 import { MessagesService } from './messages.service';
 
 @Controller('v1/sessions/:sessionId/messages')
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(ApiAccessGuard, PermissionGuard)
 export class MessagesController {
   constructor(private readonly messages: MessagesService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  @RequirePermissions(PERMISSIONS.MESSAGES_READ)
   list(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
   ) {
     return this.messages.list(request.auth.org, sessionId);
@@ -30,7 +30,7 @@ export class MessagesController {
   @Post('text')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendText(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendTextMessageDto,
   ) {
@@ -40,7 +40,7 @@ export class MessagesController {
   @Post('image')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendImage(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
@@ -50,7 +50,7 @@ export class MessagesController {
   @Post('video')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendVideo(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
@@ -60,7 +60,7 @@ export class MessagesController {
   @Post('audio')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendAudio(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
@@ -70,7 +70,7 @@ export class MessagesController {
   @Post('document')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendDocument(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
@@ -80,7 +80,7 @@ export class MessagesController {
   @Post('reply')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendReply(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendReplyDto,
   ) {
@@ -90,7 +90,7 @@ export class MessagesController {
   @Post('reaction')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendReaction(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendReactionDto,
   ) {
@@ -100,7 +100,7 @@ export class MessagesController {
   @Post('location')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendLocation(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendLocationDto,
   ) {
@@ -110,7 +110,7 @@ export class MessagesController {
   @Post('contact')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendContact(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendContactDto,
   ) {
@@ -120,7 +120,7 @@ export class MessagesController {
   @Post('poll')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendPoll(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Body() body: SendPollDto,
   ) {
@@ -128,9 +128,9 @@ export class MessagesController {
   }
 
   @Get(':messageId')
-  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  @RequirePermissions(PERMISSIONS.MESSAGES_READ)
   get(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: ApiAuthenticatedRequest,
     @Param('sessionId') sessionId: string,
     @Param('messageId') messageId: string,
   ) {

@@ -1,0 +1,83 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { DatabaseService } from '../database/database.service';
+import { CreateApiKeyDto } from './api-keys.dto';
+
+@Injectable()
+export class ApiKeysService {
+  constructor(private readonly db: DatabaseService) {}
+
+  async list(organizationId: string) {
+    const result = await this.db.query(
+      `SELECT id, organization_id, session_id, name, key_prefix, token_type,
+              scopes, enabled, last_used_at, expires_at, revoked_at, created_at
+       FROM api_keys
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  async create(organizationId: string, userId: string, input: CreateApiKeyDto) {
+    const tokenType = input.tokenType ?? (input.sessionId ? 'session' : 'organization');
+    if (tokenType === 'session' && !input.sessionId) {
+      throw new BadRequestException('sessionId is required for a session token');
+    }
+    if (tokenType === 'organization' && input.sessionId) {
+      throw new BadRequestException('Organization API keys cannot be bound to a session');
+    }
+    if (!input.scopes?.length) throw new BadRequestException('At least one scope is required');
+
+    if (input.sessionId) {
+      const session = await this.db.query(
+        `SELECT id FROM whatsapp_sessions
+         WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+         LIMIT 1`,
+        [input.sessionId, organizationId],
+      );
+      if (!session.rows[0]) throw new NotFoundException('Session not found');
+    }
+
+    const prefix = tokenType === 'session' ? 'rw_session_' : 'rw_live_';
+    const secret = randomBytes(32).toString('base64url');
+    const token = `${prefix}${secret}`;
+    const keyPrefix = token.slice(0, 20);
+    const keyHash = createHash('sha256').update(token).digest('hex');
+
+    const result = await this.db.query(
+      `INSERT INTO api_keys
+        (id, organization_id, created_by_user_id, session_id, name,
+         key_prefix, key_hash, token_type, scopes, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING id, organization_id, session_id, name, key_prefix,
+                 token_type, scopes, enabled, expires_at, created_at`,
+      [
+        randomUUID(),
+        organizationId,
+        userId,
+        input.sessionId ?? null,
+        input.name.trim(),
+        keyPrefix,
+        keyHash,
+        tokenType,
+        [...new Set(input.scopes)],
+        input.expiresAt ?? null,
+      ],
+    );
+
+    return { ...result.rows[0], token };
+  }
+
+  async revoke(organizationId: string, keyId: string) {
+    const result = await this.db.query(
+      `UPDATE api_keys
+       SET enabled = false, revoked_at = now(), updated_at = now()
+       WHERE id = $1 AND organization_id = $2 AND revoked_at IS NULL
+       RETURNING id`,
+      [keyId, organizationId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('API key not found');
+    return { id: keyId, revoked: true };
+  }
+}
