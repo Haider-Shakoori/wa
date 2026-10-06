@@ -1,4 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -19,6 +20,29 @@ export class PlatformAdminController {
 
   @Get('subscriptions')
   subscriptions() { return this.platform.subscriptions(); }
+
+  @Post('sessions/:sessionId/connect')
+  connectSession(@Param('sessionId') sessionId: string) {
+    return this.platform.sessionAction(sessionId, 'connect');
+  }
+
+  @Post('sessions/:sessionId/restart')
+  restartSession(@Param('sessionId') sessionId: string) {
+    return this.platform.sessionAction(sessionId, 'restart');
+  }
+
+  @Post('sessions/:sessionId/logout')
+  logoutSession(@Param('sessionId') sessionId: string) {
+    return this.platform.sessionAction(sessionId, 'logout');
+  }
+
+  @Patch('subscriptions/:organizationId')
+  updateSubscription(
+    @Param('organizationId') organizationId: string,
+    @Body() body: UpdatePlatformSubscriptionDto,
+  ) {
+    return this.platform.updateSubscription(organizationId, body);
+  }
 
   @Get('workers')
   workers() { return this.platform.workers(); }
