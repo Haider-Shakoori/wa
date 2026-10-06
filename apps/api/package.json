@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
     "start": "node dist/main.js",
-    "migrate": "psql "$DATABASE_URL" -f migrations/001_auth_tenancy.sql"
+    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_auth_tenancy.sql"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",
