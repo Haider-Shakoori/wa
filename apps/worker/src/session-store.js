@@ -278,6 +278,68 @@ export class SessionStore {
     );
   }
 
+  async claimNextOutboundMessage() {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `SELECT m.id, m.organization_id, m.session_id, m.recipient_phone,
+                m.recipient_jid, m.text_body, m.attempts
+         FROM whatsapp_messages m
+         JOIN whatsapp_sessions s ON s.id = m.session_id
+         WHERE m.direction = 'outbound'
+           AND m.status = 'queued'
+           AND s.deleted_at IS NULL
+           AND s.status = 'connected'
+           AND s.worker_id = $1
+           AND s.worker_lease_expires_at > now()
+         ORDER BY m.queued_at ASC
+         FOR UPDATE OF m SKIP LOCKED
+         LIMIT 1`,
+        [this.workerId],
+      );
+      const message = result.rows[0];
+      if (!message) {
+        await client.query('COMMIT');
+        return null;
+      }
+
+      await client.query(
+        `UPDATE whatsapp_messages
+         SET status = 'claimed', worker_id = $1, claimed_at = now(),
+             attempts = attempts + 1, updated_at = now()
+         WHERE id = $2`,
+        [this.workerId, message.id],
+      );
+      await client.query('COMMIT');
+      return { ...message, attempts: Number(message.attempts ?? 0) + 1 };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markMessageSent(messageId, providerMessageId) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = 'sent', provider_message_id = $1, sent_at = now(),
+           last_error = NULL, updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [providerMessageId, messageId, this.workerId],
+    );
+  }
+
+  async markMessageFailed(messageId, error) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = 'failed', last_error = $1, failed_at = now(), updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [String(error?.message ?? error).slice(0, 2000), messageId, this.workerId],
+    );
+  }
+
   async completeCommand(commandId) {
     await this.pool.query(
       `UPDATE whatsapp_session_commands
