@@ -495,6 +495,132 @@ export class SessionStore {
     );
   }
 
+  async enqueueWebhookDeliveries(limit = 100) {
+    const candidates = await this.pool.query(
+      `SELECT e.id AS session_event_id, e.organization_id, w.id AS endpoint_id
+       FROM whatsapp_session_events e
+       JOIN webhook_endpoints w
+         ON w.organization_id = e.organization_id
+        AND w.enabled = true
+        AND e.created_at >= w.created_at
+        AND ('*' = ANY(w.event_types) OR e.event_type = ANY(w.event_types))
+       LEFT JOIN webhook_deliveries d
+         ON d.endpoint_id = w.id AND d.session_event_id = e.id
+       WHERE d.id IS NULL
+       ORDER BY e.id ASC
+       LIMIT $1`,
+      [limit],
+    );
+
+    for (const row of candidates.rows) {
+      await this.pool.query(
+        `INSERT INTO webhook_deliveries
+          (id, endpoint_id, organization_id, session_event_id, status)
+         VALUES ($1, $2, $3, $4, 'queued')
+         ON CONFLICT (endpoint_id, session_event_id) DO NOTHING`,
+        [randomUUID(), row.endpoint_id, row.organization_id, row.session_event_id],
+      );
+    }
+    return candidates.rowCount ?? 0;
+  }
+
+  async claimNextWebhookDelivery() {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `SELECT d.id, d.endpoint_id, d.organization_id, d.session_event_id,
+                d.attempts, w.url, w.secret_encrypted,
+                e.session_id, e.event_type, e.payload,
+                e.created_at AS event_created_at
+         FROM webhook_deliveries d
+         JOIN webhook_endpoints w ON w.id = d.endpoint_id AND w.enabled = true
+         JOIN whatsapp_session_events e ON e.id = d.session_event_id
+         WHERE d.status = 'queued'
+           AND d.next_attempt_at <= now()
+         ORDER BY d.next_attempt_at ASC, d.queued_at ASC
+         FOR UPDATE OF d SKIP LOCKED
+         LIMIT 1`,
+      );
+      const delivery = result.rows[0];
+      if (!delivery) {
+        await client.query('COMMIT');
+        return null;
+      }
+
+      await client.query(
+        `UPDATE webhook_deliveries
+         SET status = 'claimed', worker_id = $1, claimed_at = now(),
+             attempts = attempts + 1, updated_at = now()
+         WHERE id = $2`,
+        [this.workerId, delivery.id],
+      );
+      await client.query('COMMIT');
+      return { ...delivery, attempts: Number(delivery.attempts ?? 0) + 1 };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markWebhookDelivered(deliveryId, statusCode, responseBody) {
+    const result = await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = 'delivered', response_status = $1, response_body = $2,
+           last_error = NULL, delivered_at = now(), updated_at = now()
+       WHERE id = $3 AND worker_id = $4
+       RETURNING endpoint_id`,
+      [statusCode, responseBody, deliveryId, this.workerId],
+    );
+    const endpointId = result.rows[0]?.endpoint_id;
+    if (endpointId) {
+      await this.pool.query(
+        `UPDATE webhook_endpoints
+         SET consecutive_failures = 0, last_success_at = now(), updated_at = now()
+         WHERE id = $1`,
+        [endpointId],
+      );
+    }
+  }
+
+  async rescheduleWebhook(delivery, error) {
+    const maxAttempts = Number(process.env.WEBHOOK_MAX_ATTEMPTS ?? 6);
+    const delays = [5, 30, 120, 600, 1800, 3600];
+    const exhausted = Number(delivery.attempts) >= maxAttempts;
+    const delaySeconds = delays[Math.min(Math.max(Number(delivery.attempts) - 1, 0), delays.length - 1)];
+    const statusCode = Number(error?.statusCode) || null;
+    const responseBody = typeof error?.responseBody === 'string' ? error.responseBody.slice(0, 4000) : null;
+    const lastError = String(error?.message ?? error).slice(0, 2000);
+
+    await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = $1,
+           next_attempt_at = CASE WHEN $1 = 'queued'
+             THEN now() + ($2 * interval '1 second')
+             ELSE next_attempt_at END,
+           response_status = $3,
+           response_body = $4,
+           last_error = $5,
+           failed_at = CASE WHEN $1 = 'failed' THEN now() ELSE NULL END,
+           worker_id = CASE WHEN $1 = 'queued' THEN NULL ELSE worker_id END,
+           claimed_at = CASE WHEN $1 = 'queued' THEN NULL ELSE claimed_at END,
+           updated_at = now()
+       WHERE id = $6`,
+      [exhausted ? 'failed' : 'queued', delaySeconds, statusCode, responseBody, lastError, delivery.id],
+    );
+
+    await this.pool.query(
+      `UPDATE webhook_endpoints
+       SET consecutive_failures = consecutive_failures + 1,
+           last_failure_at = now(),
+           updated_at = now()
+       WHERE id = $1`,
+      [delivery.endpoint_id],
+    );
+  }
+
   async completeCommand(commandId) {
     await this.pool.query(
       `UPDATE whatsapp_session_commands
