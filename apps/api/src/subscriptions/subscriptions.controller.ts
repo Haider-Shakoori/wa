@@ -10,6 +10,12 @@ import { SubscriptionsService } from './subscriptions.service';
 export class SubscriptionsController {
   constructor(private readonly subscriptions: SubscriptionsService) {}
 
+  @Get('plans')
+  @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
+  plans() {
+    return this.subscriptions.listPlans();
+  }
+
   @Get('subscription')
   @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
   summary(@Req() request: AuthenticatedRequest) {
