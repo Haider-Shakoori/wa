@@ -6,8 +6,10 @@ import makeWASocket, {
 import pino from 'pino';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { syncSessionProfile } from './profile-sync.js';
 
 const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'silent' });
+const RECONNECT_DELAYS_MS = [1500, 3000, 7000, 15000, 30000];
 
 export class BaileysSessionManager {
   constructor({ store, authRoot }) {
@@ -15,6 +17,8 @@ export class BaileysSessionManager {
     this.authRoot = authRoot;
     this.sockets = new Map();
     this.heartbeats = new Map();
+    this.reconnectTimers = new Map();
+    this.profileControllers = new Map();
   }
 
   authPath(sessionId) {
@@ -24,6 +28,8 @@ export class BaileysSessionManager {
 
   async connect(sessionId) {
     if (this.sockets.has(sessionId)) return;
+    this.clearReconnect(sessionId);
+
     const authPath = this.authPath(sessionId);
     await mkdir(authPath, { recursive: true });
 
@@ -43,6 +49,12 @@ export class BaileysSessionManager {
     this.sockets.set(sessionId, socket);
     socket.ev.on('creds.update', saveCreds);
 
+    socket.ev.on('contacts.upsert', async (contacts) => {
+      for (const contact of contacts) {
+        await this.store.updateProfileFromContact(sessionId, contact);
+      }
+    });
+
     socket.ev.on('connection.update', async (update) => {
       try {
         if (update.qr) {
@@ -50,37 +62,54 @@ export class BaileysSessionManager {
         }
 
         if (update.connection === 'open') {
-          const jid = socket.user?.id ?? null;
-          const phoneNumber = jid ? jid.split(':')[0].split('@')[0] : null;
-          const displayName = socket.user?.name ?? null;
-          await this.store.setStatus(sessionId, 'connected', {
-            phoneNumber,
-            displayName,
-            clearQr: true,
+          const profileController = new AbortController();
+          this.cancelProfileSync(sessionId);
+          this.profileControllers.set(sessionId, profileController);
+
+          const identity = await syncSessionProfile({
+            sessionId,
+            socket,
+            store: this.store,
+            signal: profileController.signal,
           });
-          await this.store.event(sessionId, 'session.connected', { phoneNumber, displayName });
+
+          await this.store.setStatus(sessionId, 'connected', {
+            ...identity,
+            clearQr: true,
+            resetReconnectAttempts: true,
+          });
+          await this.store.event(sessionId, 'session.connected', identity);
           this.startHeartbeat(sessionId);
         }
 
         if (update.connection === 'close') {
           this.stopHeartbeat(sessionId);
+          this.cancelProfileSync(sessionId);
           this.sockets.delete(sessionId);
+
+          const error = update.lastDisconnect?.error ?? null;
           const code =
-            update.lastDisconnect?.error?.output?.statusCode ??
-            update.lastDisconnect?.error?.statusCode ??
+            error?.output?.statusCode ??
+            error?.statusCode ??
             null;
           const loggedOut = code === DisconnectReason.loggedOut;
 
-          await this.store.setStatus(
-            sessionId,
-            loggedOut ? 'logged_out' : 'disconnected',
-            { clearQr: true },
-          );
-          await this.store.event(
-            sessionId,
-            loggedOut ? 'session.logged_out' : 'session.disconnected',
-            { code },
-          );
+          if (loggedOut) {
+            await this.store.setStatus(sessionId, 'logged_out', {
+              clearQr: true,
+              lastConnectionError: error?.message ?? null,
+            });
+            await this.store.event(sessionId, 'session.logged_out', { code });
+            return;
+          }
+
+          await this.store.setStatus(sessionId, 'reconnecting', {
+            clearQr: true,
+            lastConnectionError: error?.message ?? null,
+          });
+          await this.store.incrementReconnect(sessionId, error);
+          await this.store.event(sessionId, 'session.reconnecting', { code });
+          this.scheduleReconnect(sessionId);
         }
       } catch (error) {
         logger.error({ err: error, sessionId }, 'connection update handler failed');
@@ -108,9 +137,40 @@ export class BaileysSessionManager {
 
   async disconnectRuntime(sessionId) {
     this.stopHeartbeat(sessionId);
+    this.clearReconnect(sessionId);
+    this.cancelProfileSync(sessionId);
     const socket = this.sockets.get(sessionId);
     this.sockets.delete(sessionId);
     if (socket) socket.end(undefined);
+  }
+
+  scheduleReconnect(sessionId) {
+    this.clearReconnect(sessionId);
+    const attempt = Math.min(
+      Number(process.env.WA_RECONNECT_ATTEMPT_HINT ?? 0),
+      RECONNECT_DELAYS_MS.length - 1,
+    );
+    const delay = RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_DELAYS_MS.at(-1);
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(sessionId);
+      this.connect(sessionId).catch((error) =>
+        logger.error({ err: error, sessionId }, 'automatic reconnect failed'),
+      );
+    }, delay);
+    timer.unref();
+    this.reconnectTimers.set(sessionId, timer);
+  }
+
+  clearReconnect(sessionId) {
+    const timer = this.reconnectTimers.get(sessionId);
+    if (timer) clearTimeout(timer);
+    this.reconnectTimers.delete(sessionId);
+  }
+
+  cancelProfileSync(sessionId) {
+    const controller = this.profileControllers.get(sessionId);
+    controller?.abort();
+    this.profileControllers.delete(sessionId);
   }
 
   startHeartbeat(sessionId) {
