@@ -4,12 +4,12 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { syncSessionProfile } from './profile-sync.js';
 
 const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'silent' });
-const RECONNECT_DELAYS_MS = [1500, 3000, 7000, 15000, 30000];
+const RECONNECT_DELAYS_MS = [1500, 3000, 7000, 15000, 30000, 60000];
 
 export class BaileysSessionManager {
   constructor({ store, authRoot }) {
@@ -26,15 +26,27 @@ export class BaileysSessionManager {
     return join(this.authRoot, sessionId);
   }
 
-  async connect(sessionId) {
+  async restore(sessionId) {
+    return this.connect(sessionId, { recovery: true });
+  }
+
+  async connect(sessionId, { recovery = false } = {}) {
     if (this.sockets.has(sessionId)) return;
     this.clearReconnect(sessionId);
 
     const authPath = this.authPath(sessionId);
     await mkdir(authPath, { recursive: true });
 
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
-    await this.store.setStatus(sessionId, 'connecting');
+    let state;
+    let saveCreds;
+    try {
+      ({ state, saveCreds } = await useMultiFileAuthState(authPath));
+    } catch (error) {
+      await this.quarantineAuth(sessionId, error);
+      return;
+    }
+
+    await this.store.setStatus(sessionId, recovery ? 'reconnecting' : 'connecting');
 
     const socket = makeWASocket({
       auth: state,
@@ -57,9 +69,7 @@ export class BaileysSessionManager {
 
     socket.ev.on('connection.update', async (update) => {
       try {
-        if (update.qr) {
-          await this.store.setQr(sessionId, update.qr);
-        }
+        if (update.qr) await this.store.setQr(sessionId, update.qr);
 
         if (update.connection === 'open') {
           const profileController = new AbortController();
@@ -88,10 +98,7 @@ export class BaileysSessionManager {
           this.sockets.delete(sessionId);
 
           const error = update.lastDisconnect?.error ?? null;
-          const code =
-            error?.output?.statusCode ??
-            error?.statusCode ??
-            null;
+          const code = error?.output?.statusCode ?? error?.statusCode ?? null;
           const loggedOut = code === DisconnectReason.loggedOut;
 
           if (loggedOut) {
@@ -103,13 +110,13 @@ export class BaileysSessionManager {
             return;
           }
 
+          const reconnectAttempts = await this.store.incrementReconnect(sessionId, error);
           await this.store.setStatus(sessionId, 'reconnecting', {
             clearQr: true,
             lastConnectionError: error?.message ?? null,
           });
-          await this.store.incrementReconnect(sessionId, error);
-          await this.store.event(sessionId, 'session.reconnecting', { code });
-          this.scheduleReconnect(sessionId);
+          await this.store.event(sessionId, 'session.reconnecting', { code, reconnectAttempts });
+          this.scheduleReconnect(sessionId, reconnectAttempts);
         }
       } catch (error) {
         logger.error({ err: error, sessionId }, 'connection update handler failed');
@@ -117,10 +124,26 @@ export class BaileysSessionManager {
     });
   }
 
+  async quarantineAuth(sessionId, error) {
+    const authPath = this.authPath(sessionId);
+    const quarantinePath = `${authPath}.corrupt-${Date.now()}`;
+    try {
+      await rename(authPath, quarantinePath);
+    } catch {
+      await rm(authPath, { recursive: true, force: true });
+    }
+    await mkdir(authPath, { recursive: true });
+    await this.store.setStatus(sessionId, 'need_scan', {
+      clearQr: true,
+      lastConnectionError: `auth_corrupt: ${String(error?.message ?? error).slice(0, 500)}`,
+    });
+    await this.store.event(sessionId, 'session.auth_corrupt', {});
+  }
+
   async restart(sessionId) {
     await this.disconnectRuntime(sessionId);
     await this.store.setStatus(sessionId, 'reconnecting', { clearQr: true });
-    await this.connect(sessionId);
+    await this.connect(sessionId, { recovery: true });
   }
 
   async logout(sessionId) {
@@ -144,16 +167,13 @@ export class BaileysSessionManager {
     if (socket) socket.end(undefined);
   }
 
-  scheduleReconnect(sessionId) {
+  scheduleReconnect(sessionId, reconnectAttempts = 1) {
     this.clearReconnect(sessionId);
-    const attempt = Math.min(
-      Number(process.env.WA_RECONNECT_ATTEMPT_HINT ?? 0),
-      RECONNECT_DELAYS_MS.length - 1,
-    );
-    const delay = RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_DELAYS_MS.at(-1);
+    const index = Math.min(Math.max(reconnectAttempts - 1, 0), RECONNECT_DELAYS_MS.length - 1);
+    const delay = RECONNECT_DELAYS_MS[index];
     const timer = setTimeout(() => {
       this.reconnectTimers.delete(sessionId);
-      this.connect(sessionId).catch((error) =>
+      this.connect(sessionId, { recovery: true }).catch((error) =>
         logger.error({ err: error, sessionId }, 'automatic reconnect failed'),
       );
     }, delay);
