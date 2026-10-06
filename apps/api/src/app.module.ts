@@ -10,6 +10,7 @@ import { DirectoryModule } from './directory/directory.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     WebhooksModule,
     ApiKeysModule,
     SubscriptionsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
 })
