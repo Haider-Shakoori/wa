@@ -9,6 +9,7 @@ import { MessagesModule } from './messages/messages.module';
 import { DirectoryModule } from './directory/directory.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
     DirectoryModule,
     WebhooksModule,
     ApiKeysModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
 })
