@@ -7,11 +7,11 @@ import { SESSION_LEASE_MS } from './session-runtime.js';
 import { SessionStore } from './session-store.js';
 
 export const workerIdentity = Object.freeze({
-  service: 'wa-worker',
+  service: 'relaywa-worker',
   role: 'session-runtime',
-  workerId: process.env.WORKER_ID ?? `wa-worker-${randomUUID().slice(0, 8)}`,
+  workerId: process.env.WORKER_ID ?? `relaywa-worker-${randomUUID().slice(0, 8)}`,
   leaseMs: SESSION_LEASE_MS,
-  status: 'recovery-ready',
+  status: 'relay-ready',
 });
 
 export async function startWorker() {

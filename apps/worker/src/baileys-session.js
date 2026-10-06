@@ -50,7 +50,7 @@ export class BaileysSessionManager {
 
     const socket = makeWASocket({
       auth: state,
-      browser: Browsers.ubuntu('BusinessOS WA'),
+      browser: Browsers.ubuntu('relayWA'),
       logger,
       printQRInTerminal: false,
       markOnlineOnConnect: false,
@@ -122,6 +122,23 @@ export class BaileysSessionManager {
         logger.error({ err: error, sessionId }, 'connection update handler failed');
       }
     });
+  }
+
+  async sendText(sessionId, message) {
+    const socket = this.sockets.get(sessionId);
+    if (!socket) throw new Error('Session socket is not active');
+
+    const result = await socket.sendMessage(message.recipient_jid, {
+      text: message.text_body,
+    });
+    const providerMessageId = result?.key?.id ?? null;
+    await this.store.markMessageSent(message.id, providerMessageId);
+    await this.store.event(sessionId, 'message.sent', {
+      messageId: message.id,
+      providerMessageId,
+      recipient: message.recipient_phone,
+    });
+    return { providerMessageId };
   }
 
   async quarantineAuth(sessionId, error) {

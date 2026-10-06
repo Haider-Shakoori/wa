@@ -5,9 +5,10 @@ export class AppController {
   @Get('health')
   health() {
     return {
-      service: 'wa-api',
+      service: 'relaywa-api',
+      brand: 'relayWA',
       status: 'ok',
-      architecture: 'wasender-style-session-gateway',
+      architecture: 'whatsapp-session-relay',
     };
   }
 }

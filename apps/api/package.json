@@ -1,6 +1,6 @@
 {
   "name": "@wa/api",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
     "start": "node dist/main.js",
-    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_auth_tenancy.sql && psql \"$DATABASE_URL\" -f migrations/002_rbac_platform_admin.sql && psql \"$DATABASE_URL\" -f migrations/003_whatsapp_sessions.sql && psql \"$DATABASE_URL\" -f migrations/004_linked_device_qr.sql && psql \"$DATABASE_URL\" -f migrations/005_connection_profile_sync.sql && psql \"$DATABASE_URL\" -f migrations/006_session_recovery.sql"
+    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_auth_tenancy.sql && psql \"$DATABASE_URL\" -f migrations/002_rbac_platform_admin.sql && psql \"$DATABASE_URL\" -f migrations/003_whatsapp_sessions.sql && psql \"$DATABASE_URL\" -f migrations/004_linked_device_qr.sql && psql \"$DATABASE_URL\" -f migrations/005_connection_profile_sync.sql && psql \"$DATABASE_URL\" -f migrations/006_session_recovery.sql && psql \"$DATABASE_URL\" -f migrations/007_outbound_messages.sql"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",
