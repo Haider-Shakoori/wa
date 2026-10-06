@@ -171,16 +171,16 @@ export class SessionStore {
 
     await this.pool.query(
       `UPDATE whatsapp_sessions
-       SET status = $1,
+       SET status = $1::varchar(24),
            phone_number = COALESCE($2, phone_number),
            display_name = COALESCE($3, display_name),
            whatsapp_jid = COALESCE($4, whatsapp_jid),
            profile_picture_url = COALESCE($5, profile_picture_url),
            qr_code = CASE WHEN $6 THEN NULL ELSE qr_code END,
            qr_expires_at = CASE WHEN $6 THEN NULL ELSE qr_expires_at END,
-           connection_opened_at = CASE WHEN $1 = 'connected' THEN now() ELSE connection_opened_at END,
-           last_connected_at = CASE WHEN $1 = 'connected' THEN now() ELSE last_connected_at END,
-           last_disconnected_at = CASE WHEN $1 IN ('disconnected','logged_out','error') THEN now() ELSE last_disconnected_at END,
+           connection_opened_at = CASE WHEN $1::varchar(24) = 'connected' THEN now() ELSE connection_opened_at END,
+           last_connected_at = CASE WHEN $1::varchar(24) = 'connected' THEN now() ELSE last_connected_at END,
+           last_disconnected_at = CASE WHEN $1::varchar(24) IN ('disconnected','logged_out','error') THEN now() ELSE last_disconnected_at END,
            last_connection_error = $7,
            reconnect_attempts = CASE WHEN $8 THEN 0 ELSE reconnect_attempts END,
            updated_at = now()
@@ -430,9 +430,9 @@ export class SessionStore {
   async markMessageAttemptFailed(messageId, error, retrying) {
     await this.pool.query(
       `UPDATE whatsapp_messages
-       SET status = $1,
+       SET status = $1::varchar(24),
            last_error = $2,
-           next_attempt_at = CASE WHEN $1 = 'retrying' THEN now() ELSE next_attempt_at END,
+           next_attempt_at = CASE WHEN $1::varchar(24) = 'retrying' THEN now() ELSE next_attempt_at END,
            updated_at = now()
        WHERE id = $3 AND worker_id = $4`,
       [retrying ? 'retrying' : 'failed', String(error?.message ?? error).slice(0, 2000), messageId, this.workerId],
@@ -664,16 +664,16 @@ export class SessionStore {
 
     await this.pool.query(
       `UPDATE webhook_deliveries
-       SET status = $1,
-           next_attempt_at = CASE WHEN $1 = 'queued'
+       SET status = $1::varchar(24),
+           next_attempt_at = CASE WHEN $1::varchar(24) = 'queued'
              THEN now() + ($2 * interval '1 second')
              ELSE next_attempt_at END,
            response_status = $3,
            response_body = $4,
            last_error = $5,
-           failed_at = CASE WHEN $1 = 'failed' THEN now() ELSE NULL END,
-           worker_id = CASE WHEN $1 = 'queued' THEN NULL ELSE worker_id END,
-           claimed_at = CASE WHEN $1 = 'queued' THEN NULL ELSE claimed_at END,
+           failed_at = CASE WHEN $1::varchar(24) = 'failed' THEN now() ELSE NULL END,
+           worker_id = CASE WHEN $1::varchar(24) = 'queued' THEN NULL ELSE worker_id END,
+           claimed_at = CASE WHEN $1::varchar(24) = 'queued' THEN NULL ELSE claimed_at END,
            updated_at = now()
        WHERE id = $6`,
       [exhausted ? 'failed' : 'queued', delaySeconds, statusCode, responseBody, lastError, delivery.id],
