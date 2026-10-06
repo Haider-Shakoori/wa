@@ -78,7 +78,20 @@ export class BaileysSessionManager {
 
     socket.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {
+        await this.store.upsertContact(sessionId, contact);
         await this.store.updateProfileFromContact(sessionId, contact);
+      }
+    });
+
+    socket.ev.on('chats.upsert', async (chats) => {
+      for (const chat of chats) {
+        await this.store.upsertChat(sessionId, chat);
+      }
+    });
+
+    socket.ev.on('groups.upsert', async (groups) => {
+      for (const group of groups) {
+        await this.store.upsertGroup(sessionId, group);
       }
     });
 

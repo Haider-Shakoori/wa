@@ -6,6 +6,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { PlatformAdminModule } from './platform/platform-admin.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
+import { DirectoryModule } from './directory/directory.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MessagesModule } from './messages/messages.module';
     PlatformAdminModule,
     SessionsModule,
     MessagesModule,
+    DirectoryModule,
   ],
   controllers: [AppController],
 })

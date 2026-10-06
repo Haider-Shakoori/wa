@@ -215,6 +215,99 @@ export class SessionStore {
     );
   }
 
+  async upsertContact(sessionId, contact) {
+    if (!contact?.id) return;
+    const phoneNumber = contact.id.endsWith('@g.us') ? null : contact.id.split('@')[0].split(':')[0];
+    await this.pool.query(
+      `INSERT INTO whatsapp_contacts
+        (session_id, organization_id, jid, phone_number, display_name,
+         notify_name, verified_name, is_business, updated_at)
+       SELECT id, organization_id, $2, $3, $4, $5, $6, $7, now()
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $8 AND deleted_at IS NULL
+       ON CONFLICT (session_id, jid)
+       DO UPDATE SET
+         phone_number = EXCLUDED.phone_number,
+         display_name = COALESCE(EXCLUDED.display_name, whatsapp_contacts.display_name),
+         notify_name = COALESCE(EXCLUDED.notify_name, whatsapp_contacts.notify_name),
+         verified_name = COALESCE(EXCLUDED.verified_name, whatsapp_contacts.verified_name),
+         is_business = EXCLUDED.is_business,
+         updated_at = now()`,
+      [
+        sessionId,
+        contact.id,
+        phoneNumber,
+        contact.name?.trim() || null,
+        contact.notify?.trim() || null,
+        contact.verifiedName?.trim() || null,
+        Boolean(contact.businessName || contact.verifiedName),
+        this.workerId,
+      ],
+    );
+  }
+
+  async upsertChat(sessionId, chat) {
+    if (!chat?.id) return;
+    const chatType = chat.id.endsWith('@g.us') ? 'group' : 'direct';
+    const lastMessageAt = chat.conversationTimestamp
+      ? new Date(Number(chat.conversationTimestamp) * 1000).toISOString()
+      : null;
+    await this.pool.query(
+      `INSERT INTO whatsapp_chats
+        (session_id, organization_id, jid, chat_type, name, unread_count,
+         last_message_at, updated_at)
+       SELECT id, organization_id, $2, $3, $4, $5, $6::timestamptz, now()
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $7 AND deleted_at IS NULL
+       ON CONFLICT (session_id, jid)
+       DO UPDATE SET
+         chat_type = EXCLUDED.chat_type,
+         name = COALESCE(EXCLUDED.name, whatsapp_chats.name),
+         unread_count = EXCLUDED.unread_count,
+         last_message_at = COALESCE(EXCLUDED.last_message_at, whatsapp_chats.last_message_at),
+         updated_at = now()`,
+      [
+        sessionId,
+        chat.id,
+        chatType,
+        chat.name?.trim() || null,
+        Number(chat.unreadCount ?? 0),
+        lastMessageAt,
+        this.workerId,
+      ],
+    );
+  }
+
+  async upsertGroup(sessionId, group) {
+    if (!group?.id) return;
+    await this.pool.query(
+      `INSERT INTO whatsapp_groups
+        (session_id, organization_id, jid, subject, owner_jid,
+         participant_count, announce, restrict_members, updated_at)
+       SELECT id, organization_id, $2, $3, $4, $5, $6, $7, now()
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $8 AND deleted_at IS NULL
+       ON CONFLICT (session_id, jid)
+       DO UPDATE SET
+         subject = COALESCE(EXCLUDED.subject, whatsapp_groups.subject),
+         owner_jid = COALESCE(EXCLUDED.owner_jid, whatsapp_groups.owner_jid),
+         participant_count = EXCLUDED.participant_count,
+         announce = EXCLUDED.announce,
+         restrict_members = EXCLUDED.restrict_members,
+         updated_at = now()`,
+      [
+        sessionId,
+        group.id,
+        group.subject?.trim() || null,
+        group.owner || null,
+        Array.isArray(group.participants) ? group.participants.length : Number(group.size ?? 0),
+        Boolean(group.announce),
+        Boolean(group.restrict),
+        this.workerId,
+      ],
+    );
+  }
+
   async updateProfileFromContact(sessionId, contact) {
     if (!contact?.id) return;
     const result = await this.pool.query(
