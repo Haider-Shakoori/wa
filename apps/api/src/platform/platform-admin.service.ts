@@ -52,6 +52,36 @@ export class PlatformAdminService {
     return result.rows;
   }
 
+  async sessions() {
+    const result = await this.db.query(
+      `SELECT ws.id, ws.organization_id, o.name AS organization_name,
+              ws.name, ws.phone_number, ws.display_name, ws.status,
+              ws.worker_id, ws.last_connected_at, ws.last_disconnected_at,
+              ws.last_connection_error, ws.created_at, ws.updated_at
+       FROM whatsapp_sessions ws
+       JOIN organizations o ON o.id = ws.organization_id
+       WHERE ws.deleted_at IS NULL
+       ORDER BY ws.updated_at DESC
+       LIMIT 300`,
+    );
+    return result.rows;
+  }
+
+  async subscriptions() {
+    const result = await this.db.query(
+      `SELECT s.organization_id, o.name AS organization_name, s.plan_code,
+              s.status, s.current_period_start, s.current_period_end,
+              s.trial_ends_at, s.cancel_at_period_end, s.provider,
+              p.max_sessions, p.monthly_messages, p.max_api_keys
+       FROM organization_subscriptions s
+       JOIN organizations o ON o.id = s.organization_id
+       JOIN subscription_plans p ON p.code = s.plan_code
+       ORDER BY s.updated_at DESC
+       LIMIT 300`,
+    );
+    return result.rows;
+  }
+
   async workers() {
     const result = await this.db.query(
       `SELECT worker_id,
