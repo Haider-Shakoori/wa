@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsInt,
   IsLatitude,
   IsLongitude,
@@ -24,6 +25,22 @@ class BaseRecipientDto {
   @IsString()
   @MaxLength(120)
   clientMessageId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  priority?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  maxAttempts?: number;
 }
 
 export class SendReplyDto extends BaseRecipientDto {

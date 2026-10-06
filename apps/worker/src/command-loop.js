@@ -10,22 +10,6 @@ export async function runCommandLoop({ store, sessions, signal }) {
       continue;
     }
 
-    const message = await store.claimNextOutboundMessage();
-    if (message) {
-      try {
-        if (message.message_type === 'text') {
-          await sessions.sendText(message.session_id, message);
-        } else if (['image', 'video', 'audio', 'document'].includes(message.message_type)) {
-          await sessions.sendMedia(message.session_id, message);
-        } else {
-          await sessions.sendAction(message.session_id, message);
-        }
-      } catch (error) {
-        await store.markMessageFailed(message.id, error);
-      }
-      continue;
-    }
-
     await store.enqueueWebhookDeliveries();
     const delivery = await store.claimNextWebhookDelivery();
     if (delivery) {

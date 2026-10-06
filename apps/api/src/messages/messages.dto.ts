@@ -1,6 +1,35 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
-export class SendTextMessageDto {
+class DispatchOptionsDto {
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  priority?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  maxAttempts?: number;
+}
+
+export class SendTextMessageDto extends DispatchOptionsDto {
   @IsString()
   @MinLength(7)
   @MaxLength(32)
@@ -17,9 +46,7 @@ export class SendTextMessageDto {
   clientMessageId?: string;
 }
 
-import { IsBoolean, IsInt, IsUrl } from 'class-validator';
-
-export class SendMediaMessageDto {
+export class SendMediaMessageDto extends DispatchOptionsDto {
   @IsString()
   @MinLength(7)
   @MaxLength(32)
