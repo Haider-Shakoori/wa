@@ -39,9 +39,12 @@ try {
       [userId, email, name, passwordHash],
     )).rows[0];
   } else {
+    const passwordHash = await hash(password, 12);
     await client.query(
-      'UPDATE users SET is_platform_admin = true, updated_at = now() WHERE id = $1',
-      [user.id],
+      `UPDATE users
+       SET is_platform_admin = true, name = $1, password_hash = $2, updated_at = now()
+       WHERE id = $3`,
+      [name, passwordHash, user.id],
     );
   }
 
@@ -77,6 +80,14 @@ try {
     );
     membership = { id: membershipId, organization_id: organizationId };
   }
+
+  await client.query(
+    `INSERT INTO organization_subscriptions
+      (organization_id, plan_code, status, current_period_start, current_period_end, trial_ends_at)
+     VALUES ($1,'trial','trialing',now(),now() + interval '7 days',now() + interval '7 days')
+     ON CONFLICT (organization_id) DO NOTHING`,
+    [membership.organization_id],
+  );
 
   await client.query('COMMIT');
 
