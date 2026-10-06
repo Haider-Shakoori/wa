@@ -10,6 +10,7 @@ export default function PlatformPage() {
   const [workers,setWorkers] = useState<any[]>([]);
   const [queues,setQueues] = useState<any>(null);
   const [errors,setErrors] = useState<any>(null);
+  const [payments,setPayments] = useState<any[]>([]);
   const [error,setError] = useState('');
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
@@ -18,14 +19,15 @@ export default function PlatformPage() {
     if (!current) return;
     setError('');
     try {
-      const [o,t,w,q,e] = await Promise.all([
+      const [o,t,w,q,e,p] = await Promise.all([
         api('/v1/platform/overview',current),
         api('/v1/platform/tenants',current),
         api('/v1/platform/workers',current),
         api('/v1/platform/queues',current),
         api('/v1/platform/errors',current),
+        api('/v1/platform/payments',current),
       ]);
-      setOverview(o); setTenants(t as any[]); setWorkers(w as any[]); setQueues(q); setErrors(e);
+      setOverview(o); setTenants(t as any[]); setWorkers(w as any[]); setQueues(q); setErrors(e); setPayments(p as any[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
     }
@@ -60,6 +62,14 @@ export default function PlatformPage() {
       <div className="activity-table">
         <div className="table-row table-head"><span>Name</span><span>Plan</span><span>Sessions</span><span>Subscription</span></div>
         {tenants.map((t)=><div className="table-row" key={t.id}><span>{t.name}</span><span>{t.plan_code ?? '—'}</span><span>{t.sessions}</span><span>{t.subscription_status ?? '—'}</span></div>)}
+      </div>
+    </section>
+
+    <section className="panel" style={{marginTop:14}}>
+      <div className="panel-head"><div><p className="eyebrow">Revenue operations</p><h2>Recent payments</h2></div></div>
+      <div className="activity-table">
+        <div className="table-row table-head"><span>Organization</span><span>Provider</span><span>Plan</span><span>Status</span></div>
+        {payments.map((p)=><div className="table-row" key={p.id}><span>{p.organization_name}</span><span>{p.provider}</span><span>{p.plan_code}</span><span>{p.status}</span></div>)}
       </div>
     </section>
 
