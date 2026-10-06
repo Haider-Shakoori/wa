@@ -94,6 +94,9 @@ export class SessionsService {
     action: 'connect' | 'restart' | 'logout',
   ) {
     await this.get(organizationId, sessionId);
+    if (action !== 'logout') {
+      await this.subscriptions.assertActive(organizationId);
+    }
     const commandId = randomUUID();
 
     await this.db.query(
