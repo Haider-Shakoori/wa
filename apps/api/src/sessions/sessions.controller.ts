@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, Sse, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
@@ -6,6 +6,7 @@ import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { QrService } from './qr.service';
 import { CreateSessionDto } from './sessions.dto';
 import { SessionsService } from './sessions.service';
+import { EventsService } from './events.service';
 
 @Controller('v1/sessions')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -13,6 +14,7 @@ export class SessionsController {
   constructor(
     private readonly sessions: SessionsService,
     private readonly qr: QrService,
+    private readonly events: EventsService,
   ) {}
 
   @Get()
@@ -25,6 +27,15 @@ export class SessionsController {
   @RequirePermissions(PERMISSIONS.SESSIONS_MANAGE)
   create(@Req() request: AuthenticatedRequest, @Body() body: CreateSessionDto) {
     return this.sessions.create(request.auth.org, request.auth.sub, body);
+  }
+
+  @Sse(':sessionId/events')
+  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  streamEvents(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.events.stream(request.auth.org, sessionId);
   }
 
   @Get(':sessionId/qr')
