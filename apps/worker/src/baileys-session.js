@@ -7,7 +7,7 @@ import pino from 'pino';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'warn' });
+const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'silent' });
 
 export class BaileysSessionManager {
   constructor({ store, authRoot }) {
@@ -37,6 +37,7 @@ export class BaileysSessionManager {
       printQRInTerminal: false,
       markOnlineOnConnect: false,
       syncFullHistory: false,
+      shouldSyncHistoryMessage: () => false,
     });
 
     this.sockets.set(sessionId, socket);
