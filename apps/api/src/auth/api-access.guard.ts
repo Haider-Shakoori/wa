@@ -41,6 +41,7 @@ export class ApiAccessGuard implements CanActivate {
         session_id: string | null;
         scopes: string[];
         token_type: 'organization' | 'session';
+        created_by_user_id: string;
       }>(
         `UPDATE api_keys
          SET last_used_at = now(), updated_at = now()
@@ -48,7 +49,7 @@ export class ApiAccessGuard implements CanActivate {
            AND enabled = true
            AND revoked_at IS NULL
            AND (expires_at IS NULL OR expires_at > now())
-         RETURNING id, organization_id, session_id, scopes, token_type`,
+         RETURNING id, organization_id, session_id, scopes, token_type, created_by_user_id`,
         [hash],
       );
       const key = result.rows[0];
@@ -56,7 +57,7 @@ export class ApiAccessGuard implements CanActivate {
 
       request.auth = {
         kind: 'api_key',
-        sub: key.id,
+        sub: key.created_by_user_id,
         org: key.organization_id,
         membership: key.id,
         apiKeyId: key.id,
