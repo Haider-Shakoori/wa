@@ -87,6 +87,19 @@ export class PlatformAdminService {
     return { messages: messages.rows, webhooks: webhooks.rows, commands: commands.rows };
   }
 
+  async payments() {
+    const result = await this.db.query(
+      `SELECT p.id, p.organization_id, o.name AS organization_name,
+              p.plan_code, p.provider, p.billing_interval, p.status,
+              p.amount_cents, p.currency, p.manual_reference, p.paid_at, p.created_at
+       FROM payments p
+       JOIN organizations o ON o.id = p.organization_id
+       ORDER BY p.created_at DESC
+       LIMIT 200`,
+    );
+    return result.rows;
+  }
+
   async recentErrors() {
     const [sessions, messages, webhooks] = await Promise.all([
       this.db.query(
