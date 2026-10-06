@@ -48,3 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_org_subscriptions_status
 
 CREATE INDEX IF NOT EXISTS idx_subscription_usage_org_period
   ON subscription_usage (organization_id, period_start);
+
+INSERT INTO organization_subscriptions
+  (organization_id, plan_code, status, current_period_start, current_period_end, trial_ends_at)
+SELECT id, 'trial', 'trialing', now(), now() + interval '7 days', now() + interval '7 days'
+FROM organizations
+ON CONFLICT (organization_id) DO NOTHING;
