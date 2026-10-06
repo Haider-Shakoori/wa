@@ -1,12 +1,12 @@
 {
   "name": "@wa/worker",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
     "build": "node scripts/build.mjs",
-    "typecheck": "node --check src/index.js && node --check src/session-runtime.js && node --check src/session-store.js && node --check src/baileys-session.js && node --check src/command-loop.js",
+    "typecheck": "node --check src/index.js && node --check src/session-runtime.js && node --check src/session-store.js && node --check src/baileys-session.js && node --check src/command-loop.js && node --check src/profile-sync.js",
     "test": "node --test test/*.test.mjs",
     "start": "node dist/index.js"
   },

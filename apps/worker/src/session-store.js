@@ -97,7 +97,11 @@ export class SessionStore {
     const {
       phoneNumber = null,
       displayName = null,
+      jid = null,
+      profilePictureUrl = null,
       clearQr = false,
+      lastConnectionError = null,
+      resetReconnectAttempts = false,
     } = details;
 
     await this.pool.query(
@@ -105,13 +109,89 @@ export class SessionStore {
        SET status = $1,
            phone_number = COALESCE($2, phone_number),
            display_name = COALESCE($3, display_name),
-           qr_code = CASE WHEN $4 THEN NULL ELSE qr_code END,
-           qr_expires_at = CASE WHEN $4 THEN NULL ELSE qr_expires_at END,
+           whatsapp_jid = COALESCE($4, whatsapp_jid),
+           profile_picture_url = COALESCE($5, profile_picture_url),
+           qr_code = CASE WHEN $6 THEN NULL ELSE qr_code END,
+           qr_expires_at = CASE WHEN $6 THEN NULL ELSE qr_expires_at END,
+           connection_opened_at = CASE WHEN $1 = 'connected' THEN now() ELSE connection_opened_at END,
            last_connected_at = CASE WHEN $1 = 'connected' THEN now() ELSE last_connected_at END,
            last_disconnected_at = CASE WHEN $1 IN ('disconnected','logged_out','error') THEN now() ELSE last_disconnected_at END,
+           last_connection_error = $7,
+           reconnect_attempts = CASE WHEN $8 THEN 0 ELSE reconnect_attempts END,
+           updated_at = now()
+       WHERE id = $9 AND worker_id = $10`,
+      [
+        status,
+        phoneNumber,
+        displayName,
+        jid,
+        profilePictureUrl,
+        clearQr,
+        lastConnectionError,
+        resetReconnectAttempts,
+        sessionId,
+        this.workerId,
+      ],
+    );
+  }
+
+  async syncProfile(sessionId, profile) {
+    const {
+      jid = null,
+      phoneNumber = null,
+      displayName = null,
+      profilePictureUrl = null,
+    } = profile;
+
+    await this.pool.query(
+      `UPDATE whatsapp_sessions
+       SET whatsapp_jid = COALESCE($1, whatsapp_jid),
+           phone_number = COALESCE($2, phone_number),
+           display_name = COALESCE($3, display_name),
+           profile_picture_url = COALESCE($4, profile_picture_url),
+           profile_synced_at = now(),
            updated_at = now()
        WHERE id = $5 AND worker_id = $6`,
-      [status, phoneNumber, displayName, clearQr, sessionId, this.workerId],
+      [jid, phoneNumber, displayName, profilePictureUrl, sessionId, this.workerId],
+    );
+  }
+
+  async updateProfileFromContact(sessionId, contact) {
+    if (!contact?.id) return;
+    const result = await this.pool.query(
+      `SELECT whatsapp_jid
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId, this.workerId],
+    );
+    const sessionJid = result.rows[0]?.whatsapp_jid;
+    if (!sessionJid || sessionJid !== contact.id) return;
+
+    const displayName =
+      contact.name?.trim() ||
+      contact.notify?.trim() ||
+      contact.verifiedName?.trim() ||
+      null;
+
+    if (displayName) {
+      await this.pool.query(
+        `UPDATE whatsapp_sessions
+         SET display_name = $1, profile_synced_at = now(), updated_at = now()
+         WHERE id = $2 AND worker_id = $3`,
+        [displayName, sessionId, this.workerId],
+      );
+    }
+  }
+
+  async incrementReconnect(sessionId, error) {
+    await this.pool.query(
+      `UPDATE whatsapp_sessions
+       SET reconnect_attempts = reconnect_attempts + 1,
+           last_connection_error = $1,
+           updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [String(error?.message ?? error ?? '').slice(0, 2000) || null, sessionId, this.workerId],
     );
   }
 
