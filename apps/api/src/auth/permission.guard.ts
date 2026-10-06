@@ -24,20 +24,21 @@ export class PermissionGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<ApiAuthenticatedRequest>();
     if ('scopes' in request.auth && request.auth.kind === 'api_key') {
+      const apiAuth = request.auth;
       const requiredScopes = required.map((permission) => PERMISSION_TO_API_SCOPE[permission]);
       if (requiredScopes.some((scope) => !scope)) {
         throw new ForbiddenException('This operation requires dashboard user authentication');
       }
-      if (!requiredScopes.every((scope) => request.auth.scopes.includes(scope!))) {
+      if (!requiredScopes.every((scope) => apiAuth.scopes.includes(scope!))) {
         throw new ForbiddenException('API key is missing a required scope');
       }
 
-      if (request.auth.sessionId) {
+      if (apiAuth.sessionId) {
         const routeSessionId = request.params?.sessionId;
         if (!routeSessionId) {
           throw new ForbiddenException('Session token cannot access organization-wide resources');
         }
-        if (routeSessionId !== request.auth.sessionId) {
+        if (routeSessionId !== apiAuth.sessionId) {
           throw new ForbiddenException('Session token is not valid for this session');
         }
       }
