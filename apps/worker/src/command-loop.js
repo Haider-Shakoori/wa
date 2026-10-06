@@ -1,3 +1,5 @@
+import { deliverWebhook } from './webhook-delivery.js';
+
 const POLL_MS = Number(process.env.SESSION_COMMAND_POLL_MS ?? 1000);
 
 export async function runCommandLoop({ store, sessions, signal }) {
@@ -21,6 +23,13 @@ export async function runCommandLoop({ store, sessions, signal }) {
       } catch (error) {
         await store.markMessageFailed(message.id, error);
       }
+      continue;
+    }
+
+    await store.enqueueWebhookDeliveries();
+    const delivery = await store.claimNextWebhookDelivery();
+    if (delivery) {
+      await deliverWebhook(store, delivery);
       continue;
     }
 

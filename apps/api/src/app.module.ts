@@ -7,6 +7,7 @@ import { PlatformAdminModule } from './platform/platform-admin.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
 import { DirectoryModule } from './directory/directory.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DirectoryModule } from './directory/directory.module';
     SessionsModule,
     MessagesModule,
     DirectoryModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
 })
