@@ -286,7 +286,8 @@ export class SessionStore {
         `SELECT m.id, m.organization_id, m.session_id, m.message_type,
                 m.recipient_phone, m.recipient_jid, m.text_body,
                 m.media_url, m.media_mime_type, m.media_file_name,
-                m.media_size_bytes, m.media_caption, m.voice_note, m.attempts
+                m.media_size_bytes, m.media_caption, m.voice_note,
+                m.action_payload, m.attempts
          FROM whatsapp_messages m
          JOIN whatsapp_sessions s ON s.id = m.session_id
          WHERE m.direction = 'outbound'

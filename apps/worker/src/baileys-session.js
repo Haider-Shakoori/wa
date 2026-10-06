@@ -190,6 +190,77 @@ export class BaileysSessionManager {
     return { providerMessageId };
   }
 
+  async sendAction(sessionId, message) {
+    const socket = this.sockets.get(sessionId);
+    if (!socket) throw new Error('Session socket is not active');
+
+    const action = message.action_payload ?? {};
+    let payload;
+    let options;
+
+    if (message.message_type === 'reply') {
+      const quotedMessage = action.quotedText
+        ? { conversation: action.quotedText }
+        : { conversation: '' };
+      payload = {
+        text: action.text,
+        contextInfo: {
+          stanzaId: action.quotedMessageId,
+          participant: message.recipient_jid,
+          quotedMessage,
+        },
+      };
+    } else if (message.message_type === 'reaction') {
+      payload = {
+        react: {
+          text: action.emoji,
+          key: {
+            remoteJid: message.recipient_jid,
+            fromMe: Boolean(action.targetFromMe),
+            id: action.targetMessageId,
+          },
+        },
+      };
+    } else if (message.message_type === 'location') {
+      payload = {
+        location: {
+          degreesLatitude: Number(action.latitude),
+          degreesLongitude: Number(action.longitude),
+          name: action.name || undefined,
+          address: action.address || undefined,
+        },
+      };
+    } else if (message.message_type === 'contact') {
+      payload = {
+        contacts: {
+          displayName: action.displayName,
+          contacts: [{ vcard: action.vcard }],
+        },
+      };
+    } else if (message.message_type === 'poll') {
+      payload = {
+        poll: {
+          name: action.question,
+          values: action.options,
+          selectableCount: Number(action.selectableCount),
+        },
+      };
+    } else {
+      throw new Error(`Unsupported message action: ${message.message_type}`);
+    }
+
+    const result = await socket.sendMessage(message.recipient_jid, payload, options);
+    const providerMessageId = result?.key?.id ?? null;
+    await this.store.markMessageSent(message.id, providerMessageId);
+    await this.store.event(sessionId, 'message.sent', {
+      messageId: message.id,
+      providerMessageId,
+      recipient: message.recipient_phone,
+      messageType: message.message_type,
+    });
+    return { providerMessageId };
+  }
+
   async quarantineAuth(sessionId, error) {
     const authPath = this.authPath(sessionId);
     const quarantinePath = `${authPath}.corrupt-${Date.now()}`;

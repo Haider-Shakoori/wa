@@ -4,6 +4,13 @@ import { DatabaseService } from '../database/database.service';
 import { normalizeWhatsAppRecipient } from './recipient';
 import { validateMediaInput, type MediaType } from './media-policy';
 import { SendMediaMessageDto, SendTextMessageDto } from './messages.dto';
+import {
+  SendContactDto,
+  SendLocationDto,
+  SendPollDto,
+  SendReactionDto,
+  SendReplyDto,
+} from './action.dto';
 
 type SessionRow = { id: string; status: string };
 type MessageRow = {
@@ -141,6 +148,103 @@ export class MessagesService {
         media.sizeBytes,
         input.caption?.trim() || null,
         Boolean(input.voiceNote),
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async queueAction(
+    organizationId: string,
+    userId: string,
+    sessionId: string,
+    type: 'reply' | 'reaction' | 'location' | 'contact' | 'poll',
+    input: SendReplyDto | SendReactionDto | SendLocationDto | SendContactDto | SendPollDto,
+  ) {
+    const sessionResult = await this.db.query<SessionRow>(
+      `SELECT id, status
+       FROM whatsapp_sessions
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId, organizationId],
+    );
+    const session = sessionResult.rows[0];
+    if (!session) throw new NotFoundException('Session not found');
+    if (session.status !== 'connected') {
+      throw new ConflictException('WhatsApp session is not connected');
+    }
+
+    const recipient = normalizeWhatsAppRecipient(input.to);
+    const clientMessageId = input.clientMessageId?.trim() || null;
+
+    if (clientMessageId) {
+      const existing = await this.db.query<MessageRow>(
+        `SELECT *
+         FROM whatsapp_messages
+         WHERE organization_id = $1 AND session_id = $2 AND client_message_id = $3
+         LIMIT 1`,
+        [organizationId, sessionId, clientMessageId],
+      );
+      if (existing.rows[0]) return existing.rows[0];
+    }
+
+    let payload: Record<string, unknown>;
+    if (type === 'reply') {
+      const value = input as SendReplyDto;
+      payload = {
+        text: value.text,
+        quotedMessageId: value.quotedMessageId,
+        quotedText: value.quotedText ?? null,
+        quotedFromMe: Boolean(value.quotedFromMe),
+      };
+    } else if (type === 'reaction') {
+      const value = input as SendReactionDto;
+      payload = {
+        emoji: value.emoji,
+        targetMessageId: value.targetMessageId,
+        targetFromMe: Boolean(value.targetFromMe),
+      };
+    } else if (type === 'location') {
+      const value = input as SendLocationDto;
+      payload = {
+        latitude: value.latitude,
+        longitude: value.longitude,
+        name: value.name ?? null,
+        address: value.address ?? null,
+      };
+    } else if (type === 'contact') {
+      const value = input as SendContactDto;
+      payload = {
+        displayName: value.displayName,
+        vcard: value.vcard,
+      };
+    } else {
+      const value = input as SendPollDto;
+      if (value.selectableCount > value.options.length) {
+        throw new ConflictException('Poll selectableCount cannot exceed option count');
+      }
+      payload = {
+        question: value.question,
+        options: value.options.map((option) => option.trim()),
+        selectableCount: value.selectableCount,
+      };
+    }
+
+    const result = await this.db.query<MessageRow>(
+      `INSERT INTO whatsapp_messages
+        (id, organization_id, session_id, created_by_user_id, client_message_id,
+         message_type, recipient_phone, recipient_jid, action_payload, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'queued')
+       RETURNING *`,
+      [
+        randomUUID(),
+        organizationId,
+        sessionId,
+        userId,
+        clientMessageId,
+        type,
+        recipient.phone,
+        recipient.jid,
+        JSON.stringify(payload),
       ],
     );
     return result.rows[0];
