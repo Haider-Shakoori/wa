@@ -13,8 +13,10 @@ export async function runCommandLoop({ store, sessions, signal }) {
       try {
         if (message.message_type === 'text') {
           await sessions.sendText(message.session_id, message);
-        } else {
+        } else if (['image', 'video', 'audio', 'document'].includes(message.message_type)) {
           await sessions.sendMedia(message.session_id, message);
+        } else {
+          await sessions.sendAction(message.session_id, message);
         }
       } catch (error) {
         await store.markMessageFailed(message.id, error);
