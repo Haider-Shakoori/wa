@@ -10,6 +10,9 @@
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "dev": "pnpm --parallel --filter @wa/api --filter @wa/web --filter @wa/worker dev"
+    "dev": "pnpm --parallel --filter @wa/api --filter @wa/web --filter @wa/worker dev",
+    "smoke": "node scripts/smoke.mjs",
+    "load:smoke": "node scripts/load-smoke.mjs",
+    "validate:prod-compose": "docker compose -f docker-compose.production.yml config --quiet"
   }
 }
