@@ -72,12 +72,25 @@ export default function DashboardPage() {
 
   async function connect(sessionId: string) {
     setSelectedSession(sessionId);
-    await api(`/v1/sessions/${sessionId}/connect`, token, { method: 'POST' });
-    setTimeout(async () => {
-      const value = await api<any>(`/v1/sessions/${sessionId}/qr`, token);
-      setQr(value);
-      await refresh();
-    }, 700);
+    setQr(null);
+    setError('');
+
+    try {
+      await api(`/v1/sessions/${sessionId}/connect`, token, { method: 'POST' });
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const value = await api<any>(`/v1/sessions/${sessionId}/qr`, token);
+        setQr(value);
+        await refresh();
+
+        if (value.available && value.dataUrl) return;
+      }
+
+      setError('QR generation is taking longer than expected. Please try Connect / QR again.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to start WhatsApp connection');
+    }
   }
 
   const connected = sessions.filter((item) => item.status === 'connected').length;
