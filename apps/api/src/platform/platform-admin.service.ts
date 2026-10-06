@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import type { UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
@@ -80,6 +82,58 @@ export class PlatformAdminService {
        LIMIT 300`,
     );
     return result.rows;
+  }
+
+  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout') {
+    const session = await this.db.query<{ organization_id: string }>(
+      `SELECT organization_id
+       FROM whatsapp_sessions
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId],
+    );
+    if (!session.rows[0]) throw new NotFoundException('Session not found');
+
+    const commandId = randomUUID();
+    await this.db.query(
+      `INSERT INTO whatsapp_session_commands
+        (id, organization_id, session_id, command, status)
+       VALUES ($1, $2, $3, $4, 'queued')`,
+      [commandId, session.rows[0].organization_id, sessionId, action],
+    );
+    return { commandId, sessionId, action, status: 'queued' };
+  }
+
+  async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto) {
+    if (input.planCode) {
+      const plan = await this.db.query<{ code: string }>(
+        'SELECT code FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1',
+        [input.planCode],
+      );
+      if (!plan.rows[0]) throw new NotFoundException('Plan not found');
+    }
+
+    const result = await this.db.query(
+      `UPDATE organization_subscriptions
+       SET plan_code = COALESCE($2, plan_code),
+           status = COALESCE($3, status),
+           current_period_end = CASE
+             WHEN $4::int IS NOT NULL THEN GREATEST(current_period_end, now()) + ($4::int * interval '1 day')
+             ELSE current_period_end
+           END,
+           trial_ends_at = CASE
+             WHEN $4::int IS NOT NULL AND COALESCE($3, status) = 'trialing'
+               THEN GREATEST(COALESCE(trial_ends_at, now()), now()) + ($4::int * interval '1 day')
+             ELSE trial_ends_at
+           END,
+           updated_at = now()
+       WHERE organization_id = $1
+       RETURNING organization_id, plan_code, status, current_period_start,
+                 current_period_end, trial_ends_at, cancel_at_period_end, provider`,
+      [organizationId, input.planCode ?? null, input.status ?? null, input.extendDays ?? null],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Subscription not found');
+    return result.rows[0];
   }
 
   async workers() {
