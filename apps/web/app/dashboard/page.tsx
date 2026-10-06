@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { DeveloperGuide } from '../../components/developer-guide';
+import { MessageHistory, OnboardingChecklist, QuickSend } from '../../components/customer-operations';
 import { api } from '../../lib/api';
 
 type Session = {
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const [billing,setBilling] = useState<BillingSummary|null>(null);
   const [keys,setKeys] = useState<any[]>([]);
   const [webhooks,setWebhooks] = useState<any[]>([]);
+  const [payments,setPayments] = useState<any[]>([]);
   const [error,setError] = useState('');
   const [newSessionName,setNewSessionName] = useState('');
   const [qr,setQr] = useState<{dataUrl?:string;available?:boolean}|null>(null);
@@ -43,16 +45,18 @@ export default function DashboardPage() {
     if (!currentToken) return;
     setError('');
     try {
-      const [sessionRows,billingData,keyRows,webhookRows] = await Promise.all([
+      const [sessionRows,billingData,keyRows,webhookRows,paymentRows] = await Promise.all([
         api<Session[]>('/v1/sessions',currentToken),
         api<BillingSummary>('/v1/billing/subscription',currentToken),
         api<any[]>('/v1/api-keys',currentToken),
         api<any[]>('/v1/webhooks',currentToken),
+        api<any[]>('/v1/billing/payments',currentToken),
       ]);
       setSessions(sessionRows);
       setBilling(billingData);
       setKeys(keyRows);
       setWebhooks(webhookRows);
+      setPayments(paymentRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard');
     }
@@ -153,6 +157,18 @@ export default function DashboardPage() {
     setConnectionNotice({sessionId,phone:current.phone_number,name:current.display_name});
   }
 
+  async function sessionAction(sessionId:string, action:'restart'|'logout') {
+    setError('');
+    if (action === 'logout' && !window.confirm('Log this WhatsApp account out of relayWA? A new QR scan will be required to reconnect.')) return;
+    try {
+      await api('/v1/sessions/' + sessionId + '/' + action,token,{method:'POST'});
+      await sleep(800);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update WhatsApp session');
+    }
+  }
+
   const connected = sessions.filter((item)=>item.status==='connected').length;
   const monthlyMessages = billing?.usage.monthlyMessages ?? 0;
   const title = active === 'Overview' ? 'Command center' : active;
@@ -165,33 +181,45 @@ export default function DashboardPage() {
     </aside>
 
     <main className="content">
-      <header className="topbar">
-        <div><p className="eyebrow">relayWA workspace</p><h1>{title}</h1></div>
-        <div className="top-actions"><div className="api-badge"><span className="live-dot"/>API online</div><div className="avatar">RW</div></div>
+      <header className="topbar saas-topbar">
+        <div><p className="eyebrow">Customer workspace</p><h1>{title}</h1></div>
+        <div className="top-actions">
+          <button className="command-search" onClick={()=>setActive('Developers')}><span>⌘</span> Search docs & integrations</button>
+          <button className="secondary-button" onClick={()=>setActive('Messages')}>Send message</button>
+          <div className="api-badge"><span className="live-dot"/>API online</div>
+          <div className="avatar">RW</div>
+        </div>
       </header>
 
       {error && <div className="alert">{error}</div>}
 
       {active === 'Overview' && <>
-        <section className="hero-panel">
+        <section className="workspace-banner">
           <div>
-            <p className="eyebrow">WhatsApp infrastructure</p>
-            <h2>Run every connected session from one reliable control plane.</h2>
-            <p className="muted">Connect WhatsApp, send from your software, monitor API traffic and manage billing without leaving relayWA.</p>
-            <div className="hero-actions"><button className="primary-button" onClick={()=>setActive('Sessions')}>Connect WhatsApp</button><button className="secondary-button" onClick={()=>setActive('Developers')}>Integration guide</button></div>
+            <span className="product-kicker"><span className="live-dot"/>WhatsApp infrastructure online</span>
+            <h2>Everything you need to connect WhatsApp to your software.</h2>
+            <p>Manage linked numbers, test delivery, issue API credentials, monitor usage and ship your integration from one workspace.</p>
           </div>
-          <div className="signal-orb"><div className="orb-core">WA</div><span className="ring ring-a"/><span className="ring ring-b"/></div>
+          <div className="workspace-actions">
+            <button className="primary-button" onClick={()=>setActive('Messages')}>Send test message</button>
+            <button className="secondary-button" onClick={()=>setActive('Developers')}>Open developer center</button>
+          </div>
         </section>
 
-        <section className="metric-grid">
-          <Metric label="Connected sessions" value={String(connected)} detail={sessions.length + ' total sessions'}/>
+        <section className="metric-grid saas-metrics">
+          <Metric label="Connected numbers" value={String(connected)} detail={sessions.length + ' provisioned sessions'}/>
           <Metric label="Messages this month" value={monthlyMessages.toLocaleString()} detail={billing ? Math.max(0,billing.limits.monthlyMessages-monthlyMessages).toLocaleString() + ' remaining' : 'Loading usage'}/>
-          <Metric label="API credentials" value={String(keys.length)} detail={billing ? String(billing.limits.apiKeys) + ' plan limit' : 'Secure scoped access'}/>
-          <Metric label="Webhook endpoints" value={String(webhooks.length)} detail={webhooks.length?'Delivery tracking active':'No endpoints yet'}/>
+          <Metric label="API credentials" value={String(keys.length)} detail={billing ? String(billing.limits.apiKeys) + ' available on plan' : 'Scoped access'}/>
+          <Metric label="Webhooks" value={String(webhooks.length)} detail={webhooks.length?'Event delivery configured':'Add your first endpoint'}/>
+        </section>
+
+        <section className="dashboard-v2-grid">
+          <OnboardingChecklist sessions={sessions} keys={keys} webhooks={webhooks} onNavigate={setActive}/>
+          <QuickSend token={token} sessions={sessions} onSent={()=>refresh()}/>
         </section>
 
         <section className="two-column">
-          <Panel title="Session health" action="Manage" onAction={()=>setActive('Sessions')}>{sessions.length?sessions.slice(0,4).map((session)=><SessionRow key={session.id} session={session}/>):<Empty text="No WhatsApp sessions yet."/>}</Panel>
+          <Panel title="Connected numbers" action="Manage" onAction={()=>setActive('Sessions')}>{sessions.length?sessions.slice(0,5).map((session)=><SessionRow key={session.id} session={session}/>):<Empty text="No WhatsApp sessions yet."/>}</Panel>
           <Panel title="Plan & usage" action="Billing" onAction={()=>setActive('Billing')}>{billing?<div className="usage-stack"><div className="plan-line"><strong>{billing.subscription.plan_code}</strong><span>{billing.subscription.status}</span></div><Usage label="Sessions" used={billing.usage.sessions} limit={billing.limits.sessions}/><Usage label="Messages" used={billing.usage.monthlyMessages} limit={billing.limits.monthlyMessages}/><Usage label="API keys" used={billing.usage.apiKeys} limit={billing.limits.apiKeys}/></div>:<Empty text="Billing summary unavailable."/>}</Panel>
         </section>
       </>}
@@ -211,7 +239,7 @@ export default function DashboardPage() {
 
             {session.status !== 'connected' && <div className="session-actions"><button className="secondary-button" onClick={()=>void connect(session.id)}>Connect / QR</button></div>}
 
-            {session.status === 'connected' && <div className="connected-banner"><strong>WhatsApp connected</strong><div>{session.phone_number?'Number: +' + session.phone_number:'Connected — synchronizing number…'}</div>{session.display_name && <small>{session.display_name}</small>}</div>}
+            {session.status === 'connected' && <><div className="connected-banner"><strong>WhatsApp connected</strong><div>{session.phone_number?'Number: +' + session.phone_number:'Connected — synchronizing number…'}</div>{session.display_name && <small>{session.display_name}</small>}</div><div className="session-control-row"><button className="secondary-button" onClick={()=>void sessionAction(session.id,'restart')}>Restart</button><button className="danger-button" onClick={()=>void sessionAction(session.id,'logout')}>Log out</button></div></>}
 
             {connectionNotice?.sessionId===session.id && session.status==='connected' && <div className="connected-banner"><strong>QR scan completed</strong><div>{connectionNotice.phone?'Linked number: +' + connectionNotice.phone:'Linked successfully. Number is synchronizing.'}</div></div>}
 
@@ -221,7 +249,7 @@ export default function DashboardPage() {
         </div>
       </section>}
 
-      {active === 'Messages' && <section className="panel"><div className="panel-head"><div><p className="eyebrow">Traffic</p><h2>Message activity</h2></div></div><div className="activity-table"><div className="table-row table-head"><span>Session</span><span>Status</span><span>Phone</span><span>Activity</span></div>{sessions.map((session)=><div className="table-row" key={session.id}><span>{session.name}</span><span><Status status={session.status}/></span><span>{session.phone_number?'+' + session.phone_number:'—'}</span><span>{session.last_connected_at?'Realtime events enabled':'No recent activity'}</span></div>)}</div></section>}
+      {active === 'Messages' && <div className="messages-workspace"><QuickSend token={token} sessions={sessions} onSent={()=>refresh()}/><MessageHistory token={token} sessions={sessions}/></div>}
 
       {active === 'API Keys' && <section className="panel"><div className="panel-head"><div><p className="eyebrow">Developer access</p><h2>API credentials</h2><p className="muted panel-subtitle">Keys are scoped, revocable and shown in full only once when created.</p></div><button className="primary-button" onClick={()=>setActive('Developers')}>Create key / Guide</button></div>{keys.length?<div className="activity-table">{keys.map((key)=><div className="table-row collection-row" key={key.id}><span>{key.name}</span><span>{key.key_prefix}…</span><span>{key.token_type}</span></div>)}</div>:<Empty text="No API credentials yet. Open the Developer guide to create one."/>}</section>}
 
@@ -229,7 +257,7 @@ export default function DashboardPage() {
 
       {active === 'Webhooks' && <CollectionPanel title="Webhook endpoints" eyebrow="Event delivery" items={webhooks} empty="No webhook endpoints yet." columns={['name','url','enabled']}/>}
 
-      {active === 'Billing' && <section className="panel"><div className="panel-head"><div><p className="eyebrow">Subscription</p><h2>Plan & billing</h2></div></div>{billing?<div className="billing-card"><div><p className="eyebrow">Current plan</p><h3>{billing.subscription.plan_code}</h3><p className="muted">{billing.subscription.status} · renews {new Date(billing.subscription.current_period_end).toLocaleDateString()}</p></div><div className="usage-stack"><Usage label="Sessions" used={billing.usage.sessions} limit={billing.limits.sessions}/><Usage label="Messages" used={billing.usage.monthlyMessages} limit={billing.limits.monthlyMessages}/><Usage label="API keys" used={billing.usage.apiKeys} limit={billing.limits.apiKeys}/></div><div className="billing-actions"><button className="primary-button">Upgrade plan</button><button className="secondary-button">Payment history</button></div></div>:<Empty text="Billing information unavailable."/>}</section>}
+      {active === 'Billing' && <section className="billing-workspace"><section className="panel"><div className="panel-head"><div><p className="eyebrow">Subscription</p><h2>Plan & usage</h2></div></div>{billing?<div className="billing-card"><div><p className="eyebrow">Current plan</p><h3>{billing.subscription.plan_code}</h3><p className="muted">{billing.subscription.status} · period ends {new Date(billing.subscription.current_period_end).toLocaleDateString()}</p></div><div className="usage-stack"><Usage label="Sessions" used={billing.usage.sessions} limit={billing.limits.sessions}/><Usage label="Messages" used={billing.usage.monthlyMessages} limit={billing.limits.monthlyMessages}/><Usage label="API keys" used={billing.usage.apiKeys} limit={billing.limits.apiKeys}/></div></div>:<Empty text="Billing information unavailable."/>}</section><section className="panel"><div className="panel-head"><div><p className="eyebrow">Payments</p><h2>Payment history</h2></div></div><div className="payment-list">{payments.slice(0,12).map((payment)=><div className="payment-row" key={payment.id}><div><strong>{payment.plan_code} · {payment.billing_interval}</strong><small>{new Date(payment.created_at).toLocaleString()}</small></div><span>{((payment.amount_cents||0)/100).toFixed(2)} {payment.currency}</span><Status status={payment.status}/></div>)}{!payments.length&&<Empty text="No payments yet."/>}</div></section></section>}
     </main>
   </div>;
 }

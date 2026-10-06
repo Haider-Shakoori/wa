@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 
 test('dashboard contains core relayWA customer areas', async () => {
   const source = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  for (const label of ['Sessions','Messages','API Keys','Webhooks','Billing']) {
+  for (const label of ['Sessions','Messages','API Keys','Developers','Webhooks','Billing']) {
     assert.match(source, new RegExp(label));
   }
-  assert.match(source, /Connect WhatsApp/);
+  assert.match(source, /Connect \/ QR/);
   assert.match(source, /billing\/subscription/);
+  assert.match(source, /Send test message/);
 });
 
 test('dashboard QR flow calls session lifecycle and QR endpoints', async () => {

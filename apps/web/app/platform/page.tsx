@@ -19,6 +19,7 @@ export default function PlatformPage() {
   const [providers,setProviders] = useState<any[]>([]);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
+  const [query,setQuery] = useState('');
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
 
@@ -64,6 +65,32 @@ export default function PlatformPage() {
     }
   }
 
+  async function sessionControl(sessionId:string, action:'connect'|'restart'|'logout') {
+    setError(''); setNotice('');
+    if (action === 'logout' && !window.confirm('Log this tenant WhatsApp session out? It will require a new QR scan.')) return;
+    try {
+      await api('/v1/platform/sessions/' + sessionId + '/' + action,token,{method:'POST'});
+      setNotice('Session ' + action + ' command queued.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to control session');
+    }
+  }
+
+  async function updateSubscription(organizationId:string, patch:any) {
+    setError(''); setNotice('');
+    try {
+      await api('/v1/platform/subscriptions/' + organizationId,token,{
+        method:'PATCH',
+        body:JSON.stringify(patch),
+      });
+      setNotice('Subscription updated.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update subscription');
+    }
+  }
+
   async function toggleProvider(provider:any) {
     setError(''); setNotice('');
     try {
@@ -86,6 +113,10 @@ export default function PlatformPage() {
   const failedMessages = overview?.messages?.failed ?? 0;
   const pendingManual = payments.filter((p)=>p.provider === 'manual' && p.status === 'pending').length;
   const healthyWorkers = workers.filter((w)=>new Date(w.lease_expires_at).getTime() > Date.now()).length;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
+  const filteredSessions = normalizedQuery ? sessions.filter((item)=>[item.name,item.organization_name,item.phone_number,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : sessions;
+  const filteredSubscriptions = normalizedQuery ? subscriptions.filter((item)=>[item.organization_name,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : subscriptions;
 
   return <div className="app-shell platform-shell">
     <aside className="sidebar">
@@ -100,7 +131,7 @@ export default function PlatformPage() {
     <main className="content platform-page">
       <header className="topbar">
         <div><p className="eyebrow">relayWA platform</p><h1>{active}</h1></div>
-        <div className="top-actions"><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
+        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
       </header>
 
       {error && <div className="alert">{error}</div>}
@@ -127,17 +158,17 @@ export default function PlatformPage() {
 
       {active === 'Organizations' && <TableSection eyebrow="Tenants" title="Customer organizations" subtitle="Organization, plan, membership and session footprint.">
         <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Created</span></div>
-        {tenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span>{date(t.created_at)}</span></div>)}
+        {filteredTenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span>{date(t.created_at)}</span></div>)}
       </TableSection>}
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
-        <div className="platform-row platform-row-head"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Worker</span><span>Last connected</span></div>
-        {sessions.map((s)=><div className="platform-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span></div>)}
+        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
+        {filteredSessions.map((s)=><div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>)}
       </TableSection>}
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
-        <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span></div>
-        {subscriptions.map((s)=><div className="platform-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span>{s.plan_code}</span><span><Badge value={s.status}/></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span></div>)}
+        <div className="platform-row platform-row-head subscription-admin-row"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span><span>Controls</span></div>
+        {filteredSubscriptions.map((s)=><div className="platform-row subscription-admin-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span><select className="table-select" value={s.plan_code} onChange={(e)=>void updateSubscription(s.organization_id,{planCode:e.target.value})}>{['trial','starter','growth','scale'].map((plan)=><option value={plan} key={plan}>{plan}</option>)}</select></span><span><select className="table-select" value={s.status} onChange={(e)=>void updateSubscription(s.organization_id,{status:e.target.value})}>{['trialing','active','past_due','paused','canceled','expired'].map((status)=><option value={status} key={status}>{status}</option>)}</select></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span><span><button className="mini-button" onClick={()=>void updateSubscription(s.organization_id,{extendDays:7})}>+7 days</button></span></div>)}
       </TableSection>}
 
       {active === 'Payments' && <TableSection eyebrow="Revenue" title="Payments" subtitle="Stripe and manual payment activity across all tenants.">
