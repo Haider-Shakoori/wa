@@ -23,7 +23,7 @@ export class PermissionGuard implements CanActivate {
     if (!required?.length) return true;
 
     const request = context.switchToHttp().getRequest<ApiAuthenticatedRequest>();
-    if (request.auth.kind === 'api_key') {
+    if ('scopes' in request.auth && request.auth.kind === 'api_key') {
       const requiredScopes = required.map((permission) => PERMISSION_TO_API_SCOPE[permission]);
       if (requiredScopes.some((scope) => !scope)) {
         throw new ForbiddenException('This operation requires dashboard user authentication');
