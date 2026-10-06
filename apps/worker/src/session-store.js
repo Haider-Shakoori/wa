@@ -84,6 +84,70 @@ export class SessionStore {
     }
   }
 
+  async claimRecoverableSessions({ limit, connectingStaleMs }) {
+    const result = await this.pool.query(
+      `WITH candidates AS (
+         SELECT id
+         FROM whatsapp_sessions
+         WHERE deleted_at IS NULL
+           AND status IN ('connecting','connected','reconnecting','disconnected')
+           AND (worker_lease_expires_at IS NULL OR worker_lease_expires_at <= now())
+           AND (
+             status <> 'connecting'
+             OR updated_at <= now() - ($1 * interval '1 millisecond')
+           )
+         ORDER BY updated_at ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT $2
+       )
+       UPDATE whatsapp_sessions s
+       SET worker_id = $3,
+           worker_lease_expires_at = $4,
+           recovery_started_at = now(),
+           recovery_reason = 'worker_startup',
+           updated_at = now()
+       FROM candidates c
+       WHERE s.id = c.id
+       RETURNING s.id, s.status, s.reconnect_attempts`,
+      [connectingStaleMs, limit, this.workerId, nextLeaseExpiry()],
+    );
+    return result.rows;
+  }
+
+  async markRecovered(sessionId, reason) {
+    await this.pool.query(
+      `UPDATE whatsapp_sessions
+       SET last_recovery_at = now(), recovery_started_at = NULL,
+           recovery_reason = $1, updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [reason, sessionId, this.workerId],
+    );
+  }
+
+  async markRecoveryFailed(sessionId, error) {
+    await this.pool.query(
+      `UPDATE whatsapp_sessions
+       SET status = 'error',
+           last_connection_error = $1,
+           recovery_started_at = NULL,
+           recovery_reason = 'recovery_failed',
+           updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [String(error?.message ?? error).slice(0, 2000), sessionId, this.workerId],
+    );
+  }
+
+  async getReconnectAttempts(sessionId) {
+    const result = await this.pool.query(
+      `SELECT reconnect_attempts
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId, this.workerId],
+    );
+    return Number(result.rows[0]?.reconnect_attempts ?? 0);
+  }
+
   async heartbeat(sessionId) {
     await this.pool.query(
       `UPDATE whatsapp_sessions
@@ -136,13 +200,7 @@ export class SessionStore {
   }
 
   async syncProfile(sessionId, profile) {
-    const {
-      jid = null,
-      phoneNumber = null,
-      displayName = null,
-      profilePictureUrl = null,
-    } = profile;
-
+    const { jid = null, phoneNumber = null, displayName = null, profilePictureUrl = null } = profile;
     await this.pool.query(
       `UPDATE whatsapp_sessions
        SET whatsapp_jid = COALESCE($1, whatsapp_jid),
@@ -185,14 +243,16 @@ export class SessionStore {
   }
 
   async incrementReconnect(sessionId, error) {
-    await this.pool.query(
+    const result = await this.pool.query(
       `UPDATE whatsapp_sessions
        SET reconnect_attempts = reconnect_attempts + 1,
            last_connection_error = $1,
            updated_at = now()
-       WHERE id = $2 AND worker_id = $3`,
+       WHERE id = $2 AND worker_id = $3
+       RETURNING reconnect_attempts`,
       [String(error?.message ?? error ?? '').slice(0, 2000) || null, sessionId, this.workerId],
     );
+    return Number(result.rows[0]?.reconnect_attempts ?? 1);
   }
 
   async setQr(sessionId, qr, ttlMs = 55000) {
