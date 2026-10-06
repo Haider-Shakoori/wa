@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('worker dispatches rich actions through dedicated sender', async () => {
-  const loop = await readFile(new URL('../src/command-loop.js', import.meta.url), 'utf8');
-  assert.match(loop, /sendAction/);
+test('BullMQ dispatcher routes rich actions through dedicated sender', async () => {
+  const source = await readFile(new URL('../src/message-queue.js', import.meta.url), 'utf8');
+  assert.match(source, /sendAction/);
 });
 
 test('Baileys payloads cover replies reactions locations contacts and polls', async () => {
