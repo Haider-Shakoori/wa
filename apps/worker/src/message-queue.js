@@ -1,9 +1,15 @@
 import { Queue, Worker } from 'bullmq';
+import IORedis from 'ioredis';
 
 const QUEUE_NAME = 'relaywa-outbound';
 
 export function createMessageQueue({ redisUrl, store, sessions }) {
   const connection = { url: redisUrl };
+  const rateClient = new IORedis(redisUrl, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: true,
+  });
+
   const queue = new Queue(QUEUE_NAME, {
     connection,
     defaultJobOptions: {
@@ -18,19 +24,19 @@ export function createMessageQueue({ redisUrl, store, sessions }) {
       const message = await store.claimOutboundMessageById(job.data.messageId);
       if (!message) return { skipped: true };
 
-      const allowed = await consumeSessionRateLimit(
-        queue,
-        message.session_id,
-        Number(process.env.MESSAGE_RATE_LIMIT_MAX ?? 20),
-        Number(process.env.MESSAGE_RATE_LIMIT_WINDOW_MS ?? 10000),
-      );
-
-      if (!allowed.ok) {
-        await store.deferRateLimitedMessage(message.id, allowed.retryAt);
-        await sleep(Math.max(0, allowed.retryAt.getTime() - Date.now()));
-      }
-
       try {
+        const allowed = await consumeSessionRateLimit(
+          rateClient,
+          message.session_id,
+          Number(process.env.MESSAGE_RATE_LIMIT_MAX ?? 20),
+          Number(process.env.MESSAGE_RATE_LIMIT_WINDOW_MS ?? 10000),
+        );
+
+        if (!allowed.ok) {
+          await store.deferRateLimitedMessage(message.id, allowed.retryAt);
+          await sleep(Math.max(0, allowed.retryAt.getTime() - Date.now()));
+        }
+
         if (message.message_type === 'text') {
           await sessions.sendText(message.session_id, message);
         } else if (['image', 'video', 'audio', 'document'].includes(message.message_type)) {
@@ -90,6 +96,7 @@ export function createMessageQueue({ redisUrl, store, sessions }) {
     async close() {
       await worker.close();
       await queue.close();
+      await rateClient.quit();
     },
   };
 }
@@ -107,8 +114,7 @@ export async function pumpReadyMessages({ store, messageQueue, signal }) {
   }
 }
 
-async function consumeSessionRateLimit(queue, sessionId, max, windowMs) {
-  const client = await queue.client;
+async function consumeSessionRateLimit(client, sessionId, max, windowMs) {
   const key = `relaywa:rate:session:${sessionId}`;
   const result = await client.eval(
     `local current = redis.call('INCR', KEYS[1])
