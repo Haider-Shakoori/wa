@@ -4,6 +4,7 @@ import { DatabaseService } from '../database/database.service';
 import { normalizeWhatsAppRecipient } from './recipient';
 import { validateMediaInput, type MediaType } from './media-policy';
 import { SendMediaMessageDto, SendTextMessageDto } from './messages.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   SendContactDto,
   SendLocationDto,
@@ -40,7 +41,10 @@ type MessageRow = {
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async queueText(
     organizationId: string,
@@ -58,6 +62,8 @@ export class MessagesService {
       input.clientMessageId,
     );
     if (existing) return existing;
+
+    await this.subscriptions.assertCanSendMessage(organizationId);
 
     const result = await this.db.query<MessageRow>(
       `INSERT INTO whatsapp_messages
@@ -82,6 +88,7 @@ export class MessagesService {
         dispatch.maxAttempts,
       ],
     );
+    await this.subscriptions.recordOutboundMessage(organizationId);
     return result.rows[0];
   }
 
@@ -107,6 +114,8 @@ export class MessagesService {
       input.clientMessageId,
     );
     if (existing) return existing;
+
+    await this.subscriptions.assertCanSendMessage(organizationId);
 
     const result = await this.db.query<MessageRow>(
       `INSERT INTO whatsapp_messages
@@ -138,6 +147,7 @@ export class MessagesService {
         dispatch.maxAttempts,
       ],
     );
+    await this.subscriptions.recordOutboundMessage(organizationId);
     return result.rows[0];
   }
 
@@ -226,6 +236,7 @@ export class MessagesService {
         dispatch.maxAttempts,
       ],
     );
+    await this.subscriptions.recordOutboundMessage(organizationId);
     return result.rows[0];
   }
 
