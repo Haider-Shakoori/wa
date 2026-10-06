@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DatabaseService } from '../database/database.service';
-import { type AuthenticatedRequest } from './jwt-auth.guard';
+import { PERMISSION_TO_API_SCOPE } from '../api-keys/api-scope-map';
+import { type ApiAuthenticatedRequest } from './api-access.guard';
 import { REQUIRED_PERMISSIONS_KEY } from './require-permissions.decorator';
 import { ROLE_PERMISSIONS, type OrganizationRole, type Permission } from './permissions';
 
@@ -21,7 +22,28 @@ export class PermissionGuard implements CanActivate {
     ]);
     if (!required?.length) return true;
 
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<ApiAuthenticatedRequest>();
+    if (request.auth.kind === 'api_key') {
+      const requiredScopes = required.map((permission) => PERMISSION_TO_API_SCOPE[permission]);
+      if (requiredScopes.some((scope) => !scope)) {
+        throw new ForbiddenException('This operation requires dashboard user authentication');
+      }
+      if (!requiredScopes.every((scope) => request.auth.scopes.includes(scope!))) {
+        throw new ForbiddenException('API key is missing a required scope');
+      }
+
+      if (request.auth.sessionId) {
+        const routeSessionId = request.params?.sessionId;
+        if (!routeSessionId) {
+          throw new ForbiddenException('Session token cannot access organization-wide resources');
+        }
+        if (routeSessionId !== request.auth.sessionId) {
+          throw new ForbiddenException('Session token is not valid for this session');
+        }
+      }
+      return true;
+    }
+
     const result = await this.db.query<MembershipRoleRow>(
       `SELECT role
        FROM organization_memberships
