@@ -20,6 +20,9 @@ export class PlatformAdminController {
   @Get('queues')
   queues() { return this.platform.queues(); }
 
+  @Get('payments')
+  payments() { return this.platform.payments(); }
+
   @Get('errors')
   errors() { return this.platform.recentErrors(); }
 }
