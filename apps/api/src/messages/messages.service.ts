@@ -250,6 +250,27 @@ export class MessagesService {
     return result.rows[0];
   }
 
+  async list(organizationId: string, sessionId: string) {
+    const session = await this.db.query<{ id: string }>(
+      `SELECT id
+       FROM whatsapp_sessions
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId, organizationId],
+    );
+    if (!session.rows[0]) throw new NotFoundException('Session not found');
+
+    const result = await this.db.query<MessageRow>(
+      `SELECT *
+       FROM whatsapp_messages
+       WHERE session_id = $1 AND organization_id = $2
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [sessionId, organizationId],
+    );
+    return result.rows;
+  }
+
   async get(organizationId: string, sessionId: string, messageId: string) {
     const result = await this.db.query<MessageRow>(
       `SELECT *

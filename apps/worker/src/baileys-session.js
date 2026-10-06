@@ -8,6 +8,7 @@ import { mkdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { syncSessionProfile } from './profile-sync.js';
 import { fetchMedia } from './media-fetch.js';
+import { normalizeInboundMessage } from './inbound-message.js';
 
 const logger = pino({ level: process.env.WA_LOG_LEVEL ?? 'silent' });
 const RECONNECT_DELAYS_MS = [1500, 3000, 7000, 15000, 30000, 60000];
@@ -61,6 +62,19 @@ export class BaileysSessionManager {
 
     this.sockets.set(sessionId, socket);
     socket.ev.on('creds.update', saveCreds);
+
+    socket.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify' && type !== 'append') return;
+
+      for (const item of messages) {
+        try {
+          const normalized = normalizeInboundMessage(item);
+          if (normalized) await this.store.saveInboundMessage(sessionId, normalized);
+        } catch (error) {
+          logger.error({ err: error, sessionId }, 'incoming message persistence failed');
+        }
+      }
+    });
 
     socket.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {

@@ -18,6 +18,15 @@ import { MessagesService } from './messages.service';
 export class MessagesController {
   constructor(private readonly messages: MessagesService) {}
 
+  @Get()
+  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  list(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.messages.list(request.auth.org, sessionId);
+  }
+
   @Post('text')
   @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
   sendText(

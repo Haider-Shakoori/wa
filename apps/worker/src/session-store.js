@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { randomUUID } from 'node:crypto';
 import { nextLeaseExpiry } from './session-runtime.js';
 
 const { Pool } = pg;
@@ -322,6 +323,64 @@ export class SessionStore {
     } finally {
       client.release();
     }
+  }
+
+  async saveInboundMessage(sessionId, message) {
+    const result = await this.pool.query(
+      `INSERT INTO whatsapp_messages
+        (id, organization_id, session_id, direction, message_type,
+         sender_phone, sender_jid, chat_jid, text_body, status,
+         provider_message_id, media_mime_type, media_file_name,
+         media_size_bytes, voice_note, action_payload, raw_payload,
+         received_at, created_at, updated_at)
+       SELECT $2, organization_id, id, 'inbound', $3,
+              $4, $5, $6, $7, 'received',
+              $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb,
+              $15::timestamptz, now(), now()
+       FROM whatsapp_sessions
+       WHERE id = $1 AND worker_id = $16 AND deleted_at IS NULL
+       ON CONFLICT (session_id, provider_message_id)
+       WHERE direction = 'inbound' AND provider_message_id IS NOT NULL
+       DO NOTHING
+       RETURNING id, organization_id`,
+      [
+        sessionId,
+        randomUUID(),
+        message.messageType,
+        message.senderPhone,
+        message.senderJid,
+        message.chatJid,
+        message.textBody,
+        message.providerMessageId,
+        message.mediaMimeType,
+        message.mediaFileName,
+        message.mediaSizeBytes,
+        message.voiceNote,
+        JSON.stringify({
+          ...message.actionPayload,
+          pushName: message.pushName,
+        }),
+        JSON.stringify(message.rawPayload),
+        message.receivedAt,
+        this.workerId,
+      ],
+    );
+
+    const saved = result.rows[0];
+    if (!saved) return null;
+
+    await this.event(sessionId, 'message.received', {
+      messageId: saved.id,
+      providerMessageId: message.providerMessageId,
+      messageType: message.messageType,
+      senderJid: message.senderJid,
+      senderPhone: message.senderPhone,
+      chatJid: message.chatJid,
+      pushName: message.pushName,
+      receivedAt: message.receivedAt,
+    });
+
+    return saved;
   }
 
   async markMessageSent(messageId, providerMessageId) {
