@@ -6,7 +6,7 @@ import type { Request } from 'express';
 import type { AuthTokenPayload } from './auth.types';
 
 export type ApiAuth =
-  | (AuthTokenPayload & { kind?: 'user' })
+  | (AuthTokenPayload & { kind: 'user' })
   | {
       kind: 'api_key';
       sub: string;
