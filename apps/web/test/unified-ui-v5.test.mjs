@@ -10,6 +10,8 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
   assert.match(source, /message\.sent/);
   assert.match(source, /integration-section/);
   assert.doesNotMatch(source, /BusinessOS/i);
+  assert.doesNotMatch(source, /93744119422/);
+  assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
 });
 
 test('tenant workspace and login use standalone RelayWA branding', async () => {
@@ -31,4 +33,12 @@ test('platform remains a separate control plane while sharing the unified visual
   assert.match(css, /\.platform-shell/);
   assert.match(css, /\.auth-v2-shell/);
   assert.match(css, /\.hero-product/);
+});
+
+
+test('onboarding uses neutral international E.164 recipient guidance', async () => {
+  const source = await readFile(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /E\.164 international format/);
+  assert.doesNotMatch(source, /93744119422/);
+  assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
 });
