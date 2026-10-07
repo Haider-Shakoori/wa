@@ -98,7 +98,8 @@ export class SubscriptionsService {
 
   async listPlans() {
     const result = await this.db.query(
-      `SELECT code, name, max_sessions, monthly_messages, max_api_keys
+      `SELECT code, name, max_sessions, monthly_messages, max_api_keys,
+              monthly_price_cents, annual_price_cents, currency
        FROM subscription_plans
        WHERE active = true
        ORDER BY max_sessions ASC`,
