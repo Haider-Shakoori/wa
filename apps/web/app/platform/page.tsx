@@ -257,7 +257,7 @@ export default function PlatformPage() {
 
   return <div className="app-shell platform-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>Platform Admin</span></div></div>
+      <div className="brand"><div className="brand-mark">rW</div><div><strong>RelayWA</strong><span>Control plane</span></div></div>
       <nav>{sections.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
       <div className="sidebar-bottom">
         <a className="ghost-button platform-link" href="https://app.relaywa.com/dashboard">Customer workspace</a>
@@ -268,7 +268,7 @@ export default function PlatformPage() {
 
     <main className="content platform-page">
       <header className="topbar">
-        <div><p className="eyebrow">relayWA platform</p><h1>{active}</h1></div>
+        <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1></div>
         <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
       </header>
 
@@ -277,7 +277,7 @@ export default function PlatformPage() {
 
       {active === 'Overview' && <>
         <section className="platform-hero">
-          <div><p className="eyebrow">SaaS control plane</p><h2>Operate every relayWA tenant, WhatsApp session and subscription from one place.</h2><p className="muted">Platform-wide visibility for customer organizations, session health, queue activity, payments, workers and failures.</p></div>
+          <div><p className="eyebrow">Private operations</p><h2>Operate every RelayWA tenant, session and subscription from one control plane.</h2><p className="muted">The same RelayWA visual language, tuned for denser operational visibility across customers, queues, payments, workers and failures.</p></div>
           <div className="platform-health"><span className="live-dot"/><strong>{healthyWorkers ? 'Workers online' : 'Check workers'}</strong><small>{healthyWorkers} active worker lease{healthyWorkers===1?'':'s'}</small></div>
         </section>
         <section className="platform-metrics">
