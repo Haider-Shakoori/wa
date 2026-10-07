@@ -46,6 +46,6 @@ test('light onboarding/admin contrast is explicitly protected', async () => {
   const css = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
   assert.match(css, /\.onboarding-header h1/);
   assert.match(css, /color:#182e36!important/);
-  assert.match(css, /\.platform-shell \{?/);
+  assert.match(css, /\.platform-shell\{/);
   assert.match(css, /--admin-text:#172830/);
 });
