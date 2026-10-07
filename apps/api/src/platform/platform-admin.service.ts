@@ -490,6 +490,159 @@ export class PlatformAdminService {
     return { sessions: sessions.rows, messages: messages.rows, webhooks: webhooks.rows };
   }
 
+  async supportAnswer(rawMessage: string) {
+    const message = rawMessage.trim().toLowerCase();
+    const [overview, sessions, workers, queues, errors, safety, engine, payments] = await Promise.all([
+      this.overview(),
+      this.sessions(),
+      this.workers(),
+      this.queues(),
+      this.recentErrors(),
+      this.messagingSafetySettings(),
+      this.messagingEngineSettings(),
+      this.payments(),
+    ]);
+
+    const connected = Number((overview.sessions as any)?.connected ?? 0);
+    const needScan = Number((overview.sessions as any)?.need_scan ?? 0);
+    const reconnecting = Number((overview.sessions as any)?.reconnecting ?? 0);
+    const loggedOut = Number((overview.sessions as any)?.logged_out ?? 0);
+    const failedMessages = Number((overview.messages as any)?.failed ?? 0);
+    const retryingMessages = Number((overview.messages as any)?.retrying ?? 0);
+    const healthyWorkers = workers.filter((worker:any) => new Date(worker.lease_expires_at).getTime() > Date.now()).length;
+    const failedWebhooks = Number(overview.failedWebhooks ?? 0);
+    const pendingManual = payments.filter((payment:any) => payment.provider === 'manual' && payment.status === 'pending').length;
+
+    const action = (label: string, section: string) => ({ label, section });
+    const result = {
+      title: 'RelayWA operations overview',
+      reply: `RelayWA currently has ${connected} connected WhatsApp session(s), ${healthyWorkers} healthy worker lease(s), ${failedMessages} failed outbound message(s), and ${failedWebhooks} failed webhook delivery record(s).`,
+      highlights: [
+        `${sessions.length} total WhatsApp session(s)`,
+        `${needScan} waiting for QR scan`,
+        `${reconnecting} reconnecting`,
+        `${pendingManual} pending manual payment(s)`,
+      ],
+      actions: [
+        action('Open sessions', 'Sessions'),
+        action('Open infrastructure', 'Infrastructure'),
+        action('Open diagnostics', 'Diagnostics'),
+      ],
+      intent: 'overview',
+      generatedAt: new Date().toISOString(),
+    };
+
+    if (/disconnect|logged out|logout|qr|scan|reconnect|session|whatsapp/.test(message)) {
+      const problemSessions = sessions
+        .filter((session:any) => session.status !== 'connected')
+        .slice(0, 5)
+        .map((session:any) => `${session.organization_name}: ${session.name} — ${session.status}`);
+      return {
+        ...result,
+        title: 'WhatsApp session health',
+        reply: `${connected} session(s) are connected. ${needScan} need a QR scan, ${reconnecting} are reconnecting, and ${loggedOut} are logged out. A logged-out session requires pairing again; a reconnecting session should normally recover without logout.`,
+        highlights: problemSessions.length ? problemSessions : ['No non-connected sessions are currently listed.'],
+        actions: [action('Inspect sessions', 'Sessions'), action('Check diagnostics', 'Diagnostics')],
+        intent: 'sessions',
+      };
+    }
+
+    if (/queue|message|send|failed|retry|delivery|stuck/.test(message)) {
+      const messageQueue = (queues.messages ?? []).map((row:any) => `${row.status}: ${row.count}`);
+      return {
+        ...result,
+        title: 'Outbound messaging health',
+        reply: `There are ${failedMessages} failed outbound message(s) and ${retryingMessages} retrying message(s). Safety Governor is ${safety.enabled ? 'enabled' : 'disabled'} with ${safety.minDelayMs}–${safety.maxDelayMs} ms randomized pacing, ${safety.messagesPerMinute}/minute and ${safety.messagesPerHour}/hour limits.`,
+        highlights: messageQueue.length ? messageQueue : ['No outbound queue rows were returned.'],
+        actions: [action('Open messaging controls', 'Messaging'), action('Open diagnostics', 'Diagnostics'), action('Open infrastructure', 'Infrastructure')],
+        intent: 'messaging',
+      };
+    }
+
+    if (/webhook|callback|event/.test(message)) {
+      return {
+        ...result,
+        title: 'Webhook delivery health',
+        reply: `RelayWA currently reports ${failedWebhooks} failed webhook delivery record(s). Review Diagnostics for recent endpoint errors and Infrastructure for queue state before retrying the integration from the tenant side.`,
+        highlights: (errors.webhooks ?? []).slice(0, 5).map((row:any) => row.last_error || row.status) || [],
+        actions: [action('Open diagnostics', 'Diagnostics'), action('Open infrastructure', 'Infrastructure')],
+        intent: 'webhooks',
+      };
+    }
+
+    if (/worker|infrastructure|redis|postgres|lease|capacity/.test(message)) {
+      return {
+        ...result,
+        title: 'Infrastructure health',
+        reply: `${healthyWorkers} of ${workers.length} worker lease(s) are currently healthy. Worker leases own ${workers.reduce((sum:number,row:any)=>sum + Number(row.owned_sessions || 0),0)} session(s) in total.`,
+        highlights: workers.slice(0, 6).map((row:any) => `${row.worker_id}: ${row.connected_sessions} connected / ${row.owned_sessions} owned`),
+        actions: [action('Open infrastructure', 'Infrastructure'), action('Open diagnostics', 'Diagnostics')],
+        intent: 'infrastructure',
+      };
+    }
+
+    if (/subscription|plan|billing|payment|trial|revenue/.test(message)) {
+      const paymentStates = Object.entries(overview.payments ?? {}).map(([status,count]) => `${status}: ${count}`);
+      return {
+        ...result,
+        title: 'Subscription and payment health',
+        reply: `There are ${overview.organizations} organization(s) and ${pendingManual} pending manual payment(s). Use Subscriptions for plan state and Payments for transaction review.`,
+        highlights: paymentStates.length ? paymentStates : ['No payment status rows were returned.'],
+        actions: [action('Open subscriptions', 'Subscriptions'), action('Open payments', 'Payments'), action('Open providers', 'Providers')],
+        intent: 'billing',
+      };
+    }
+
+    if (/safety|rate|limit|delay|burst|ban|pacing/.test(message)) {
+      return {
+        ...result,
+        title: 'Messaging Safety Governor',
+        reply: `Safety Governor is ${safety.enabled ? 'enabled' : 'disabled'}. Current pacing is ${safety.minDelayMs}–${safety.maxDelayMs} ms, with ${safety.messagesPerMinute} messages/minute, ${safety.messagesPerHour} messages/hour, and a burst limit of ${safety.burstLimit} per ${safety.burstWindowSeconds} seconds.`,
+        highlights: [
+          `Duplicate suppression: ${safety.duplicateWindowSeconds}s`,
+          `Maximum attempts: ${safety.maxAttempts}`,
+          `Auto-pause after ${safety.failurePauseThreshold} final failures in ${safety.failureWindowSeconds}s`,
+          `Pause duration: ${safety.autoPauseSeconds}s`,
+        ],
+        actions: [action('Open messaging controls', 'Messaging')],
+        intent: 'safety',
+      };
+    }
+
+    if (/engine|baileys|chromium|browser/.test(message)) {
+      const counts = sessions.reduce((acc:any,session:any) => {
+        const key = session.engine || 'unknown';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      return {
+        ...result,
+        title: 'Messaging engine configuration',
+        reply: `The platform default engine is ${engine.defaultEngine}. Existing connected sessions keep their current assigned engine; changing the default does not force logout or an immediate QR rescan.`,
+        highlights: Object.entries(counts).map(([name,count]) => `${name}: ${count} session(s)`),
+        actions: [action('Open messaging controls', 'Messaging'), action('Inspect sessions', 'Sessions')],
+        intent: 'engines',
+      };
+    }
+
+    if (/error|diagnostic|problem|issue|broken|health/.test(message)) {
+      return {
+        ...result,
+        title: 'Recent operational errors',
+        reply: `Diagnostics currently contains ${errors.sessions.length} session error row(s), ${errors.messages.length} message error row(s), and ${errors.webhooks.length} webhook error row(s).`,
+        highlights: [
+          ...(errors.sessions ?? []).slice(0, 2).map((row:any) => `Session: ${row.last_connection_error || row.status}`),
+          ...(errors.messages ?? []).slice(0, 2).map((row:any) => `Message: ${row.last_error || row.status}`),
+          ...(errors.webhooks ?? []).slice(0, 2).map((row:any) => `Webhook: ${row.last_error || row.status}`),
+        ],
+        actions: [action('Open diagnostics', 'Diagnostics'), action('Open infrastructure', 'Infrastructure')],
+        intent: 'diagnostics',
+      };
+    }
+
+    return result;
+  }
+
   private async count(sql: string) {
     const result = await this.db.query<{ count: string }>(sql);
     return Number(result.rows[0]?.count ?? 0);

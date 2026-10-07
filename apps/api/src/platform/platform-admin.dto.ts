@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdatePlatformSubscriptionDto {
   @IsOptional()
@@ -75,4 +75,11 @@ export class UpdateMessagingSafetyDto {
 
   @IsOptional() @IsInt() @Min(60) @Max(86400)
   autoPauseSeconds?: number;
+}
+
+export class PlatformSupportQuestionDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  message!: string;
 }
