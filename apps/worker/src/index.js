@@ -8,6 +8,9 @@ import { createMessageQueue, pumpReadyMessages } from './message-queue.js';
 import { recoverSessions, startRecoveryWatchdog } from './recovery.js';
 import { SESSION_LEASE_MS } from './session-runtime.js';
 import { SessionStore } from './session-store.js';
+import { OperationalAlertMailer } from './operational-alerts.js';
+
+let activeAlertMailer = null;
 
 export const workerIdentity = Object.freeze({
   service: 'relaywa-worker',
@@ -26,6 +29,8 @@ export async function startWorker() {
   const authRoot = resolve(process.env.WA_AUTH_DIR ?? '.data/wa-auth');
   const chromiumAuthRoot = resolve(process.env.WA_CHROMIUM_AUTH_DIR ?? '.data/wa-chromium-auth');
   const store = new SessionStore({ databaseUrl, workerId: workerIdentity.workerId });
+  const alertMailer = new OperationalAlertMailer({ store });
+  activeAlertMailer = alertMailer;
   const baileys = new BaileysSessionManager({ store, authRoot });
   const chromium = new ChromiumSessionManager({ store, authRoot: chromiumAuthRoot });
   const sessions = new MessagingSessionManager({ store, baileys, chromium });
@@ -49,16 +54,35 @@ export async function startWorker() {
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
 
-  console.log(JSON.stringify(workerIdentity));
+  console.log(JSON.stringify({
+    ...workerIdentity,
+    operationalEmailAlerts: alertMailer.isConfigured() ? 'configured' : 'waiting-for-smtp',
+  }));
   await recoverSessions({ store, sessions, signal: controller.signal });
   startRecoveryWatchdog({ store, sessions, signal: controller.signal });
 
-  await runCommandLoop({ store, sessions, signal: controller.signal });
+  await runCommandLoop({ store, sessions, alertMailer, signal: controller.signal });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startWorker().catch((error) => {
+  startWorker().catch(async (error) => {
     console.error(error);
+    if (activeAlertMailer?.isConfigured()) {
+      await activeAlertMailer.deliver({
+        event_type: 'worker.fatal',
+        severity: 'critical',
+        subject: 'relayWA worker stopped unexpectedly',
+        summary: 'The relayWA session worker encountered a fatal error and stopped.',
+        details: { error: String(error?.message ?? error).slice(0, 2000) },
+        created_at: new Date().toISOString(),
+        organization_id: null,
+        session_id: null,
+        resource_type: 'worker',
+        resource_id: workerIdentity.workerId,
+      }).catch((mailError) => {
+        console.error('Failed to send worker fatal alert', mailError);
+      });
+    }
     process.exitCode = 1;
   });
 }
