@@ -40,7 +40,6 @@ export default function OnboardingPage() {
   const [billingInterval,setBillingInterval]=useState<'monthly'|'annual'>('monthly');
   const [workspaceName,setWorkspaceName]=useState('');
   const [sessionName,setSessionName]=useState('Primary WhatsApp');
-  const [selectedSession,setSelectedSession]=useState('');
   const [qr,setQr]=useState<any>(null);
   const [createdKey,setCreatedKey]=useState('');
   const [recipient,setRecipient]=useState('');
@@ -67,7 +66,6 @@ export default function OnboardingPage() {
       setWorkspaceName((value)=>value || result.organization?.name || '');
       const connected=result.sessions.find((session:any)=>session.status==='connected');
       const first=connected || result.sessions[0];
-      if (first) setSelectedSession((value)=>value || first.id);
       if (result.completed) router.replace('/dashboard');
     } catch(err) {
       setError(err instanceof Error ? err.message : 'Unable to load onboarding');
@@ -154,7 +152,6 @@ export default function OnboardingPage() {
         method:'POST',
         body:JSON.stringify({name:sessionName}),
       });
-      setSelectedSession(session.id);
       await load();
     });
   }
