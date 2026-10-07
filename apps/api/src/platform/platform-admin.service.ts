@@ -57,7 +57,7 @@ export class PlatformAdminService {
   async sessions() {
     const result = await this.db.query(
       `SELECT ws.id, ws.organization_id, o.name AS organization_name,
-              ws.name, ws.phone_number, ws.display_name, ws.status, ws.engine,
+              ws.name, ws.phone_number, ws.display_name, ws.status, ws.engine, ws.next_engine,
               ws.worker_id, ws.last_connected_at, ws.last_disconnected_at,
               ws.last_connection_error, ws.created_at, ws.updated_at
        FROM whatsapp_sessions ws
@@ -102,6 +102,77 @@ export class PlatformAdminService {
       [commandId, session.rows[0].organization_id, sessionId, action],
     );
     return { commandId, sessionId, action, status: 'queued' };
+  }
+
+  async updateSessionEngine(sessionId: string, input: { engine: 'baileys' | 'chromium' }) {
+    const current = await this.db.query<{
+      id: string;
+      organization_id: string;
+      status: string;
+      engine: 'baileys' | 'chromium';
+      next_engine: 'baileys' | 'chromium' | null;
+    }>(
+      `SELECT id, organization_id, status, engine, next_engine
+       FROM whatsapp_sessions
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId],
+    );
+    const session = current.rows[0];
+    if (!session) throw new NotFoundException('Session not found');
+
+    if (session.engine === input.engine) {
+      await this.db.query(
+        `UPDATE whatsapp_sessions
+         SET next_engine = NULL, updated_at = now()
+         WHERE id = $1`,
+        [sessionId],
+      );
+      return {
+        sessionId,
+        activeEngine: session.engine,
+        nextEngine: null,
+        applied: true,
+        requiresQrNow: false,
+        message: 'Session is already using this engine.',
+      };
+    }
+
+    const canApplyWithoutActiveAuth = ['pending', 'logged_out'].includes(session.status);
+    if (canApplyWithoutActiveAuth) {
+      const changed = await this.db.query(
+        `UPDATE whatsapp_sessions
+         SET engine = $2, next_engine = NULL, updated_at = now()
+         WHERE id = $1
+         RETURNING engine, next_engine, status`,
+        [sessionId, input.engine],
+      );
+      return {
+        sessionId,
+        activeEngine: changed.rows[0].engine,
+        nextEngine: null,
+        applied: true,
+        requiresQrNow: false,
+        message: 'Engine changed. No active login was interrupted.',
+      };
+    }
+
+    await this.db.query(
+      `UPDATE whatsapp_sessions
+       SET next_engine = $2, updated_at = now()
+       WHERE id = $1`,
+      [sessionId, input.engine],
+    );
+
+    return {
+      sessionId,
+      activeEngine: session.engine,
+      nextEngine: input.engine,
+      applied: false,
+      deferred: true,
+      requiresQrNow: false,
+      message: 'Engine preference saved. The current authenticated engine stays active; RelayWA will not force a QR rescan.',
+    };
   }
 
   async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto) {

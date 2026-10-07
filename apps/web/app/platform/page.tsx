@@ -86,6 +86,20 @@ export default function PlatformPage() {
     }
   }
 
+  async function changeSessionEngine(sessionId:string, engine:'baileys'|'chromium') {
+    setError(''); setNotice('');
+    try {
+      const result:any = await api('/v1/platform/sessions/' + sessionId + '/engine',token,{
+        method:'PATCH',
+        body:JSON.stringify({engine}),
+      });
+      setNotice(result?.message ?? 'Session engine preference updated.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update session engine');
+    }
+  }
+
   async function updateSubscription(organizationId:string, patch:any) {
     setError(''); setNotice('');
     try {
@@ -202,8 +216,8 @@ export default function PlatformPage() {
       </TableSection>}
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
-        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
-        {filteredSessions.map((s)=><div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>)}
+        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
+        {filteredSessions.map((s)=><div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>)}
       </TableSection>}
 
       {active === 'Messaging' && <section className="panel auth-settings-panel">
@@ -224,7 +238,7 @@ export default function PlatformPage() {
         </div>
         <div className="settings-help">
           <strong>Safe switching policy</strong>
-          <p>Changing this setting affects new sessions only. Existing linked numbers stay on the engine they were paired with, so a platform setting change cannot unexpectedly log out active tenants. Moving an existing session between engines requires a fresh QR pairing because Baileys credentials and Chromium browser profiles are different.</p>
+          <p>Changing the platform default affects new sessions only. For an existing connected session, a per-session engine choice is saved as the next engine while the current authenticated engine keeps running. RelayWA never logs out a working session or forces a QR scan just because this setting changes.</p>
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
       </section>}
