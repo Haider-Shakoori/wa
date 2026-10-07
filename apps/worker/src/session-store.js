@@ -14,6 +14,17 @@ export class SessionStore {
     await this.pool.end();
   }
 
+  async getSessionEngine(sessionId) {
+    const result = await this.pool.query(
+      `SELECT engine
+       FROM whatsapp_sessions
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId],
+    );
+    return result.rows[0]?.engine ?? 'baileys';
+  }
+
   async claimNextCommand() {
     const client = await this.pool.connect();
     try {
