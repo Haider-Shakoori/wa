@@ -46,7 +46,7 @@ export default function PlatformPage() {
   useEffect(()=>{
     const current=localStorage.getItem('relaywa_access_token') ?? '';
     if (!current) {
-      router.replace('/login');
+      router.replace('/platform/login');
       return;
     }
     setToken(current);
