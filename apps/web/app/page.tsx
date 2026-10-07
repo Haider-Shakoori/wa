@@ -95,6 +95,6 @@ export default function Home() {
       </div>
     </section>
 
-    <footer className="public-footer"><div className="public-brand"><span className="brand-mark">rW</span><span><strong>relayWA</strong><small>by BusinessOS</small></span></div><p>Use RelayWA for legitimate, consent-based messaging and follow applicable WhatsApp policies.</p><a href="https://platform.relaywa.com">Platform administration</a></footer>
+    <footer className="public-footer"><div className="public-brand"><span className="brand-mark">rW</span><span><strong>relayWA</strong><small>by BusinessOS</small></span></div><p>Use RelayWA for legitimate, consent-based messaging and follow applicable WhatsApp policies.</p></footer>
   </main>;
 }
