@@ -7,7 +7,7 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
   assert.match(source, /Developer-first WhatsApp API/);
   assert.match(source, /Ship WhatsApp messaging from your app/);
   assert.match(source, /hero-product-grid/);
-  assert.match(source, /message\.delivered/);
+  assert.match(source, /message\.sent/);
   assert.match(source, /integration-section/);
   assert.doesNotMatch(source, /BusinessOS/i);
 });
