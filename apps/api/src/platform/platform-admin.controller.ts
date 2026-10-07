@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { PlatformSupportQuestionDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -92,4 +92,9 @@ export class PlatformAdminController {
 
   @Get('errors')
   errors() { return this.platform.recentErrors(); }
+
+  @Post('support/ask')
+  supportAsk(@Body() body: PlatformSupportQuestionDto) {
+    return this.platform.supportAnswer(body.message);
+  }
 }
