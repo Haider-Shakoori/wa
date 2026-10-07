@@ -15,3 +15,13 @@ export class UpdatePlatformSubscriptionDto {
   @Max(365)
   extendDays?: number;
 }
+
+export class UpdateGoogleAuthProviderDto {
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsIn([true, false])
+  enabled?: boolean;
+}
