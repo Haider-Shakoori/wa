@@ -1,6 +1,6 @@
 # RelayWA public API
 
-The public API uses unversioned URLs. The local base URL is `http://localhost:3001/api`. Configure the deployed HTTPS API origin in your application's environment.
+The public API uses unversioned URLs. The canonical production base URL is `https://relaywa.com/api`; no API subdomain is required. The local development base URL is `http://localhost:3001/api`.
 
 ## Send a text message
 

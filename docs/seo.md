@@ -1,6 +1,6 @@
 # RelayWA SEO
 
-Set `NEXT_PUBLIC_SITE_URL` to the public HTTPS website origin before building or deploying. It defaults to `https://relaywa.com`; do not point it at the customer or platform administration host. This origin controls canonical URLs, Open Graph images, structured data, robots.txt, and the sitemap.
+Set `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS origin before building or deploying. RelayWA uses one production origin, `https://relaywa.com`, for the public site, tenant workspace, platform administration, and `/api` routes. This origin controls canonical URLs, Open Graph images, structured data, robots.txt, and the sitemap.
 
 The indexable pages are `/`, `/pricing`, `/api-docs`, and `/help`. Each has its own title, description, canonical URL, and social metadata. The duplicate `/docs` route and account, checkout, onboarding, login, and platform routes use `noindex`. They remain crawlable so crawlers can read the noindex directive. Authentication remains responsible for protecting private content.
 

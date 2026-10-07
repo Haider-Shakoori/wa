@@ -271,7 +271,7 @@ export default function PlatformPage() {
         </div>)}
       </nav>
       <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="https://app.relaywa.com/dashboard">Customer workspace</a>
+        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
         <div className="status-pill"><span className="live-dot"/>Platform administration</div>
         <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>
@@ -385,7 +385,7 @@ export default function PlatformPage() {
             <div className="settings-help">
               <strong>Google Cloud setup</strong>
               <p>Create a Web application OAuth client in Google Cloud Console and add this site under Authorized JavaScript origins:</p>
-              <code>https://app.relaywa.com</code>
+              <code>https://relaywa.com</code>
               <p>A Client Secret is not required for relayWA's current Google Identity Services ID-token flow.</p>
             </div>
             <button className="primary-button" onClick={()=>void saveGoogleAuth()}>Save Google settings</button>
