@@ -10,7 +10,6 @@ const navigationGroups = [
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
   { label:'System', items:['Infrastructure','Authentication','Diagnostics'] },
 ] as const;
-const sections = navigationGroups.flatMap((group)=>group.items);
 
 export default function PlatformPage() {
   const router=useRouter();
