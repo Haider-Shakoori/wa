@@ -16,13 +16,29 @@ export class SessionStore {
 
   async getSessionEngine(sessionId) {
     const result = await this.pool.query(
-      `SELECT engine
+      `SELECT engine, next_engine, status
        FROM whatsapp_sessions
        WHERE id = $1 AND deleted_at IS NULL
        LIMIT 1`,
       [sessionId],
     );
-    return result.rows[0]?.engine ?? 'baileys';
+    const session = result.rows[0];
+    if (!session) return 'baileys';
+
+    if (session.next_engine && ['pending', 'logged_out'].includes(session.status)) {
+      const promoted = await this.pool.query(
+        `UPDATE whatsapp_sessions
+         SET engine = next_engine, next_engine = NULL, updated_at = now()
+         WHERE id = $1
+           AND next_engine IS NOT NULL
+           AND status IN ('pending', 'logged_out')
+         RETURNING engine`,
+        [sessionId],
+      );
+      return promoted.rows[0]?.engine ?? session.engine;
+    }
+
+    return session.engine ?? 'baileys';
   }
 
   async claimNextCommand() {
