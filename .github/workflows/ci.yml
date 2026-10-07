@@ -31,6 +31,8 @@ jobs:
         run: pnpm typecheck
       - name: Test
         run: pnpm test
+      - name: Check production canary script
+        run: node --check scripts/production-canary.mjs
       - name: Build
         run: pnpm build
       - name: Validate Docker Compose

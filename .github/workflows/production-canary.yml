@@ -1,0 +1,40 @@
+name: Production Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Canary depth
+        required: true
+        default: public
+        type: choice
+        options:
+          - public
+          - full
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run production canary
+        env:
+          CANARY_BASE_URL: https://wasender.businessos.af
+          CANARY_MODE: ${{ inputs.mode }}
+          RELAYWA_CANARY_API_KEY: ${{ secrets.RELAYWA_CANARY_API_KEY }}
+          RELAYWA_CANARY_SESSION_ID: ${{ secrets.RELAYWA_CANARY_SESSION_ID }}
+          RELAYWA_CANARY_RECIPIENT: ${{ secrets.RELAYWA_CANARY_RECIPIENT }}
+          RELAYWA_CANARY_WEBHOOK_ID: ${{ secrets.RELAYWA_CANARY_WEBHOOK_ID }}
+          RELAYWA_CANARY_EXPECTED_NUMBER: ${{ secrets.RELAYWA_CANARY_EXPECTED_NUMBER }}
+        run: node scripts/production-canary.mjs

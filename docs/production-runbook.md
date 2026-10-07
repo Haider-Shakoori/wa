@@ -19,6 +19,28 @@
 
 Stripe variables are additionally required before enabling Stripe.
 
+## Production canary
+
+A manual GitHub Actions workflow is available as **Production Canary**.
+
+Public mode verifies the live health endpoint and runtime authentication-provider configuration without credentials:
+
+```bash
+CANARY_BASE_URL=https://wasender.businessos.af CANARY_MODE=public pnpm canary:prod
+```
+
+Full mode also verifies a connected WhatsApp session, sends one idempotent text message, waits for the message to reach `sent`, and confirms that the configured webhook reports a new successful delivery.
+
+Configure these GitHub Actions secrets before running Full mode:
+
+- `RELAYWA_CANARY_API_KEY` — dedicated session-bound API token with `sessions.read`, `messages.read`, `messages.send`, and `webhooks.read`.
+- `RELAYWA_CANARY_SESSION_ID` — dedicated connected production canary session.
+- `RELAYWA_CANARY_RECIPIENT` — a consented test recipient controlled by the operator.
+- `RELAYWA_CANARY_WEBHOOK_ID` — enabled webhook endpoint subscribed to the canary session events.
+- `RELAYWA_CANARY_EXPECTED_NUMBER` — optional connected-number assertion.
+
+Do not use a customer recipient or a production business workflow as the canary target.
+
 ## Backup
 
 Run `scripts/backup.sh` with `DATABASE_URL` and the same `WA_AUTH_DIR` used by the worker. Back up both the PostgreSQL dump and WhatsApp auth archive together.
