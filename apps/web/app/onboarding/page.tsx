@@ -43,7 +43,7 @@ export default function OnboardingPage() {
   const [qr,setQr]=useState<any>(null);
   const [createdKey,setCreatedKey]=useState('');
   const [recipient,setRecipient]=useState('');
-  const [message,setMessage]=useState('Hello from relayWA — your WhatsApp API is working.');
+  const [message,setMessage]=useState('Hello from RelayWA — your WhatsApp API is working.');
   const [webhookUrl,setWebhookUrl]=useState('');
   const [manualReference,setManualReference]=useState('');
   const [busy,setBusy]=useState(false);
@@ -251,14 +251,14 @@ export default function OnboardingPage() {
     });
   }
 
-  if(!state) return <main className="onboarding-shell"><div className="onboarding-loading">Preparing your relayWA workspace…</div></main>;
+  if(!state) return <main className="onboarding-shell"><div className="onboarding-loading">Preparing your RelayWA workspace…</div></main>;
 
   const stripe=state.providers.find((provider:any)=>provider.provider==='stripe' && provider.enabled);
   const manual=state.providers.find((provider:any)=>provider.provider==='manual' && provider.enabled);
 
   return <main className="onboarding-shell">
     <aside className="onboarding-sidebar">
-      <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>Setup</span></div></div>
+      <div className="brand"><div className="brand-mark">rW</div><div><strong>RelayWA</strong><span>Setup</span></div></div>
       <div className="onboarding-progress">
         {steps.map(([key,label],index)=><div key={key} className={index<activeIndex?'wizard-step complete':index===activeIndex?'wizard-step active':'wizard-step'}>
           <span>{index<activeIndex?'✓':index+1}</span>
@@ -270,7 +270,7 @@ export default function OnboardingPage() {
 
     <section className="onboarding-main">
       <header className="onboarding-header">
-        <div><p className="eyebrow">Welcome to relayWA</p><h1>Connect WhatsApp to your software.</h1></div>
+        <div><p className="eyebrow">Welcome to RelayWA</p><h1>Connect WhatsApp to your software.</h1></div>
         <div className="onboarding-header-actions"><span className="setup-badge">Step {Math.min(activeIndex+1,6)} of 6</span><button className="danger-button account-logout" onClick={accountLogout}>Sign out</button></div>
       </header>
 
@@ -297,7 +297,7 @@ export default function OnboardingPage() {
         <div className="payment-options">
           {stripe && <button className="primary-button wide" onClick={()=>void startStripe()} disabled={busy}>Pay securely with Stripe</button>}
           {manual && <form className="onboarding-form" onSubmit={submitManual}><label>Payment reference<input value={manualReference} onChange={(e)=>setManualReference(e.target.value)} placeholder="Transfer/reference number" required minLength={2}/></label><button className="secondary-button wide" disabled={busy}>Submit manual payment</button></form>}
-          {!stripe && !manual && <div className="alert">No payment provider is currently enabled. Choose Trial or contact relayWA support.</div>}
+          {!stripe && !manual && <div className="alert">No payment provider is currently enabled. Choose Trial or contact RelayWA support.</div>}
         </div>
         <button className="text-button setup-check" onClick={()=>void checkPayment()}>I completed payment — check status →</button>
       </section>}
