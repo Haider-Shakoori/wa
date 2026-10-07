@@ -27,7 +27,8 @@ export function GithubSignIn() {
     return ()=>{active=false;};
   },[]);
 
-  if (!loaded || !enabled) return null;
+  if (!loaded) return null;
+  if (!enabled) return <button type="button" className="github-signin-button" disabled title="GitHub sign-in requires OAuth credentials and activation in Platform Admin">Continue with GitHub · Setup required</button>;
 
   function startGithub() {
     const returnTo = window.location.pathname + window.location.search;
