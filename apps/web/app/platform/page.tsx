@@ -30,6 +30,9 @@ export default function PlatformPage() {
   const [query,setQuery] = useState('');
   const [googleEnabled,setGoogleEnabled] = useState(false);
   const [googleClientId,setGoogleClientId] = useState('');
+  const [githubEnabled,setGithubEnabled] = useState(false);
+  const [githubClientId,setGithubClientId] = useState('');
+  const [githubSecretConfigured,setGithubSecretConfigured] = useState(false);
   const [messagingEngine,setMessagingEngine] = useState<'baileys'|'chromium'>('baileys');
   const [messagingSafety,setMessagingSafety] = useState<any>({
     enabled:true,
@@ -95,6 +98,10 @@ export default function PlatformPage() {
       const google=(authProviderRows as any[]).find((item)=>item.provider==='google');
       setGoogleEnabled(Boolean(google?.enabled));
       setGoogleClientId(String(google?.public_config?.clientId ?? ''));
+      const github=(authProviderRows as any[]).find((item)=>item.provider==='github');
+      setGithubEnabled(Boolean(github?.enabled));
+      setGithubClientId(String(github?.public_config?.clientId ?? ''));
+      setGithubSecretConfigured(Boolean(github?.public_config?.secretConfigured));
       setMessagingEngine((messagingEngineSettings as any)?.defaultEngine === 'chromium' ? 'chromium' : 'baileys');
       setMessagingSafety(messagingSafetySettings as any);
     } catch (err) {
@@ -180,6 +187,23 @@ export default function PlatformPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save Google authentication settings');
+    }
+  }
+
+  async function saveGithubAuth() {
+    setError(''); setNotice('');
+    try {
+      await api('/platform/settings/auth-providers/github',token,{
+        method:'PATCH',
+        body:JSON.stringify({
+          enabled:githubEnabled,
+          clientId:githubClientId.trim(),
+        }),
+      });
+      setNotice(githubEnabled ? 'GitHub sign-in is enabled.' : 'GitHub sign-in is disabled.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save GitHub authentication settings');
     }
   }
 
@@ -371,11 +395,12 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Authentication' && <section className="panel auth-settings-panel">
-        <PanelHeading eyebrow="Authentication" title="Login providers" subtitle="Control which sign-in methods customers can use on relayWA."/>
+        <PanelHeading eyebrow="Authentication" title="Tenant login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
+
         <div className="auth-provider-card">
           <div className="auth-provider-head">
             <div className="google-provider-logo">G</div>
-            <div className="grow"><h3>Google</h3><p className="muted">Google Identity Services ID-token sign-in for customer login and registration.</p></div>
+            <div className="grow"><h3>Google</h3><p className="muted">Google Identity Services sign-in for tenant registration and login.</p></div>
             <label className="settings-toggle"><input type="checkbox" checked={googleEnabled} onChange={(e)=>setGoogleEnabled(e.target.checked)}/><span>{googleEnabled?'Enabled':'Disabled'}</span></label>
           </div>
           <div className="auth-settings-form">
@@ -384,11 +409,34 @@ export default function PlatformPage() {
             </label>
             <div className="settings-help">
               <strong>Google Cloud setup</strong>
-              <p>Create a Web application OAuth client in Google Cloud Console and add this site under Authorized JavaScript origins:</p>
+              <p>Add the canonical RelayWA site as an Authorized JavaScript origin:</p>
               <code>https://relaywa.com</code>
-              <p>A Client Secret is not required for relayWA's current Google Identity Services ID-token flow.</p>
+              <p>RelayWA verifies the returned Google ID token server-side. A Google Client Secret is not required for this flow.</p>
             </div>
             <button className="primary-button" onClick={()=>void saveGoogleAuth()}>Save Google settings</button>
+          </div>
+        </div>
+
+        <div className="auth-provider-card github-provider-card">
+          <div className="auth-provider-head">
+            <div className="github-provider-logo">GH</div>
+            <div className="grow"><h3>GitHub</h3><p className="muted">GitHub OAuth for tenant registration and login with verified-email account linking.</p></div>
+            <label className="settings-toggle"><input type="checkbox" checked={githubEnabled} onChange={(e)=>setGithubEnabled(e.target.checked)}/><span>{githubEnabled?'Enabled':'Disabled'}</span></label>
+          </div>
+          <div className="auth-settings-form">
+            <label>GitHub OAuth App Client ID
+              <input value={githubClientId} onChange={(e)=>setGithubClientId(e.target.value)} placeholder="Ov23li..."/>
+            </label>
+            <div className="settings-help">
+              <strong>GitHub OAuth App setup</strong>
+              <p>Homepage URL:</p>
+              <code>https://relaywa.com</code>
+              <p>Authorization callback URL:</p>
+              <code>https://relaywa.com/api/auth/github/callback</code>
+              <p>Client Secret is stored only in the production environment as <code>GITHUB_CLIENT_SECRET</code>.</p>
+              <p>{githubSecretConfigured ? '✓ GitHub Client Secret is configured on the server.' : 'GitHub Client Secret is not configured yet; GitHub sign-in cannot be enabled until it is set.'}</p>
+            </div>
+            <button className="primary-button" onClick={()=>void saveGithubAuth()}>Save GitHub settings</button>
           </div>
         </div>
       </section>}

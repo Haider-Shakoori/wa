@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import type { AuthTokenPayload } from './auth.types';
@@ -16,6 +16,16 @@ type GoogleTokenInfo = {
   name?: string;
   given_name?: string;
 };
+type GithubUserInfo = {
+  id?: number;
+  login?: string;
+  name?: string | null;
+};
+type GithubEmail = {
+  email?: string;
+  primary?: boolean;
+  verified?: boolean;
+};
 
 @Injectable()
 export class AuthService {
@@ -26,19 +36,31 @@ export class AuthService {
 
   async providers() {
     const result = await this.db.query<any>(
-      `SELECT enabled, public_config
+      `SELECT provider, enabled, public_config
        FROM auth_provider_settings
-       WHERE provider = 'google'
-       LIMIT 1`,
+       WHERE provider IN ('google','github')`,
     );
-    const row = result.rows[0];
-    const clientId = String(row?.public_config?.clientId ?? process.env.GOOGLE_CLIENT_ID ?? '').trim();
-    const enabled = row ? Boolean(row.enabled) : Boolean(clientId);
+    const settings = new Map(result.rows.map((row:any) => [row.provider, row]));
+    const google = settings.get('google') as any;
+    const github = settings.get('github') as any;
+
+    const googleClientId = String(google?.public_config?.clientId ?? process.env.GOOGLE_CLIENT_ID ?? '').trim();
+    const googleEnabled = google ? Boolean(google.enabled) : Boolean(googleClientId);
+
+    const githubClientId = String(github?.public_config?.clientId ?? process.env.GITHUB_CLIENT_ID ?? '').trim();
+    const githubSecretConfigured = Boolean(String(process.env.GITHUB_CLIENT_SECRET ?? '').trim());
+    const githubEnabled = github
+      ? Boolean(github.enabled)
+      : Boolean(githubClientId && githubSecretConfigured);
 
     return {
       google: {
-        enabled: enabled && Boolean(clientId),
-        clientId: enabled ? clientId : '',
+        enabled: googleEnabled && Boolean(googleClientId),
+        clientId: googleEnabled ? googleClientId : '',
+      },
+      github: {
+        enabled: githubEnabled && Boolean(githubClientId) && githubSecretConfigured,
+        clientId: githubEnabled ? githubClientId : '',
       },
       email: {
         enabled: true,
@@ -79,28 +101,138 @@ export class AuthService {
 
   async google(input: GoogleAuthDto) {
     const profile = await this.verifyGoogleCredential(input.credential);
+    const account = await this.socialAccount({
+      provider: 'google',
+      subject: profile.sub,
+      email: String(profile.email),
+      name: String(profile.name || profile.given_name || String(profile.email).split('@')[0]),
+    });
+    return this.issueTokens(account.user, account.membership);
+  }
 
-    const identity = await this.db.query<UserRow & MembershipRow>(
+  async githubAuthorizeUrl(returnTo?: string) {
+    const settings = await this.providers();
+    const clientId = settings.github.clientId;
+    if (!settings.github.enabled || !clientId) {
+      throw new ServiceUnavailableException('GitHub sign-in is disabled or not configured');
+    }
+
+    const state = this.jwt.sign(
+      {
+        typ: 'github_oauth_state',
+        returnTo: this.safeReturnTo(returnTo),
+      },
+      { expiresIn: 600 },
+    );
+
+    const url = new URL('https://github.com/login/oauth/authorize');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', this.githubCallbackUrl());
+    url.searchParams.set('scope', 'read:user user:email');
+    url.searchParams.set('state', state);
+    url.searchParams.set('allow_signup', 'true');
+    return url.toString();
+  }
+
+  async githubCallback(code?: string, state?: string, providerError?: string) {
+    let returnTo = '/login';
+
+    try {
+      if (!state) throw new UnauthorizedException('Missing GitHub OAuth state');
+      const statePayload = this.jwt.verify<{ typ?: string; returnTo?: string }>(state);
+      if (statePayload.typ !== 'github_oauth_state') {
+        throw new UnauthorizedException('Invalid GitHub OAuth state');
+      }
+      returnTo = this.safeReturnTo(statePayload.returnTo);
+
+      if (providerError) {
+        return this.githubFrontendRedirect(returnTo, { github_error: providerError });
+      }
+      if (!code) {
+        return this.githubFrontendRedirect(returnTo, { github_error: 'missing_code' });
+      }
+
+      const profile = await this.verifyGithubCode(code);
+      const account = await this.socialAccount({
+        provider: 'github',
+        subject: profile.subject,
+        email: profile.email,
+        name: profile.name,
+      });
+
+      const loginCode = randomBytes(32).toString('base64url');
+      const codeHash = this.sha256(loginCode);
+
+      await this.db.query(
+        `DELETE FROM oauth_login_codes
+         WHERE expires_at < now()
+            OR (used_at IS NOT NULL AND used_at < now() - interval '1 day')`,
+      );
+      await this.db.query(
+        `INSERT INTO oauth_login_codes
+          (id, code_hash, provider, user_id, expires_at)
+         VALUES ($1,$2,'github',$3,now() + interval '5 minutes')`,
+        [randomUUID(), codeHash, account.user.id],
+      );
+
+      return this.githubFrontendRedirect(returnTo, { github_code: loginCode });
+    } catch {
+      return this.githubFrontendRedirect(returnTo, { github_error: 'oauth_failed' });
+    }
+  }
+
+  async githubExchange(code: string) {
+    const consumed = await this.db.query<{ user_id: string }>(
+      `UPDATE oauth_login_codes
+       SET used_at = now()
+       WHERE code_hash = $1
+         AND provider = 'github'
+         AND used_at IS NULL
+         AND expires_at > now()
+       RETURNING user_id`,
+      [this.sha256(code.trim())],
+    );
+    const userId = consumed.rows[0]?.user_id;
+    if (!userId) throw new UnauthorizedException('GitHub login code is invalid or expired');
+
+    const userResult = await this.db.query<UserRow>(
+      'SELECT id, email, name, password_hash FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
+      [userId],
+    );
+    const user = userResult.rows[0];
+    if (!user) throw new UnauthorizedException('GitHub account is no longer available');
+
+    const membership = await this.membership(user.id);
+    return this.issueTokens(user, membership);
+  }
+
+  private async socialAccount(input: {
+    provider: 'google' | 'github';
+    subject: string;
+    email: string;
+    name: string;
+  }) {
+    const identity = await this.db.query<UserRow & MembershipRow & { membership_id: string }>(
       `SELECT u.id, u.email, u.name, u.password_hash, m.id AS membership_id,
               m.organization_id
        FROM user_auth_identities i
        JOIN users u ON u.id = i.user_id AND u.disabled_at IS NULL
        JOIN organization_memberships m ON m.user_id = u.id AND m.status = 'active'
-       WHERE i.provider = 'google' AND i.provider_subject = $1
+       WHERE i.provider = $1 AND i.provider_subject = $2
        ORDER BY m.created_at ASC
        LIMIT 1`,
-      [profile.sub],
+      [input.provider, input.subject],
     );
 
     if (identity.rows[0]) {
-      const row:any = identity.rows[0];
-      return this.issueTokens(
-        { id: row.id, email: row.email, name: row.name },
-        { id: row.membership_id, organization_id: row.organization_id },
-      );
+      const row = identity.rows[0];
+      return {
+        user: { id: row.id, email: row.email, name: row.name, password_hash: row.password_hash },
+        membership: { id: row.membership_id, organization_id: row.organization_id },
+      };
     }
 
-    const email = String(profile.email).trim().toLowerCase();
+    const email = input.email.trim().toLowerCase();
     const existing = await this.db.query<UserRow>(
       'SELECT id, email, name, password_hash FROM users WHERE email = $1 AND disabled_at IS NULL LIMIT 1',
       [email],
@@ -116,7 +248,7 @@ export class AuthService {
       const generatedPasswordHash = await hash(randomBytes(48).toString('base64url'), 12);
       const created = await this.createAccount({
         email,
-        name: String(profile.name || profile.given_name || email.split('@')[0]),
+        name: input.name.trim() || email.split('@')[0],
         passwordHash: generatedPasswordHash,
       });
       user = created.user;
@@ -126,13 +258,15 @@ export class AuthService {
     await this.db.query(
       `INSERT INTO user_auth_identities
         (id, user_id, provider, provider_subject, provider_email)
-       VALUES ($1,$2,'google',$3,$4)
-       ON CONFLICT (provider, provider_subject)
-       DO UPDATE SET provider_email = EXCLUDED.provider_email, updated_at = now()`,
-      [randomUUID(), user.id, profile.sub, email],
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (user_id, provider)
+       DO UPDATE SET provider_subject = EXCLUDED.provider_subject,
+                     provider_email = EXCLUDED.provider_email,
+                     updated_at = now()`,
+      [randomUUID(), user.id, input.provider, input.subject, email],
     );
 
-    return this.issueTokens(user, membership);
+    return { user, membership };
   }
 
   private async createAccount(input: {
@@ -254,6 +388,100 @@ export class AuthService {
     }
 
     return profile as Required<Pick<GoogleTokenInfo,'sub'|'email'>> & GoogleTokenInfo;
+  }
+
+  private async verifyGithubCode(code: string) {
+    const settings = await this.providers();
+    const clientId = settings.github.clientId;
+    const clientSecret = String(process.env.GITHUB_CLIENT_SECRET ?? '').trim();
+    if (!settings.github.enabled || !clientId || !clientSecret) {
+      throw new ServiceUnavailableException('GitHub sign-in is disabled or not configured');
+    }
+
+    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'user-agent': 'RelayWA',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: this.githubCallbackUrl(),
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!tokenResponse.ok) throw new UnauthorizedException('GitHub authorization failed');
+
+    const tokenPayload = await tokenResponse.json() as { access_token?: string; error?: string };
+    if (!tokenPayload.access_token || tokenPayload.error) {
+      throw new UnauthorizedException('GitHub authorization failed');
+    }
+
+    const githubHeaders = {
+      authorization: `Bearer ${tokenPayload.access_token}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'RelayWA',
+      'x-github-api-version': '2022-11-28',
+    };
+    const [profileResponse, emailsResponse] = await Promise.all([
+      fetch('https://api.github.com/user', {
+        headers: githubHeaders,
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch('https://api.github.com/user/emails', {
+        headers: githubHeaders,
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
+    if (!profileResponse.ok || !emailsResponse.ok) {
+      throw new UnauthorizedException('Unable to verify GitHub identity');
+    }
+
+    const profile = await profileResponse.json() as GithubUserInfo;
+    const emails = await emailsResponse.json() as GithubEmail[];
+    const selected = emails.find((item) => item.primary && item.verified)
+      ?? emails.find((item) => item.verified);
+
+    if (!profile.id || !selected?.email) {
+      throw new UnauthorizedException('GitHub account does not have a verified email address');
+    }
+
+    return {
+      subject: String(profile.id),
+      email: selected.email.trim().toLowerCase(),
+      name: String(profile.name || profile.login || selected.email.split('@')[0]),
+    };
+  }
+
+  private githubCallbackUrl() {
+    const explicit = String(process.env.GITHUB_CALLBACK_URL ?? '').trim();
+    if (explicit) return explicit;
+    const site = String(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    return `${site}/api/auth/github/callback`;
+  }
+
+  private githubFrontendRedirect(returnTo: string, params: Record<string, string>) {
+    const base = String(
+      process.env.AUTH_FRONTEND_URL ??
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      'http://localhost:3000',
+    ).replace(/\/$/, '');
+    const url = new URL(this.safeReturnTo(returnTo), base + '/');
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    return url.toString();
+  }
+
+  private safeReturnTo(value?: string) {
+    const candidate = String(value ?? '/login');
+    if (/^\/(login|register)(?:\?|$)/.test(candidate)) return candidate;
+    return '/login';
+  }
+
+  private sha256(value: string) {
+    return createHash('sha256').update(value).digest('hex');
   }
 
   private slug(name: string, id: string) {

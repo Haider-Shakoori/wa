@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
+import { GithubExchangeDto, GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import { JwtAuthGuard, type AuthenticatedRequest } from './jwt-auth.guard';
 
 @Controller(['auth', 'v1/auth'])
@@ -25,6 +25,27 @@ export class AuthController {
   @Post('google')
   google(@Body() body: GoogleAuthDto) {
     return this.auth.google(body);
+  }
+
+  @Get('github/start')
+  @Redirect(undefined, 302)
+  async githubStart(@Query('returnTo') returnTo?: string) {
+    return { url: await this.auth.githubAuthorizeUrl(returnTo) };
+  }
+
+  @Get('github/callback')
+  @Redirect(undefined, 302)
+  async githubCallback(
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+    @Query('error') error?: string,
+  ) {
+    return { url: await this.auth.githubCallback(code, state, error) };
+  }
+
+  @Post('github/exchange')
+  githubExchange(@Body() body: GithubExchangeDto) {
+    return this.auth.githubExchange(body.code);
   }
 
   @Get('me')

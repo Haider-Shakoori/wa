@@ -723,3 +723,14 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
   .docs-hero-cards,.docs-three,.docs-four,.production-checklist{grid-template-columns:1fr}
   .docs-v2-cta{align-items:flex-start;flex-direction:column}
 }
+
+
+/* Tenant social authentication */
+.social-auth-stack{display:grid;gap:10px;margin:18px 0 2px}
+.google-signin-wrap{display:grid;justify-items:stretch}
+.google-signin-wrap>div:first-child{display:flex;justify-content:center;min-height:40px}
+.github-signin-button{width:100%;min-height:42px;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #d7dfe4;border-radius:10px;background:#fff;color:#20252a;font-size:12px;font-weight:750;box-shadow:0 3px 12px rgba(20,30,38,.035);transition:.16s ease}
+.github-signin-button:hover{background:#f7f9fa;border-color:#c5d0d6;transform:translateY(-1px)}
+.github-signin-mark{display:inline-grid;place-items:center;color:#181b1f}
+.github-provider-logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#171a1e;color:#fff;font-size:9px;font-weight:900;letter-spacing:-.03em}
+.github-provider-card .settings-help code{word-break:break-all}
