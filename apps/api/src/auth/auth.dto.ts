@@ -34,3 +34,9 @@ export class GoogleAuthDto {
   @MinLength(20)
   credential!: string;
 }
+
+export class GithubExchangeDto {
+  @IsString()
+  @MinLength(20)
+  code!: string;
+}
