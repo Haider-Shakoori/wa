@@ -44,6 +44,7 @@ export class SessionStore {
   constructor({ databaseUrl, workerId }) {
     this.workerId = workerId;
     this.pool = new Pool({ connectionString: databaseUrl, max: 5 });
+    this.safetyCache = { value: null, expiresAt: 0 };
   }
 
   async close() {
@@ -75,6 +76,57 @@ export class SessionStore {
     }
 
     return session.engine ?? 'baileys';
+  }
+
+  async getMessagingSafetySettings() {
+    if (this.safetyCache.value && this.safetyCache.expiresAt > Date.now()) {
+      return this.safetyCache.value;
+    }
+
+    const result = await this.pool.query(
+      `SELECT enabled, min_delay_ms, max_delay_ms, messages_per_minute, messages_per_hour,
+              burst_limit, burst_window_seconds, duplicate_window_seconds,
+              retry_base_ms, max_attempts, max_queue_age_seconds,
+              failure_pause_threshold, failure_window_seconds, auto_pause_seconds
+       FROM messaging_safety_settings
+       WHERE id = 'global'
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    const settings = row ? {
+      enabled: Boolean(row.enabled),
+      minDelayMs: Math.max(1000, Number(row.min_delay_ms)),
+      maxDelayMs: Math.max(1000, Number(row.max_delay_ms)),
+      messagesPerMinute: Number(row.messages_per_minute),
+      messagesPerHour: Number(row.messages_per_hour),
+      burstLimit: Number(row.burst_limit),
+      burstWindowSeconds: Number(row.burst_window_seconds),
+      duplicateWindowSeconds: Number(row.duplicate_window_seconds),
+      retryBaseMs: Number(row.retry_base_ms),
+      maxAttempts: Number(row.max_attempts),
+      maxQueueAgeSeconds: Number(row.max_queue_age_seconds),
+      failurePauseThreshold: Number(row.failure_pause_threshold),
+      failureWindowSeconds: Number(row.failure_window_seconds),
+      autoPauseSeconds: Number(row.auto_pause_seconds),
+    } : {
+      enabled: true,
+      minDelayMs: 2500,
+      maxDelayMs: 5000,
+      messagesPerMinute: 20,
+      messagesPerHour: 300,
+      burstLimit: 5,
+      burstWindowSeconds: 10,
+      duplicateWindowSeconds: 60,
+      retryBaseMs: 5000,
+      maxAttempts: 5,
+      maxQueueAgeSeconds: 3600,
+      failurePauseThreshold: 5,
+      failureWindowSeconds: 300,
+      autoPauseSeconds: 900,
+    };
+
+    this.safetyCache = { value: settings, expiresAt: Date.now() + 5000 };
+    return settings;
   }
 
   async claimNextCommand() {
@@ -648,10 +700,75 @@ export class SessionStore {
          AND s.status = 'connected'
          AND s.worker_id = $1
          AND s.worker_lease_expires_at > now()
-       RETURNING m.*`,
+       RETURNING m.*, s.messaging_paused_until, s.messaging_pause_reason`,
       [this.workerId, messageId],
     );
     return result.rows[0] ?? null;
+  }
+
+  async pauseSessionMessaging(sessionId, seconds, reason) {
+    const result = await this.pool.query(
+      `UPDATE whatsapp_sessions
+       SET messaging_paused_until = GREATEST(
+             COALESCE(messaging_paused_until, now()),
+             now() + ($1::int * interval '1 second')
+           ),
+           messaging_pause_reason = $2,
+           updated_at = now()
+       WHERE id = $3 AND deleted_at IS NULL
+       RETURNING messaging_paused_until`,
+      [Math.max(60, Number(seconds) || 60), String(reason).slice(0, 1000), sessionId],
+    );
+
+    if (result.rows[0]) {
+      await this.event(sessionId, 'session.messaging_safety_paused', {
+        reason: String(reason).slice(0, 1000),
+        pausedUntil: result.rows[0].messaging_paused_until,
+      });
+      await this.queueSessionAlert(sessionId, {
+        eventType: 'session.messaging_safety_paused',
+        severity: 'warning',
+        subject: 'WhatsApp sending automatically paused',
+        summary: 'relayWA paused outbound API messaging for this session after repeated delivery failures.',
+        details: {
+          reason: String(reason).slice(0, 1000),
+          pausedUntil: result.rows[0].messaging_paused_until,
+        },
+        cooldownSeconds: Math.max(300, Number(seconds) || 900),
+      });
+    }
+
+    return result.rows[0]?.messaging_paused_until ?? null;
+  }
+
+  async markMessageSafetyRejected(messageId, reason) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = 'failed', last_error = $1, failed_at = now(),
+           bull_job_id = NULL, updated_at = now()
+       WHERE id = $2 AND worker_id = $3`,
+      [String(reason).slice(0, 2000), messageId, this.workerId],
+    );
+  }
+
+  async markMessageQueueExpired(messageId, sessionId, ageSeconds) {
+    await this.markMessageSafetyRejected(
+      messageId,
+      `safety_queue_expired: message waited ${Math.round(ageSeconds)} seconds`,
+    );
+    await this.event(sessionId, 'message.queue_expired', {
+      messageId,
+      ageSeconds: Math.round(ageSeconds),
+    });
+    await this.queueSessionAlert(sessionId, {
+      eventType: 'message.queue_expired',
+      severity: 'warning',
+      dedupeKey: `session:${sessionId}:message.queue_expired`,
+      subject: 'WhatsApp API queue is too old',
+      summary: 'relayWA stopped an outbound message because it exceeded the configured maximum queue age.',
+      details: { messageId, ageSeconds: Math.round(ageSeconds) },
+      cooldownSeconds: 900,
+    });
   }
 
   async deferRateLimitedMessage(messageId, retryAt) {
@@ -660,6 +777,22 @@ export class SessionStore {
        SET rate_limited_until = $1, updated_at = now()
        WHERE id = $2`,
       [retryAt, messageId],
+    );
+  }
+
+  async rescheduleMessageForSafety(messageId, retryAt, reason) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = 'retrying',
+           next_attempt_at = $1,
+           rate_limited_until = $1,
+           bull_job_id = NULL,
+           worker_id = NULL,
+           claimed_at = NULL,
+           last_error = $2,
+           updated_at = now()
+       WHERE id = $3`,
+      [retryAt, String(reason || 'safety_throttle').slice(0, 2000), messageId],
     );
   }
 
