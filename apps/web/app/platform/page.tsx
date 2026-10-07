@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { Brand } from '../../components/relay-workspace';
+import { FeatherIcon, type FeatherName } from '../../components/feather-icon';
 
 const navigationGroups = [
-  { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
-  { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Infrastructure','Authentication','Diagnostics'] },
+  { label:'Operations', items:[['Overview','grid'],['Organizations','users'],['Sessions','layers'],['Messaging','send']] },
+  { label:'Commercial', items:[['Subscriptions','credit'],['Payments','cart'],['Providers','shield']] },
+  { label:'System', items:[['Infrastructure','chart'],['Authentication','lock'],['Diagnostics','bell']] },
 ] as const;
 
 export default function PlatformPage() {
@@ -28,6 +29,9 @@ export default function PlatformPage() {
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
   const [query,setQuery] = useState('');
+  const [menu,setMenu] = useState(false);
+  const [adminName,setAdminName] = useState('');
+  const [adminEmail,setAdminEmail] = useState('');
   const [googleEnabled,setGoogleEnabled] = useState(false);
   const [googleClientId,setGoogleClientId] = useState('');
   const [githubEnabled,setGithubEnabled] = useState(false);
@@ -59,6 +63,10 @@ export default function PlatformPage() {
       return;
     }
     setToken(current);
+    void api<any>('/auth/me',current).then((result)=>{
+      setAdminName(String(result?.user?.name ?? ''));
+      setAdminEmail(String(result?.user?.email ?? result?.auth?.email ?? ''));
+    }).catch(()=>{});
   },[router]);
 
   function accountLogout() {
@@ -285,46 +293,72 @@ export default function PlatformPage() {
   const filteredSessions = normalizedQuery ? sessions.filter((item)=>[item.name,item.organization_name,item.phone_number,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : sessions;
   const filteredSubscriptions = normalizedQuery ? subscriptions.filter((item)=>[item.organization_name,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : subscriptions;
 
-  return <div className="app-shell platform-shell">
-    <aside className="sidebar">
-      <div className="brand"><Brand/></div>
-      <nav className="platform-nav-groups">
-        {navigationGroups.map((group)=><div className="platform-nav-group" key={group.label}>
-          <span className="platform-nav-label">{group.label}</span>
-          {group.items.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}
-        </div>)}
-      </nav>
-      <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
-        <div className="status-pill"><span className="live-dot"/>Platform administration</div>
-        <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
+  return <div className="rw-app rw-platform-app">
+    <aside className={'rw-sidebar rw-platform-sidebar '+(menu?'open':'')}>
+      <Brand href="/platform"/>
+      {navigationGroups.map((group)=><div className="rw-platform-nav-group" key={group.label}>
+        <span className="rw-nav-label">{group.label.toUpperCase()}</span>
+        <nav>
+          {group.items.map(([item,icon])=><button key={item} className={active===item?'active':''} onClick={()=>{setActive(item);setMenu(false);}}>
+            <span><FeatherIcon name={icon as FeatherName}/></span>{item}
+          </button>)}
+        </nav>
+      </div>)}
+      <div className="rw-sidebar-help">
+        <span className="rw-nav-label">PLATFORM</span>
+        <a href="/dashboard"><FeatherIcon name="grid"/> Customer workspace</a>
+        <a href="/api-docs"><FeatherIcon name="external"/> API documentation</a>
+        <a href="/"><FeatherIcon name="left"/> Visit website</a>
+      </div>
+      <div className="rw-account">
+        <div className="rw-account-identity">
+          <span className="rw-avatar">{(adminName.trim()?adminName.trim().split(/\s+/).slice(0,2).map((part)=>part[0]).join(''):adminEmail.slice(0,2)).toUpperCase()||'PA'}</span>
+          <div><strong title={adminName||adminEmail}>{adminName||'Platform Admin'}</strong><small title={adminEmail}>{adminEmail||'Private control plane'}</small></div>
+        </div>
+        <button className="rw-signout" aria-label="Sign out" onClick={accountLogout}><FeatherIcon name="logout" size={16}/><span>Sign out</span></button>
       </div>
     </aside>
 
-    <main className="content platform-page">
-      <header className="topbar platform-topbar-v2">
-        <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1><p className="platform-page-context">{platformSubtitle(active)}</p></div>
-        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
+    <main className="rw-main">
+      <header className="rw-topbar">
+        <button className="rw-menu" aria-label="Toggle navigation" onClick={()=>setMenu(!menu)}><FeatherIcon name="menu"/></button>
+        <div><a href="/platform">Platform</a><span>/</span><span>{active}</span></div>
+        <a href="/api-docs">Documentation <FeatherIcon name="external" size={13}/></a>
       </header>
 
-      {error && <div className="alert">{error}</div>}
-      {notice && <div className="success-alert">{notice}</div>}
+      <div className="rw-body rw-platform-body">
+        <div className="rw-page-heading">
+          <div><p className="rw-kicker">PLATFORM ADMINISTRATION</p><h1>{active}</h1><p>{platformSubtitle(active)}</p></div>
+          <button className="rw-button secondary" onClick={()=>void refresh()}><FeatherIcon name="refresh" size={14}/> Refresh</button>
+        </div>
+
+        {['Organizations','Sessions','Subscriptions'].includes(active) && <div className="rw-platform-toolbar">
+          <label className="rw-platform-search"><FeatherIcon name="search" size={14}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></label>
+          <span className="rw-platform-production"><i/>Production</span>
+        </div>}
+
+        {error && <div className="rw-alert">{error}</div>}
+        {notice && <div className="rw-notice">{notice}</div>}
 
       {active === 'Overview' && <>
-        <section className="platform-hero platform-hero-v2">
-          <div className="platform-hero-copy"><p className="eyebrow">Private operations</p><h2>Run RelayWA with a clear view of what needs attention.</h2><p className="muted">Monitor tenants, WhatsApp sessions, message delivery, payments and infrastructure without mixing platform operations into the customer workspace.</p>
-            <div className="platform-quick-actions">
-              <button className="primary-button" onClick={()=>setActive('Sessions')}>Review sessions</button>
-              <button className="secondary-button" onClick={()=>setActive('Diagnostics')}>Open diagnostics</button>
-              <a className="secondary-button" href="/docs" target="_blank" rel="noreferrer">API documentation ↗</a>
+        <section className="rw-dashboard-welcome rw-platform-welcome">
+          <div className="rw-dashboard-intro">
+            <span className="rw-dashboard-eyebrow">PRIVATE CONTROL PLANE</span>
+            <h2>Everything operational, in one RelayWA workspace.</h2>
+            <p>Monitor customer organizations, WhatsApp connections, subscriptions, payments and infrastructure with the same focused UI used by tenants.</p>
+            <div className="rw-dashboard-actions">
+              <button className="rw-button" onClick={()=>setActive('Sessions')}><FeatherIcon name="smartphone" size={14}/> Review sessions</button>
+              <button className="rw-button secondary" onClick={()=>setActive('Diagnostics')}><FeatherIcon name="bell" size={14}/> Open diagnostics</button>
+              <a className="rw-dashboard-docs" href="/api-docs">API documentation <FeatherIcon name="right" size={13}/></a>
             </div>
           </div>
-          <div className="platform-health-card">
-            <div className="platform-health-head"><span className={healthyWorkers?'health-orb healthy':'health-orb warning'}/><div><strong>{healthyWorkers ? 'Core services healthy' : 'Infrastructure needs attention'}</strong><small>Live operational snapshot</small></div></div>
-            <div className="platform-health-stats"><span><b>{healthyWorkers}</b>workers</span><span><b>{connected}</b>connected</span><span><b>{failedMessages}</b>failed</span></div>
+          <div className="rw-dashboard-connection">
+            <div className="rw-dashboard-connection-head"><span className="rw-dashboard-phone"><FeatherIcon name="shield" size={18}/></span><span>Platform health</span><span className={'rw-dashboard-status '+(healthyWorkers?'online':'')}>{healthyWorkers?'Operational':'Review needed'}</span></div>
+            <div className="rw-dashboard-connection-count"><strong>{connected}<span> sessions</span></strong><span>currently connected</span></div>
+            <div className="rw-dashboard-connection-foot"><span>{healthyWorkers} healthy worker lease{healthyWorkers===1?'':'s'}</span><button onClick={()=>setActive('Infrastructure')}>View infrastructure <FeatherIcon name="right" size={13}/></button></div>
           </div>
         </section>
-        <section className="platform-metrics">
+        <section className="rw-stats rw-platform-stats">
           <Metric label="Organizations" value={overview?.organizations ?? 0} detail="Customer tenants"/>
           <Metric label="Connected sessions" value={connected} detail={sessions.length + ' total sessions'}/>
           <Metric label="Users" value={overview?.users ?? 0} detail="Platform accounts"/>
@@ -332,7 +366,7 @@ export default function PlatformPage() {
           <Metric label="Failed outbound" value={failedMessages} detail="Message failures"/>
           <Metric label="Failed webhooks" value={overview?.failedWebhooks ?? 0} detail="Delivery failures"/>
         </section>
-        <section className="two-column">
+        <section className="rw-grid-two rw-platform-grid-two">
           <Panel title="Recent organizations">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No organizations yet."/>}</Panel>
           <Panel title="WhatsApp health">{sessions.slice(0,6).map((s)=><SessionRow key={s.id} session={s}/>)}{!sessions.length && <Empty text="No sessions yet."/>}</Panel>
         </section>
@@ -349,7 +383,7 @@ export default function PlatformPage() {
       </TableSection>}
 
       {active === 'Messaging' && <>
-      <section className="panel auth-settings-panel">
+      <section className="rw-card rw-platform-card auth-settings-panel">
         <PanelHeading eyebrow="Messaging runtime" title="WhatsApp engine" subtitle="Choose the default engine for newly created WhatsApp sessions."/>
         <div className="provider-grid">
           <article className="provider-card">
@@ -371,7 +405,7 @@ export default function PlatformPage() {
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
       </section>
-      <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
+      <section className="rw-card rw-platform-card"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
@@ -384,17 +418,17 @@ export default function PlatformPage() {
         {payments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
       </TableSection>}
 
-      {active === 'Infrastructure' && <section className="two-column">
+      {active === 'Infrastructure' && <section className="rw-grid-two rw-platform-grid-two">
         <Panel title="Worker leases">{workers.map((w)=><div className="session-row" key={w.worker_id}><div className="session-avatar small">WK</div><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned</span></div><Badge value={new Date(w.lease_expires_at).getTime()>Date.now()?'healthy':'expired'}/></div>)}{!workers.length && <Empty text="No workers found."/>}</Panel>
         <Panel title="Queue state"><QueueSummary queues={queues}/></Panel>
       </section>}
 
-      {active === 'Providers' && <section className="panel">
+      {active === 'Providers' && <section className="rw-card rw-platform-card">
         <PanelHeading eyebrow="Payments" title="Payment providers" subtitle="Enable or disable platform-level payment methods. Secrets remain environment-only."/>
         <div className="provider-grid">{providers.map((provider)=><article className="provider-card" key={provider.provider}><div><p className="eyebrow">{provider.provider}</p><h3>{provider.provider==='stripe'?'Stripe Checkout':'Manual / offline'}</h3></div><Badge value={provider.enabled?'enabled':'disabled'}/><p className="muted">{provider.provider==='stripe'?'Online card payments through Stripe Checkout.':'For bank transfer, cash or locally arranged payments.'}</p><button className={provider.enabled?'secondary-button':'primary-button'} onClick={()=>void toggleProvider(provider)}>{provider.enabled?'Disable':'Enable'}</button></article>)}</div>
       </section>}
 
-      {active === 'Authentication' && <section className="panel auth-settings-panel">
+      {active === 'Authentication' && <section className="rw-card rw-platform-card auth-settings-panel">
         <PanelHeading eyebrow="Authentication" title="Tenant login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
 
         <div className="auth-provider-card">
@@ -443,14 +477,16 @@ export default function PlatformPage() {
 
       {active === 'Diagnostics' && <section className="diagnostics-grid"><Diagnostic title="Session errors" rows={errors?.sessions ?? []}/><Diagnostic title="Message errors" rows={errors?.messages ?? []}/><Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []}/></section>}
       <PlatformSupportBot token={token} onNavigate={(section)=>setActive(section)}/>
+      </div>
+      <footer className="rw-app-footer">RelayWA Platform · Private administration.<a href="/api-docs">Developer documentation ↗</a></footer>
     </main>
   </div>;
 }
 
-function Metric({label,value,detail}:{label:string;value:number|string;detail:string}) { return <article className="metric-card"><p>{label}</p><strong>{value}</strong><span>{detail}</span></article>; }
-function Panel({title,children}:{title:string;children:React.ReactNode}) { return <section className="panel"><div className="panel-head"><h2>{title}</h2></div>{children}</section>; }
+function Metric({label,value,detail}:{label:string;value:number|string;detail:string}) { return <article><span>{label}</span><h3>{value}</h3><p>{detail}</p></article>; }
+function Panel({title,children}:{title:string;children:React.ReactNode}) { return <section className="rw-card rw-platform-card"><div className="panel-head"><h2>{title}</h2></div>{children}</section>; }
 function PanelHeading({eyebrow,title,subtitle}:{eyebrow:string;title:string;subtitle:string}) { return <div className="panel-head"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p className="muted panel-subtitle">{subtitle}</p></div></div>; }
-function TableSection({eyebrow,title,subtitle,children}:{eyebrow:string;title:string;subtitle:string;children:React.ReactNode}) { return <section className="panel"><PanelHeading eyebrow={eyebrow} title={title} subtitle={subtitle}/><div className="platform-table">{children}</div></section>; }
+function TableSection({eyebrow,title,subtitle,children}:{eyebrow:string;title:string;subtitle:string;children:React.ReactNode}) { return <section className="rw-card rw-platform-card"><PanelHeading eyebrow={eyebrow} title={title} subtitle={subtitle}/><div className="platform-table">{children}</div></section>; }
 function TenantRow({tenant}:{tenant:any}) { return <div className="session-row"><div className="session-avatar small">{tenant.name?.slice(0,2).toUpperCase()}</div><div className="grow"><strong>{tenant.name}</strong><span>{tenant.plan_code ?? 'No plan'} · {tenant.sessions} sessions</span></div><Badge value={tenant.subscription_status ?? 'none'}/></div>; }
 function SessionRow({session}:{session:any}) { return <div className="session-row"><div className="session-avatar small">WA</div><div className="grow"><strong>{session.name}</strong><span>{session.phone_number ? '+' + session.phone_number : session.organization_name}</span></div><Badge value={session.status}/></div>; }
 function Badge({value}:{value:string}) { const safe=String(value || 'unknown').replace(/_/g,' '); return <span className={'state state-' + value}><span className="state-dot"/>{safe}</span>; }
@@ -460,7 +496,7 @@ function QueueSummary({queues}:{queues:any}) {
   return <div className="queue-summary">{groups.map(([label,rows]:any)=><div className="queue-group" key={label}><strong>{label}</strong><div>{(rows??[]).map((r:any)=><span key={r.status}><b>{r.count}</b>{r.status}</span>)}</div></div>)}</div>;
 }
 
-function Diagnostic({title,rows}:{title:string;rows:any[]}) { return <section className="panel"><div className="panel-head"><h2>{title}</h2><span className="count-badge">{rows.length}</span></div>{rows.length?rows.slice(0,30).map((r,i)=><div className="diagnostic-row" key={r.id??i}><strong>{r.name ?? r.status ?? 'Error'}</strong><span>{r.last_connection_error ?? r.last_error ?? 'Unknown error'}</span><small>{date(r.updated_at)}</small></div>):<Empty text="No recent errors."/>}</section>; }
+function Diagnostic({title,rows}:{title:string;rows:any[]}) { return <section className="rw-card rw-platform-card"><div className="panel-head"><h2>{title}</h2><span className="count-badge">{rows.length}</span></div>{rows.length?rows.slice(0,30).map((r,i)=><div className="diagnostic-row" key={r.id??i}><strong>{r.name ?? r.status ?? 'Error'}</strong><span>{r.last_connection_error ?? r.last_error ?? 'Unknown error'}</span><small>{date(r.updated_at)}</small></div>):<Empty text="No recent errors."/>}</section>; }
 function Empty({text}:{text:string}) { return <div className="empty">{text}</div>; }
 function date(value?:string|null) { if (!value) return '—'; return new Date(value).toLocaleString(); }
 function money(cents:number,currency:string) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:currency||'USD'}).format((Number(cents)||0)/100); } catch { return String((Number(cents)||0)/100) + ' ' + (currency||''); } }
