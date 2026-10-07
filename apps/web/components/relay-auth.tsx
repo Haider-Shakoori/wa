@@ -16,8 +16,9 @@ function tenantDestination(result:any, register:boolean) {
     return '/subscription?plan=' + encodeURIComponent(plan)
       + '&interval=' + encodeURIComponent(chosen.get('interval') || 'monthly');
   }
-  return result?.nextPath
-    ?? (result?.onboardingStep === 'complete' ? '/dashboard' : '/onboarding');
+  // Returning customers always land in their dashboard; onboarding stays an optional setup flow.
+  if (!register) return result?.isPlatformAdmin ? '/platform' : '/dashboard';
+  return result?.nextPath ?? '/onboarding';
 }
 
 export default function RelayAuth({ register=false }: { register?: boolean }) {
