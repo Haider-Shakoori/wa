@@ -23,6 +23,23 @@ export default function PlatformPage() {
   const [googleEnabled,setGoogleEnabled] = useState(false);
   const [googleClientId,setGoogleClientId] = useState('');
   const [messagingEngine,setMessagingEngine] = useState<'baileys'|'chromium'>('baileys');
+  const [messagingSafety,setMessagingSafety] = useState<any>({
+    enabled:true,
+    minDelayMs:2500,
+    maxDelayMs:5000,
+    messagesPerMinute:20,
+    messagesPerHour:300,
+    burstLimit:5,
+    burstWindowSeconds:10,
+    duplicateWindowSeconds:60,
+    retryBaseMs:5000,
+    maxAttempts:5,
+    maxQueueAgeSeconds:3600,
+    failurePauseThreshold:5,
+    failureWindowSeconds:300,
+    autoPauseSeconds:900,
+    hardMinimumDelayMs:1000,
+  });
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
 
@@ -30,7 +47,7 @@ export default function PlatformPage() {
     if (!current) return;
     setError('');
     try {
-      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings] = await Promise.all([
+      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings,messagingSafetySettings] = await Promise.all([
         api('/v1/platform/overview',current),
         api('/v1/platform/tenants',current),
         api('/v1/platform/sessions',current),
@@ -42,6 +59,7 @@ export default function PlatformPage() {
         api('/v1/billing/providers',current),
         api('/v1/platform/settings/auth-providers',current),
         api('/v1/platform/settings/messaging-engine',current),
+        api('/v1/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
       setTenants(t as any[]);
@@ -56,6 +74,7 @@ export default function PlatformPage() {
       setGoogleEnabled(Boolean(google?.enabled));
       setGoogleClientId(String(google?.public_config?.clientId ?? ''));
       setMessagingEngine((messagingEngineSettings as any)?.defaultEngine === 'chromium' ? 'chromium' : 'baileys');
+      setMessagingSafety(messagingSafetySettings as any);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
     }
@@ -143,6 +162,43 @@ export default function PlatformPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save messaging engine');
     }
+  }
+
+  async function saveMessagingSafety() {
+    setError(''); setNotice('');
+    try {
+      if (Number(messagingSafety.maxDelayMs) < Number(messagingSafety.minDelayMs)) {
+        setError('Maximum message delay must be greater than or equal to minimum delay.');
+        return;
+      }
+      await api('/v1/platform/settings/messaging-safety',token,{
+        method:'PATCH',
+        body:JSON.stringify({
+          enabled:Boolean(messagingSafety.enabled),
+          minDelayMs:Number(messagingSafety.minDelayMs),
+          maxDelayMs:Number(messagingSafety.maxDelayMs),
+          messagesPerMinute:Number(messagingSafety.messagesPerMinute),
+          messagesPerHour:Number(messagingSafety.messagesPerHour),
+          burstLimit:Number(messagingSafety.burstLimit),
+          burstWindowSeconds:Number(messagingSafety.burstWindowSeconds),
+          duplicateWindowSeconds:Number(messagingSafety.duplicateWindowSeconds),
+          retryBaseMs:Number(messagingSafety.retryBaseMs),
+          maxAttempts:Number(messagingSafety.maxAttempts),
+          maxQueueAgeSeconds:Number(messagingSafety.maxQueueAgeSeconds),
+          failurePauseThreshold:Number(messagingSafety.failurePauseThreshold),
+          failureWindowSeconds:Number(messagingSafety.failureWindowSeconds),
+          autoPauseSeconds:Number(messagingSafety.autoPauseSeconds),
+        }),
+      });
+      setNotice('Messaging Safety Governor settings saved. Workers will pick them up automatically.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save messaging safety settings');
+    }
+  }
+
+  function setSafetyNumber(key:string,value:string) {
+    setMessagingSafety((current:any)=>({...current,[key]:Number(value)}));
   }
 
   async function toggleProvider(provider:any) {
@@ -241,6 +297,62 @@ export default function PlatformPage() {
           <p>Changing the platform default affects new sessions only. For an existing connected session, a per-session engine choice is saved as the next engine while the current authenticated engine keeps running. RelayWA never logs out a working session or forces a QR scan just because this setting changes.</p>
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
+      </section>
+      <section className="panel auth-settings-panel">
+        <PanelHeading eyebrow="API messaging safety" title="Safety Governor" subtitle="Control API message pacing and automatically slow or pause risky bursts without restarting RelayWA."/>
+        <div className="auth-provider-card">
+          <div className="auth-provider-head">
+            <div className="session-avatar small">SG</div>
+            <div className="grow"><h3>Outbound protection</h3><p className="muted">Applies to messages sent through the RelayWA API on both Baileys and Chromium sessions.</p></div>
+            <label className="settings-toggle"><input type="checkbox" checked={Boolean(messagingSafety.enabled)} onChange={(e)=>setMessagingSafety((current:any)=>({...current,enabled:e.target.checked}))}/><span>{messagingSafety.enabled?'Enabled':'Disabled'}</span></label>
+          </div>
+          <div className="auth-settings-form">
+            <label>Minimum delay between messages (ms)
+              <input type="number" min="1000" max="60000" value={messagingSafety.minDelayMs} onChange={(e)=>setSafetyNumber('minDelayMs',e.target.value)}/>
+            </label>
+            <label>Maximum randomized delay (ms)
+              <input type="number" min="1000" max="120000" value={messagingSafety.maxDelayMs} onChange={(e)=>setSafetyNumber('maxDelayMs',e.target.value)}/>
+            </label>
+            <label>Messages per minute
+              <input type="number" min="1" max="120" value={messagingSafety.messagesPerMinute} onChange={(e)=>setSafetyNumber('messagesPerMinute',e.target.value)}/>
+            </label>
+            <label>Messages per hour
+              <input type="number" min="1" max="5000" value={messagingSafety.messagesPerHour} onChange={(e)=>setSafetyNumber('messagesPerHour',e.target.value)}/>
+            </label>
+            <label>Burst limit
+              <input type="number" min="1" max="50" value={messagingSafety.burstLimit} onChange={(e)=>setSafetyNumber('burstLimit',e.target.value)}/>
+            </label>
+            <label>Burst window (seconds)
+              <input type="number" min="1" max="60" value={messagingSafety.burstWindowSeconds} onChange={(e)=>setSafetyNumber('burstWindowSeconds',e.target.value)}/>
+            </label>
+            <label>Duplicate suppression window (seconds)
+              <input type="number" min="0" max="3600" value={messagingSafety.duplicateWindowSeconds} onChange={(e)=>setSafetyNumber('duplicateWindowSeconds',e.target.value)}/>
+            </label>
+            <label>Retry base delay (ms)
+              <input type="number" min="1000" max="60000" value={messagingSafety.retryBaseMs} onChange={(e)=>setSafetyNumber('retryBaseMs',e.target.value)}/>
+            </label>
+            <label>Maximum send attempts
+              <input type="number" min="1" max="10" value={messagingSafety.maxAttempts} onChange={(e)=>setSafetyNumber('maxAttempts',e.target.value)}/>
+            </label>
+            <label>Maximum queue age (seconds)
+              <input type="number" min="60" max="86400" value={messagingSafety.maxQueueAgeSeconds} onChange={(e)=>setSafetyNumber('maxQueueAgeSeconds',e.target.value)}/>
+            </label>
+            <label>Auto-pause after final failures
+              <input type="number" min="2" max="20" value={messagingSafety.failurePauseThreshold} onChange={(e)=>setSafetyNumber('failurePauseThreshold',e.target.value)}/>
+            </label>
+            <label>Failure observation window (seconds)
+              <input type="number" min="60" max="3600" value={messagingSafety.failureWindowSeconds} onChange={(e)=>setSafetyNumber('failureWindowSeconds',e.target.value)}/>
+            </label>
+            <label>Automatic pause duration (seconds)
+              <input type="number" min="60" max="86400" value={messagingSafety.autoPauseSeconds} onChange={(e)=>setSafetyNumber('autoPauseSeconds',e.target.value)}/>
+            </label>
+            <div className="settings-help">
+              <strong>{Number(messagingSafety.minDelayMs) < 2000 ? 'Aggressive pacing selected' : 'Safety floor active'}</strong>
+              <p>RelayWA never allows less than {messagingSafety.hardMinimumDelayMs ?? 1000} ms between configured message slots. A 2–5 second randomized delay is the safer default for normal transactional traffic. These controls reduce burst risk but cannot guarantee that an unofficial WhatsApp Web session will never be restricted.</p>
+            </div>
+            <button className="primary-button" onClick={()=>void saveMessagingSafety()}>Save Safety Governor</button>
+          </div>
+        </div>
       </section>}
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
