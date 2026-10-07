@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
+import { PlatformSupportBot } from '../../components/platform-support-bot';
 
-const sections = ['Overview','Organizations','Sessions','Messaging','Subscriptions','Payments','Infrastructure','Providers','Authentication','Diagnostics'];
+const navigationGroups = [
+  { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
+  { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
+  { label:'System', items:['Infrastructure','Authentication','Diagnostics'] },
+] as const;
+const sections = navigationGroups.flatMap((group)=>group.items);
 
 export default function PlatformPage() {
   const router=useRouter();
@@ -258,7 +264,12 @@ export default function PlatformPage() {
   return <div className="app-shell platform-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">rW</div><div><strong>RelayWA</strong><span>Control plane</span></div></div>
-      <nav>{sections.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
+      <nav className="platform-nav-groups">
+        {navigationGroups.map((group)=><div className="platform-nav-group" key={group.label}>
+          <span className="platform-nav-label">{group.label}</span>
+          {group.items.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}
+        </div>)}
+      </nav>
       <div className="sidebar-bottom">
         <a className="ghost-button platform-link" href="https://app.relaywa.com/dashboard">Customer workspace</a>
         <div className="status-pill"><span className="live-dot"/>Platform administration</div>
@@ -267,8 +278,8 @@ export default function PlatformPage() {
     </aside>
 
     <main className="content platform-page">
-      <header className="topbar">
-        <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1></div>
+      <header className="topbar platform-topbar-v2">
+        <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1><p className="platform-page-context">{platformSubtitle(active)}</p></div>
         <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
       </header>
 
@@ -276,9 +287,18 @@ export default function PlatformPage() {
       {notice && <div className="success-alert">{notice}</div>}
 
       {active === 'Overview' && <>
-        <section className="platform-hero">
-          <div><p className="eyebrow">Private operations</p><h2>Operate every RelayWA tenant, session and subscription from one control plane.</h2><p className="muted">The same RelayWA visual language, tuned for denser operational visibility across customers, queues, payments, workers and failures.</p></div>
-          <div className="platform-health"><span className="live-dot"/><strong>{healthyWorkers ? 'Workers online' : 'Check workers'}</strong><small>{healthyWorkers} active worker lease{healthyWorkers===1?'':'s'}</small></div>
+        <section className="platform-hero platform-hero-v2">
+          <div className="platform-hero-copy"><p className="eyebrow">Private operations</p><h2>Run RelayWA with a clear view of what needs attention.</h2><p className="muted">Monitor tenants, WhatsApp sessions, message delivery, payments and infrastructure without mixing platform operations into the customer workspace.</p>
+            <div className="platform-quick-actions">
+              <button className="primary-button" onClick={()=>setActive('Sessions')}>Review sessions</button>
+              <button className="secondary-button" onClick={()=>setActive('Diagnostics')}>Open diagnostics</button>
+              <a className="secondary-button" href="/docs" target="_blank" rel="noreferrer">API documentation ↗</a>
+            </div>
+          </div>
+          <div className="platform-health-card">
+            <div className="platform-health-head"><span className={healthyWorkers?'health-orb healthy':'health-orb warning'}/><div><strong>{healthyWorkers ? 'Core services healthy' : 'Infrastructure needs attention'}</strong><small>Live operational snapshot</small></div></div>
+            <div className="platform-health-stats"><span><b>{healthyWorkers}</b>workers</span><span><b>{connected}</b>connected</span><span><b>{failedMessages}</b>failed</span></div>
+          </div>
         </section>
         <section className="platform-metrics">
           <Metric label="Organizations" value={overview?.organizations ?? 0} detail="Customer tenants"/>
@@ -429,6 +449,7 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Diagnostics' && <section className="diagnostics-grid"><Diagnostic title="Session errors" rows={errors?.sessions ?? []}/><Diagnostic title="Message errors" rows={errors?.messages ?? []}/><Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []}/></section>}
+      <PlatformSupportBot token={token} onNavigate={(section)=>setActive(section)}/>
     </main>
   </div>;
 }
@@ -450,3 +471,20 @@ function Diagnostic({title,rows}:{title:string;rows:any[]}) { return <section cl
 function Empty({text}:{text:string}) { return <div className="empty">{text}</div>; }
 function date(value?:string|null) { if (!value) return '—'; return new Date(value).toLocaleString(); }
 function money(cents:number,currency:string) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:currency||'USD'}).format((Number(cents)||0)/100); } catch { return String((Number(cents)||0)/100) + ' ' + (currency||''); } }
+
+
+function platformSubtitle(section:string) {
+  const subtitles:Record<string,string> = {
+    Overview:'Operational health, tenant activity and platform-wide exceptions.',
+    Organizations:'Customer workspaces, memberships, plans and session footprint.',
+    Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
+    Messaging:'Default engine selection and platform-wide Safety Governor settings.',
+    Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',
+    Payments:'Payment activity, manual approvals and provider status.',
+    Providers:'Payment provider availability and platform configuration.',
+    Infrastructure:'Worker leases and queue state across RelayWA.',
+    Authentication:'Customer login providers and OAuth configuration.',
+    Diagnostics:'Recent session, message and webhook failures requiring review.',
+  };
+  return subtitles[section] ?? 'Private RelayWA platform operations.';
+}
