@@ -7,7 +7,7 @@ import CodeShowcase from '../../components/code-showcase';
 import { integrationExamples } from '../../lib/integration-examples';
 import { Brand } from '../../components/relay-workspace';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+import { API_BASE } from '../../lib/api';
 
 const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
   {
@@ -190,6 +190,12 @@ export default function DocsPage() {
     const handler=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();searchRef.current?.focus();}if(event.key==='Escape'){setQuery('');searchRef.current?.blur();}};
     window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
   },[]);
+  const [signedIn,setSignedIn]=useState(false);
+  useEffect(()=>{
+    const refresh=()=>setSignedIn(Boolean(window.localStorage.getItem('relaywa_access_token')));
+    refresh();window.addEventListener('storage',refresh);window.addEventListener('focus',refresh);
+    return()=>{window.removeEventListener('storage',refresh);window.removeEventListener('focus',refresh);};
+  },[]);
   const [language,setLanguage]=useState<Language>('cURL');
   const snippet=useMemo(()=>buildSnippet(language),[language]);
   const searchResults=useMemo(()=>{
@@ -207,7 +213,7 @@ export default function DocsPage() {
     <header className="docs-v2-topbar">
       <Brand/>
       <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls="docs-search-results" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
-      <nav><a href="/">Product</a><a href="/#pricing">Pricing</a><a href="/login">Sign in</a><a className="public-cta" href="/login">Start free</a></nav>
+      <nav><a href="/">Product</a><a href="/#pricing">Pricing</a>{signedIn?<a className="public-cta" href="/dashboard">Back to dashboard</a>:<><a href="/login">Sign in</a><a className="public-cta" href="/register">Start free</a></>}</nav>
     </header>
 
     <div className="docs-v2-layout">
