@@ -17,3 +17,12 @@ test('worker routes session operations by the persisted session engine', async (
   assert.match(index, /MessagingSessionManager/);
   assert.equal(pkg.dependencies['whatsapp-web.js'], '1.34.7');
 });
+
+
+test('Chromium dependency stack loads under the worker Node runtime', async () => {
+  const module = await import('whatsapp-web.js');
+  const WhatsAppWeb = module.default ?? module;
+  assert.equal(typeof WhatsAppWeb.Client, 'function');
+  assert.equal(typeof WhatsAppWeb.LocalAuth, 'function');
+  assert.equal(typeof WhatsAppWeb.MessageMedia, 'function');
+});
