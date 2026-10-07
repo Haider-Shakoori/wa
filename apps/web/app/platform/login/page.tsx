@@ -44,7 +44,7 @@ export default function PlatformLoginPage() {
 
   return <main className="split-login-shell platform-login-shell">
     <section className="split-login-brand">
-      <a className="public-brand" href="https://relaywa.com"><span className="brand-mark">rW</span><span><strong>relayWA</strong><small>Platform control plane</small></span></a>
+      <a className="public-brand" href="https://relaywa.com"><span className="brand-mark">rW</span><span><strong>RelayWA</strong><small>Platform control plane</small></span></a>
       <div>
         <span className="public-kicker">Private administration</span>
         <h1>Operate RelayWA separately from customer workspaces.</h1>

@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   return <main className="auth-v2-shell">
     <section className="auth-v2-brand">
-      <div className="auth-logo"><div className="brand-mark large">rW</div><div><strong>relayWA</strong><span>by BusinessOS</span></div></div>
+      <div className="auth-logo"><div className="brand-mark large">rW</div><div><strong>RelayWA</strong><span>WhatsApp API workspace</span></div></div>
       <div className="auth-copy">
         <span className="product-kicker"><span className="live-dot"/>WhatsApp infrastructure for developers</span>
         <h1>Connect once.<br/>Build anything.</h1>
@@ -60,7 +60,7 @@ export default function LoginPage() {
 
         <div className="auth-heading">
           <p className="eyebrow">{mode==='login'?'Welcome back':'Start building'}</p>
-          <h2>{mode==='login'?'Sign in to relayWA':'Create your relayWA account'}</h2>
+          <h2>{mode==='login'?'Sign in to RelayWA':'Create your RelayWA account'}</h2>
           <p>{mode==='login'?'Tenant workspace for sessions, APIs, messages, webhooks and billing.':'No card required for the 7-day trial. Choose your plan after signup.'}</p>
         </div>
 
