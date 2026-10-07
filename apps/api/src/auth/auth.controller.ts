@@ -29,8 +29,8 @@ export class AuthController {
 
   @Get('github/start')
   @Redirect(undefined, 302)
-  githubStart(@Query('returnTo') returnTo?: string) {
-    return { url: this.auth.githubAuthorizeUrl(returnTo) };
+  async githubStart(@Query('returnTo') returnTo?: string) {
+    return { url: await this.auth.githubAuthorizeUrl(returnTo) };
   }
 
   @Get('github/callback')
