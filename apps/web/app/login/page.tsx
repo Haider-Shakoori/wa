@@ -26,7 +26,8 @@ export default function LoginPage() {
         body:JSON.stringify(payload),
       });
       localStorage.setItem('relaywa_access_token',result.accessToken);
-      router.push(result.nextPath || (mode==='register'?'/onboarding':'/dashboard'));
+      const tenantPath=result.onboardingStep==='complete'?'/dashboard':'/onboarding';
+      router.push(mode==='register'?'/onboarding':tenantPath);
     } catch(err) {
       setError(err instanceof Error ? err.message : 'Unable to continue');
     } finally {
@@ -60,7 +61,7 @@ export default function LoginPage() {
         <div className="auth-heading">
           <p className="eyebrow">{mode==='login'?'Welcome back':'Start building'}</p>
           <h2>{mode==='login'?'Sign in to relayWA':'Create your relayWA account'}</h2>
-          <p>{mode==='login'?'Manage sessions, APIs and billing from your workspace.':'No card required for the trial. Choose your plan after signup.'}</p>
+          <p>{mode==='login'?'Tenant workspace for sessions, APIs, messages, webhooks and billing.':'No card required for the 7-day trial. Choose your plan after signup.'}</p>
         </div>
 
         <GoogleSignIn/>
@@ -74,6 +75,7 @@ export default function LoginPage() {
         </form>
 
         <p className="auth-legal">By continuing, you agree to use relayWA for legitimate, consent-based messaging and comply with applicable WhatsApp terms.</p>
+        <a className="auth-back-link" href="https://platform.relaywa.com">Platform administrator sign in →</a>
       </div>
     </section>
   </main>;
