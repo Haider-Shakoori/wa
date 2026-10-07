@@ -233,7 +233,7 @@ export default function DocsPage() {
           <Code value={'Authorization: Bearer rw_live_YOUR_KEY'}/>
           <div className="docs-two">
             <InfoCard title="Organization key"><p>Can operate across sessions in its organization when the key has the required scope.</p></InfoCard>
-            <InfoCard title="Session-bound key"><p>Restricts the credential to one WhatsApp session for tighter isolation.</p></InfoCard>
+            <InfoCard title="Session-bound key"><p>Starts with <code>rw_session_</code> and restricts the credential to one WhatsApp session for tighter isolation.</p></InfoCard>
           </div>
           <Note title="Never expose API keys">Do not embed RelayWA keys in browser JavaScript or distributable mobile binaries. Send from your own backend.</Note>
         </DocSection>
