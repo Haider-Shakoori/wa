@@ -1,4 +1,7 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+// The browser API always lives under /api on the canonical RelayWA origin.
+// Accept either an origin or an /api URL, without routing auth requests to Next.js.
+const configuredApiBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api').replace(/\/$/, '');
+export const API_BASE = configuredApiBase.endsWith('/api') ? configuredApiBase : `${configuredApiBase}/api`;
 
 export async function api<T>(path: string, token?: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
