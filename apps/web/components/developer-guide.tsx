@@ -81,6 +81,10 @@ export function DeveloperGuide({
   }
 
   return <div className="integration-grid">
+    <section className="developer-docs-banner">
+      <div><p className="eyebrow">RelayWA documentation</p><h3>Need the complete API reference?</h3><p>Open the public developer portal for endpoints, payloads, media limits, webhook signature verification, queue behavior and error responses.</p></div>
+      <a className="primary-button" href="/docs" target="_blank" rel="noreferrer">Open API documentation</a>
+    </section>
     <section className="integration-card">
       <p className="eyebrow">Step 1</p>
       <h3>Create an API key</h3>
@@ -119,7 +123,7 @@ export function DeveloperGuide({
 
       {createdToken && <div className="token-reveal">
         <strong>Copy this token now</strong>
-        <p className="muted">relayWA stores only its hash. The full token cannot be shown again later.</p>
+        <p className="muted">RelayWA stores only its hash. The full token cannot be shown again later.</p>
         <code>{createdToken}</code>
         <button className="secondary-button" type="button" onClick={()=>void copy(createdToken,'token')}>{copied==='token'?'Copied':'Copy token'}</button>
       </div>}
@@ -133,7 +137,7 @@ export function DeveloperGuide({
     <section className="integration-card">
       <p className="eyebrow">Step 2</p>
       <h3>Connect your application</h3>
-      <p className="muted">Choose the WhatsApp session your software will send through. The examples below call the same relayWA REST endpoint.</p>
+      <p className="muted">Choose the WhatsApp session your software will send through. The examples below call the same RelayWA REST endpoint.</p>
 
       <label className="guide-session-select">WhatsApp session
         <select value={sessionId} onChange={(e)=>setSessionId(e.target.value)}>
@@ -169,7 +173,7 @@ export function DeveloperGuide({
         <h4>Phone format</h4>
         <p>Use international format without a leading local zero. Example: <code>93744119422</code>.</p>
         <h4>Security</h4>
-        <p>Keep API keys on your backend. For browser or mobile apps, call your own backend and let your backend call relayWA.</p>
+        <p>Keep API keys on your backend. For browser or mobile apps, call your own backend and let your backend call RelayWA.</p>
       </div>
     </section>
   </div>;
