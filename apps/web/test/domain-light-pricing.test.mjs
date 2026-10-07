@@ -18,7 +18,7 @@ test('tenant and platform authentication have separate entry points', async () =
   const platform = await readFile(new URL('../app/platform/login/page.tsx', import.meta.url), 'utf8');
   const admin = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
   assert.match(tenant, /Tenant workspace/);
-  assert.match(tenant, /platform\.relaywa\.com/);
+  assert.doesNotMatch(tenant, /platform\.relaywa\.com/);
   assert.match(platform, /Platform administrator/);
   assert.match(platform, /isPlatformAdmin/);
   assert.match(admin, /\/platform\/login/);
