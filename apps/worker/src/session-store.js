@@ -4,6 +4,42 @@ import { nextLeaseExpiry } from './session-runtime.js';
 
 const { Pool } = pg;
 
+function sessionAlertDefinition(eventType, payload = {}) {
+  if (eventType === 'session.logged_out') {
+    return {
+      severity: 'critical',
+      subject: 'WhatsApp session logged out',
+      summary: 'A linked WhatsApp session was logged out. Messaging from this session has stopped until it is connected again.',
+      cooldownSeconds: 300,
+    };
+  }
+
+  if (eventType === 'session.auth_failure' || eventType === 'session.auth_corrupt') {
+    return {
+      severity: 'critical',
+      subject: eventType === 'session.auth_corrupt'
+        ? 'WhatsApp authentication data is corrupt'
+        : 'WhatsApp authentication failed',
+      summary: 'relayWA could not use the stored WhatsApp authentication state for this session and it needs attention.',
+      cooldownSeconds: 900,
+    };
+  }
+
+  if (eventType === 'session.reconnecting') {
+    const attempts = Number(payload?.reconnectAttempts ?? 0);
+    const threshold = Number(process.env.ALERT_RECONNECT_THRESHOLD ?? 3);
+    if (attempts < threshold) return null;
+    return {
+      severity: 'warning',
+      subject: 'WhatsApp session is repeatedly reconnecting',
+      summary: `A WhatsApp session has reached ${attempts} reconnect attempts and may need investigation.`,
+      cooldownSeconds: Number(process.env.ALERT_DEDUPE_SECONDS ?? 900),
+    };
+  }
+
+  return null;
+}
+
 export class SessionStore {
   constructor({ databaseUrl, workerId }) {
     this.workerId = workerId;
@@ -153,6 +189,7 @@ export class SessionStore {
   }
 
   async markRecoveryFailed(sessionId, error) {
+    const message = String(error?.message ?? error).slice(0, 2000);
     await this.pool.query(
       `UPDATE whatsapp_sessions
        SET status = 'error',
@@ -161,8 +198,17 @@ export class SessionStore {
            recovery_reason = 'recovery_failed',
            updated_at = now()
        WHERE id = $2 AND worker_id = $3`,
-      [String(error?.message ?? error).slice(0, 2000), sessionId, this.workerId],
+      [message, sessionId, this.workerId],
     );
+
+    await this.queueSessionAlert(sessionId, {
+      eventType: 'session.recovery_failed',
+      severity: 'critical',
+      subject: 'WhatsApp session recovery failed',
+      summary: 'relayWA could not recover a WhatsApp session after a worker restart or lease recovery.',
+      details: { error: message },
+      cooldownSeconds: Number(process.env.ALERT_DEDUPE_SECONDS ?? 900),
+    });
   }
 
   async getReconnectAttempts(sessionId) {
@@ -397,6 +443,169 @@ export class SessionStore {
        WHERE id = $1`,
       [sessionId, eventType, JSON.stringify(payload)],
     );
+
+    const alert = sessionAlertDefinition(eventType, payload);
+    if (alert) {
+      await this.queueSessionAlert(sessionId, {
+        eventType,
+        ...alert,
+        details: payload,
+      });
+    }
+  }
+
+  async queueSystemAlert({
+    eventType,
+    severity = 'warning',
+    dedupeKey,
+    organizationId = null,
+    sessionId = null,
+    resourceType = null,
+    resourceId = null,
+    subject,
+    summary,
+    details = {},
+    cooldownSeconds = Number(process.env.ALERT_DEDUPE_SECONDS ?? 900),
+  }) {
+    const result = await this.pool.query(
+      `INSERT INTO system_alerts
+        (id, event_type, severity, dedupe_key, organization_id, session_id,
+         resource_type, resource_id, subject, summary, details)
+       SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM system_alerts
+         WHERE dedupe_key = $4
+           AND created_at >= now() - ($12::int * interval '1 second')
+       )
+       RETURNING id`,
+      [
+        randomUUID(),
+        eventType,
+        severity,
+        dedupeKey,
+        organizationId,
+        sessionId,
+        resourceType,
+        resourceId,
+        subject,
+        summary,
+        JSON.stringify(details),
+        Math.max(Number(cooldownSeconds) || 0, 0),
+      ],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
+  async queueSessionAlert(sessionId, input) {
+    const context = await this.pool.query(
+      `SELECT s.organization_id, s.name AS session_name, s.phone_number,
+              s.engine, s.status, o.name AS organization_name
+       FROM whatsapp_sessions s
+       JOIN organizations o ON o.id = s.organization_id
+       WHERE s.id = $1 AND s.deleted_at IS NULL
+       LIMIT 1`,
+      [sessionId],
+    );
+    const row = context.rows[0];
+    if (!row) return null;
+
+    return this.queueSystemAlert({
+      ...input,
+      dedupeKey: input.dedupeKey ?? `session:${sessionId}:${input.eventType}`,
+      organizationId: row.organization_id,
+      sessionId,
+      resourceType: 'whatsapp_session',
+      resourceId: sessionId,
+      details: {
+        organizationName: row.organization_name,
+        sessionName: row.session_name,
+        phoneNumber: row.phone_number,
+        engine: row.engine,
+        sessionStatus: row.status,
+        ...(input.details ?? {}),
+      },
+    });
+  }
+
+  async listPlatformAdminEmails() {
+    const result = await this.pool.query(
+      `SELECT email
+       FROM users
+       WHERE is_platform_admin = true
+         AND disabled_at IS NULL
+       ORDER BY created_at ASC`,
+    );
+    return result.rows.map((row) => String(row.email || '').trim()).filter(Boolean);
+  }
+
+  async claimNextSystemAlert() {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `SELECT *
+         FROM system_alerts
+         WHERE status = 'queued'
+           AND next_attempt_at <= now()
+         ORDER BY
+           CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+           created_at ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1`,
+      );
+      const alert = result.rows[0];
+      if (!alert) {
+        await client.query('COMMIT');
+        return null;
+      }
+
+      await client.query(
+        `UPDATE system_alerts
+         SET status = 'sending', worker_id = $1, claimed_at = now(),
+             attempts = attempts + 1, updated_at = now()
+         WHERE id = $2`,
+        [this.workerId, alert.id],
+      );
+      await client.query('COMMIT');
+      return { ...alert, attempts: Number(alert.attempts ?? 0) + 1 };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markSystemAlertSent(alertId) {
+    await this.pool.query(
+      `UPDATE system_alerts
+       SET status = 'sent', sent_at = now(), last_error = NULL, updated_at = now()
+       WHERE id = $1 AND worker_id = $2`,
+      [alertId, this.workerId],
+    );
+  }
+
+  async rescheduleSystemAlert(alert, error) {
+    const maxAttempts = Number(process.env.ALERT_EMAIL_MAX_ATTEMPTS ?? 6);
+    const delays = [60, 300, 900, 3600, 21600, 86400];
+    const exhausted = Number(alert.attempts) >= maxAttempts;
+    const delaySeconds = delays[Math.min(Math.max(Number(alert.attempts) - 1, 0), delays.length - 1)];
+    const lastError = String(error?.message ?? error).slice(0, 2000);
+
+    await this.pool.query(
+      `UPDATE system_alerts
+       SET status = $1::varchar(24),
+           next_attempt_at = CASE WHEN $1::varchar(24) = 'queued'
+             THEN now() + ($2 * interval '1 second')
+             ELSE next_attempt_at END,
+           last_error = $3,
+           worker_id = CASE WHEN $1::varchar(24) = 'queued' THEN NULL ELSE worker_id END,
+           claimed_at = CASE WHEN $1::varchar(24) = 'queued' THEN NULL ELSE claimed_at END,
+           updated_at = now()
+       WHERE id = $4`,
+      [exhausted ? 'failed' : 'queued', delaySeconds, lastError, alert.id],
+    );
   }
 
   async listDispatchReadyMessages(limit = 100) {
@@ -581,13 +790,45 @@ export class SessionStore {
   }
 
   async markMessageFailed(messageId, error) {
+    const message = String(error?.message ?? error).slice(0, 2000);
     await this.pool.query(
       `UPDATE whatsapp_messages
        SET status = 'failed', last_error = $1, failed_at = now(),
            bull_job_id = NULL, updated_at = now()
        WHERE id = $2 AND worker_id = $3`,
-      [String(error?.message ?? error).slice(0, 2000), messageId, this.workerId],
+      [message, messageId, this.workerId],
     );
+
+    const context = await this.pool.query(
+      `SELECT m.organization_id, m.session_id, m.recipient_phone, m.message_type,
+              s.name AS session_name
+       FROM whatsapp_messages m
+       LEFT JOIN whatsapp_sessions s ON s.id = m.session_id
+       WHERE m.id = $1
+       LIMIT 1`,
+      [messageId],
+    );
+    const row = context.rows[0];
+    if (row) {
+      await this.queueSystemAlert({
+        eventType: 'message.failed',
+        severity: 'warning',
+        dedupeKey: `message:${messageId}:failed`,
+        organizationId: row.organization_id,
+        sessionId: row.session_id,
+        resourceType: 'whatsapp_message',
+        resourceId: messageId,
+        subject: 'WhatsApp message permanently failed',
+        summary: 'An outbound WhatsApp message exhausted its retries and could not be sent.',
+        details: {
+          sessionName: row.session_name,
+          recipientPhone: row.recipient_phone,
+          messageType: row.message_type,
+          error: message,
+        },
+        cooldownSeconds: 86400,
+      });
+    }
   }
 
   async enqueueWebhookDeliveries(limit = 100) {
@@ -714,6 +955,28 @@ export class SessionStore {
        WHERE id = $1`,
       [delivery.endpoint_id],
     );
+
+    if (exhausted) {
+      await this.queueSystemAlert({
+        eventType: 'webhook.failed',
+        severity: 'warning',
+        dedupeKey: `webhook:${delivery.id}:failed`,
+        organizationId: delivery.organization_id,
+        sessionId: delivery.session_id,
+        resourceType: 'webhook_delivery',
+        resourceId: delivery.id,
+        subject: 'Webhook delivery permanently failed',
+        summary: 'A webhook delivery exhausted all retry attempts and requires attention.',
+        details: {
+          endpointId: delivery.endpoint_id,
+          eventType: delivery.event_type,
+          url: delivery.url,
+          statusCode,
+          error: lastError,
+        },
+        cooldownSeconds: 86400,
+      });
+    }
   }
 
   async completeCommand(commandId) {
@@ -726,11 +989,36 @@ export class SessionStore {
   }
 
   async failCommand(commandId, error) {
+    const message = String(error?.message ?? error).slice(0, 2000);
     await this.pool.query(
       `UPDATE whatsapp_session_commands
        SET status = 'failed', last_error = $1, completed_at = now()
        WHERE id = $2 AND worker_id = $3`,
-      [String(error?.message ?? error).slice(0, 2000), commandId, this.workerId],
+      [message, commandId, this.workerId],
     );
+
+    const context = await this.pool.query(
+      `SELECT organization_id, session_id, command
+       FROM whatsapp_session_commands
+       WHERE id = $1
+       LIMIT 1`,
+      [commandId],
+    );
+    const row = context.rows[0];
+    if (row) {
+      await this.queueSystemAlert({
+        eventType: 'session.command_failed',
+        severity: 'warning',
+        dedupeKey: `command:${commandId}:failed`,
+        organizationId: row.organization_id,
+        sessionId: row.session_id,
+        resourceType: 'session_command',
+        resourceId: commandId,
+        subject: 'WhatsApp session command failed',
+        summary: `relayWA could not complete the "${row.command}" command for a WhatsApp session.`,
+        details: { command: row.command, error: message },
+        cooldownSeconds: 86400,
+      });
+    }
   }
 }
