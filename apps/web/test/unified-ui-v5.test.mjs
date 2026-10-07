@@ -53,3 +53,24 @@ test('public docs and tenant developer guide avoid region-specific sample identi
     assert.match(source, /E164_RECIPIENT_NUMBER/);
   }
 });
+
+
+test('all rendered web surfaces avoid legacy Afghanistan-specific and BusinessOS presentation', async () => {
+  const paths = [
+    '../app/page.tsx',
+    '../app/layout.tsx',
+    '../app/login/page.tsx',
+    '../app/onboarding/page.tsx',
+    '../app/dashboard/page.tsx',
+    '../app/docs/page.tsx',
+    '../app/platform/login/page.tsx',
+    '../app/platform/page.tsx',
+    '../components/customer-operations.tsx',
+    '../components/developer-guide.tsx',
+    '../components/google-signin.tsx',
+  ];
+  for (const path of paths) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /93744119422|Afghanistan|Afghan|Kabul|\bAFN\b|BusinessOS|wasender\.businessos\.af/i);
+  }
+});
