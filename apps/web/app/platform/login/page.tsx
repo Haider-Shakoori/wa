@@ -51,7 +51,7 @@ export default function PlatformLoginPage() {
         <h1>Operate RelayWA separately from customer workspaces.</h1>
         <p>Manage tenants, subscriptions, payment providers, WhatsApp engines, messaging safety, workers and diagnostics from the private platform control plane.</p>
       </div>
-      <div className="platform-login-note">Customer accounts use <strong>app.relaywa.com</strong>. This login is reserved for RelayWA platform administrators.</div>
+      <div className="platform-login-note">Customer accounts sign in at <strong>relaywa.com/login</strong>. This page is reserved for RelayWA platform administrators.</div>
     </section>
     <section className="split-login-panel">
       <form className="light-auth-card" onSubmit={submit}>
