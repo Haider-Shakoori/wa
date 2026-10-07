@@ -3,8 +3,6 @@ import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 
 const QUEUE_NAME = 'relaywa-outbound';
-const MAX_INLINE_SAFETY_WAIT_MS = 15000;
-
 export function createMessageQueue({ redisUrl, store, sessions }) {
   const connection = { url: redisUrl };
   const rateClient = new IORedis(redisUrl, {
@@ -84,24 +82,19 @@ export function createMessageQueue({ redisUrl, store, sessions }) {
           }
 
           const randomDelayMs = randomBetween(safety.minDelayMs, safety.maxDelayMs);
-          const spacingWaitMs = await reserveSessionSpacing(
+          const spacingWaitMs = await claimSessionSendSlot(
             rateClient,
             message.session_id,
             randomDelayMs,
           );
 
-          if (spacingWaitMs > MAX_INLINE_SAFETY_WAIT_MS) {
-            const retryAt = new Date(Date.now() + spacingWaitMs);
+          if (spacingWaitMs > 0) {
             await store.rescheduleMessageForSafety(
               message.id,
-              retryAt,
+              new Date(Date.now() + spacingWaitMs),
               'safety_randomized_spacing',
             );
             return { deferred: true, reason: 'randomized_spacing' };
-          }
-
-          if (spacingWaitMs > 0) {
-            await sleep(spacingWaitMs);
           }
         } else {
           const allowed = await consumeSessionRateLimit(
@@ -285,24 +278,12 @@ async function consumeFixedWindow(client, key, max, windowMs) {
   return { ok: count <= max, retryMs };
 }
 
-async function reserveSessionSpacing(client, sessionId, delayMs) {
-  const key = `relaywa:safety:next-send:${sessionId}`;
-  const now = Date.now();
-  const ttl = Math.max(600000, Number(delayMs) * 10);
-  const result = await client.eval(
-    `local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-     local now = tonumber(ARGV[1])
-     local delay = tonumber(ARGV[2])
-     local nextAt = math.max(current, now)
-     redis.call('SET', KEYS[1], nextAt + delay, 'PX', ARGV[3])
-     return math.max(0, nextAt - now)`,
-    1,
-    key,
-    String(now),
-    String(delayMs),
-    String(ttl),
-  );
-  return Math.max(0, Number(result));
+async function claimSessionSendSlot(client, sessionId, delayMs) {
+  const key = `relaywa:safety:send-cooldown:${sessionId}`;
+  const claimed = await client.set(key, '1', 'PX', Math.max(1000, Number(delayMs)), 'NX');
+  if (claimed === 'OK') return 0;
+  const ttl = await client.pttl(key);
+  return Math.max(Number(ttl), 250);
 }
 
 async function recordFailureWindow(client, sessionId, settings) {
