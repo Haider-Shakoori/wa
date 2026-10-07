@@ -2,12 +2,25 @@ import { deliverWebhook } from './webhook-delivery.js';
 
 const POLL_MS = Number(process.env.SESSION_COMMAND_POLL_MS ?? 1000);
 
-export async function runCommandLoop({ store, sessions, signal }) {
+export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
   while (!signal.aborted) {
     const command = await store.claimNextCommand();
     if (command) {
       await handleCommand({ store, sessions, command });
       continue;
+    }
+
+    if (alertMailer?.isConfigured()) {
+      const alert = await store.claimNextSystemAlert();
+      if (alert) {
+        try {
+          await alertMailer.deliver(alert);
+          await store.markSystemAlertSent(alert.id);
+        } catch (error) {
+          await store.rescheduleSystemAlert(alert, error);
+        }
+        continue;
+      }
     }
 
     await store.enqueueWebhookDeliveries();
