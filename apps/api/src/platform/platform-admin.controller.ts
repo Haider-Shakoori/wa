@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { UpdateGoogleAuthProviderDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -42,6 +42,14 @@ export class PlatformAdminController {
     @Body() body: UpdatePlatformSubscriptionDto,
   ) {
     return this.platform.updateSubscription(organizationId, body);
+  }
+
+  @Get('settings/auth-providers')
+  authProviders() { return this.platform.authProviders(); }
+
+  @Patch('settings/auth-providers/google')
+  updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto) {
+    return this.platform.updateGoogleAuthProvider(body);
   }
 
   @Get('workers')
