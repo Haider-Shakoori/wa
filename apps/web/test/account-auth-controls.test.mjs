@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const pages = [
+  ['dashboard', '../app/dashboard/page.tsx'],
+  ['platform', '../app/platform/page.tsx'],
+  ['onboarding', '../app/onboarding/page.tsx'],
+];
+
+for (const [name, path] of pages) {
+  test(`${name} provides account sign out`, async () => {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.match(source, /localStorage\.removeItem\('relaywa_access_token'\)/);
+    assert.match(source, /Sign out/);
+    assert.match(source, /router\.replace\('\/login'\)/);
+  });
+}
+
+test('dashboard and platform redirect when no account token exists', async () => {
+  const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+  const platform = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
+  assert.match(dashboard, /if \(!current\)[\s\S]*router\.replace\('\/login'\)/);
+  assert.match(platform, /if \(!current\)[\s\S]*router\.replace\('\/login'\)/);
+});

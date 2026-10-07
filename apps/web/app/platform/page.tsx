@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 
 const sections = ['Overview','Organizations','Sessions','Messaging','Subscriptions','Payments','Infrastructure','Providers','Authentication','Diagnostics'];
 
 export default function PlatformPage() {
+  const router=useRouter();
   const [token,setToken] = useState('');
   const [active,setActive] = useState('Overview');
   const [overview,setOverview] = useState<any>(null);
@@ -41,7 +43,21 @@ export default function PlatformPage() {
     hardMinimumDelayMs:1000,
   });
 
-  useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
+  useEffect(()=>{
+    const current=localStorage.getItem('relaywa_access_token') ?? '';
+    if (!current) {
+      router.replace('/login');
+      return;
+    }
+    setToken(current);
+  },[router]);
+
+  function accountLogout() {
+    localStorage.removeItem('relaywa_access_token');
+    setToken('');
+    router.replace('/login');
+    router.refresh();
+  }
 
   async function refresh(current = token) {
     if (!current) return;
@@ -246,6 +262,7 @@ export default function PlatformPage() {
       <div className="sidebar-bottom">
         <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
         <div className="status-pill"><span className="live-dot"/>Platform administration</div>
+        <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>
     </aside>
 
