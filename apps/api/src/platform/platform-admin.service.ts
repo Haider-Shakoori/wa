@@ -136,6 +136,64 @@ export class PlatformAdminService {
     return result.rows[0];
   }
 
+  async authProviders() {
+    const result = await this.db.query(
+      `SELECT provider, enabled, public_config, updated_at
+       FROM auth_provider_settings
+       ORDER BY provider`,
+    );
+
+    const google = result.rows.find((row:any) => row.provider === 'google');
+    if (!google) {
+      return [{
+        provider: 'google',
+        enabled: Boolean(process.env.GOOGLE_CLIENT_ID),
+        public_config: {
+          clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+          source: process.env.GOOGLE_CLIENT_ID ? 'environment' : 'platform',
+        },
+        updated_at: null,
+      }];
+    }
+
+    return result.rows;
+  }
+
+  async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+    const current = await this.db.query<any>(
+      `SELECT enabled, public_config
+       FROM auth_provider_settings
+       WHERE provider = 'google'
+       LIMIT 1`,
+    );
+
+    const existingClientId = String(
+      current.rows[0]?.public_config?.clientId ??
+      process.env.GOOGLE_CLIENT_ID ??
+      '',
+    ).trim();
+    const clientId = input.clientId === undefined ? existingClientId : input.clientId.trim();
+    const enabled = input.enabled === undefined
+      ? Boolean(current.rows[0]?.enabled ?? process.env.GOOGLE_CLIENT_ID)
+      : input.enabled;
+
+    if (enabled && !clientId) {
+      throw new NotFoundException('Google Client ID is required before enabling Google sign-in');
+    }
+
+    const result = await this.db.query(
+      `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
+       VALUES ('google', $1, $2::jsonb, now())
+       ON CONFLICT (provider)
+       DO UPDATE SET enabled = EXCLUDED.enabled,
+                     public_config = EXCLUDED.public_config,
+                     updated_at = now()
+       RETURNING provider, enabled, public_config, updated_at`,
+      [enabled, JSON.stringify({ clientId, source: 'platform' })],
+    );
+    return result.rows[0];
+  }
+
   async workers() {
     const result = await this.db.query(
       `SELECT worker_id,
