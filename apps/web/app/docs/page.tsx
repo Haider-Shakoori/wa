@@ -12,7 +12,7 @@ const snippets:Record<Language,string> = {
     "  -H 'Authorization: Bearer rw_live_YOUR_KEY' \\",
     "  -H 'Content-Type: application/json' \\",
     "  -d '{",
-    '    "to": "93744119422",',
+    '    "to": "E164_RECIPIENT_NUMBER",',
     '    "text": "Your order is ready.",',
     '    "clientMessageId": "order-1001"',
     "  }'"
@@ -27,7 +27,7 @@ const snippets:Record<Language,string> = {
     '      "Content-Type": "application/json"',
     '    },',
     '    body: JSON.stringify({',
-    '      to: "93744119422",',
+    '      to: "E164_RECIPIENT_NUMBER",',
     '      text: "Your order is ready.",',
     '      clientMessageId: "order-1001"',
     '    })',
@@ -41,7 +41,7 @@ const snippets:Record<Language,string> = {
     '',
     "$message = Http::withToken(env('RELAYWA_API_KEY'))",
     "    ->post('https://api.relaywa.com/api/v1/sessions/YOUR_SESSION_ID/messages/text', [",
-    "        'to' => '93744119422',",
+    "        'to' => 'E164_RECIPIENT_NUMBER',",
     "        'text' => 'Your order is ready.',",
     "        'clientMessageId' => 'order-1001',",
     '    ])',
@@ -56,7 +56,7 @@ const snippets:Record<Language,string> = {
     '    "https://api.relaywa.com/api/v1/sessions/YOUR_SESSION_ID/messages/text",',
     '    headers={"Authorization": "Bearer " + os.environ["RELAYWA_API_KEY"]},',
     '    json={',
-    '        "to": "93744119422",',
+    '        "to": "E164_RECIPIENT_NUMBER",',
     '        "text": "Your order is ready.",',
     '        "clientMessageId": "order-1001"',
     '    },',
@@ -72,7 +72,7 @@ const snippets:Record<Language,string> = {
     '',
     'var response = await client.PostAsJsonAsync(',
     '    "https://api.relaywa.com/api/v1/sessions/YOUR_SESSION_ID/messages/text",',
-    '    new { to = "93744119422", text = "Your order is ready.", clientMessageId = "order-1001" });',
+    '    new { to = "E164_RECIPIENT_NUMBER", text = "Your order is ready.", clientMessageId = "order-1001" });',
     '',
     'response.EnsureSuccessStatusCode();'
   ].join('\n')
@@ -171,9 +171,9 @@ export default function DocsPage() {
           <p>Outbound endpoints are scoped to a session. RelayWA queues accepted messages and returns the stored message record, which can be queried later for status.</p>
           <EndpointTable rows={messageEndpoints}/>
           <h3>Text request</h3>
-          <Code value={['{','  "to": "93744119422",','  "text": "Your order is ready.",','  "clientMessageId": "order-1001",','  "priority": 5,','  "maxAttempts": 5','}'].join('\n')}/>
+          <Code value={['{','  "to": "E164_RECIPIENT_NUMBER",','  "text": "Your order is ready.",','  "clientMessageId": "order-1001",','  "priority": 5,','  "maxAttempts": 5','}'].join('\n')}/>
           <div className="docs-field-grid">
-            <Field name="to" required>International number or supported WhatsApp recipient identifier. Phone strings are 7–32 characters.</Field>
+            <Field name="to" required>International E.164 number (country code + subscriber number, digits only) or a supported WhatsApp recipient identifier. Phone strings are 7–32 characters.</Field>
             <Field name="text" required>Message body, 1–4096 characters.</Field>
             <Field name="clientMessageId">Idempotency key up to 120 characters. Reusing it for the same organization/session returns the existing message.</Field>
             <Field name="scheduledAt">ISO date/time for future delivery.</Field>
@@ -184,7 +184,7 @@ export default function DocsPage() {
 
         <DocSection id="media-actions" eyebrow="Rich messaging" title="Media & actions">
           <h3>Media payload</h3>
-          <Code value={['POST /v1/sessions/:sessionId/messages/image','', '{','  "to": "93744119422",','  "url": "https://cdn.example.com/invoice.jpg",','  "mimeType": "image/jpeg",','  "mediaSizeBytes": 245820,','  "caption": "Your invoice",','  "clientMessageId": "invoice-1001"','}'].join('\n')}/>
+          <Code value={['POST /v1/sessions/:sessionId/messages/image','', '{','  "to": "E164_RECIPIENT_NUMBER",','  "url": "https://cdn.example.com/invoice.jpg",','  "mimeType": "image/jpeg",','  "mediaSizeBytes": 245820,','  "caption": "Your invoice",','  "clientMessageId": "invoice-1001"','}'].join('\n')}/>
           <p>Media URLs must use HTTPS and must not point to private-network addresses. RelayWA validates the declared MIME type and size before queuing.</p>
           <div className="media-limit-grid">
             <InfoCard title="Images"><strong>16 MB</strong><p>Image MIME types.</p></InfoCard>
