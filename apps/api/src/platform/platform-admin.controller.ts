@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -66,6 +66,14 @@ export class PlatformAdminController {
   @Patch('settings/messaging-engine')
   updateMessagingEngine(@Body() body: UpdateMessagingEngineDto) {
     return this.platform.updateMessagingEngine(body);
+  }
+
+  @Get('settings/messaging-safety')
+  messagingSafetySettings() { return this.platform.messagingSafetySettings(); }
+
+  @Patch('settings/messaging-safety')
+  updateMessagingSafety(@Body() body: UpdateMessagingSafetyDto) {
+    return this.platform.updateMessagingSafety(body);
   }
 
   @Get('workers')
