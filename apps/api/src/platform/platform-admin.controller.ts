@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { PlatformSupportQuestionDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -63,6 +63,11 @@ export class PlatformAdminController {
   @Patch('settings/auth-providers/google')
   updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto) {
     return this.platform.updateGoogleAuthProvider(body);
+  }
+
+  @Patch('settings/auth-providers/github')
+  updateGithubAuthProvider(@Body() body: UpdateGithubAuthProviderDto) {
+    return this.platform.updateGithubAuthProvider(body);
   }
 
   @Get('settings/messaging-engine')
