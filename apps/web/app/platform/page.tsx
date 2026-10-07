@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 
-const sections = ['Overview','Organizations','Sessions','Subscriptions','Payments','Infrastructure','Providers','Authentication','Diagnostics'];
+const sections = ['Overview','Organizations','Sessions','Messaging','Subscriptions','Payments','Infrastructure','Providers','Authentication','Diagnostics'];
 
 export default function PlatformPage() {
   const [token,setToken] = useState('');
@@ -22,6 +22,7 @@ export default function PlatformPage() {
   const [query,setQuery] = useState('');
   const [googleEnabled,setGoogleEnabled] = useState(false);
   const [googleClientId,setGoogleClientId] = useState('');
+  const [messagingEngine,setMessagingEngine] = useState<'baileys'|'chromium'>('baileys');
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
 
@@ -29,7 +30,7 @@ export default function PlatformPage() {
     if (!current) return;
     setError('');
     try {
-      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows] = await Promise.all([
+      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings] = await Promise.all([
         api('/v1/platform/overview',current),
         api('/v1/platform/tenants',current),
         api('/v1/platform/sessions',current),
@@ -40,6 +41,7 @@ export default function PlatformPage() {
         api('/v1/platform/payments',current),
         api('/v1/billing/providers',current),
         api('/v1/platform/settings/auth-providers',current),
+        api('/v1/platform/settings/messaging-engine',current),
       ]);
       setOverview(o);
       setTenants(t as any[]);
@@ -53,6 +55,7 @@ export default function PlatformPage() {
       const google=(authProviderRows as any[]).find((item)=>item.provider==='google');
       setGoogleEnabled(Boolean(google?.enabled));
       setGoogleClientId(String(google?.public_config?.clientId ?? ''));
+      setMessagingEngine((messagingEngineSettings as any)?.defaultEngine === 'chromium' ? 'chromium' : 'baileys');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
     }
@@ -111,6 +114,20 @@ export default function PlatformPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save Google authentication settings');
+    }
+  }
+
+  async function saveMessagingEngine() {
+    setError(''); setNotice('');
+    try {
+      await api('/v1/platform/settings/messaging-engine',token,{
+        method:'PATCH',
+        body:JSON.stringify({engine:messagingEngine}),
+      });
+      setNotice('Default messaging engine changed to ' + (messagingEngine === 'chromium' ? 'Chromium / WhatsApp Web' : 'Baileys') + '. Existing sessions keep their current engine.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save messaging engine');
     }
   }
 
@@ -188,6 +205,29 @@ export default function PlatformPage() {
         <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
         {filteredSessions.map((s)=><div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={s.status}/></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>)}
       </TableSection>}
+
+      {active === 'Messaging' && <section className="panel auth-settings-panel">
+        <PanelHeading eyebrow="Messaging runtime" title="WhatsApp engine" subtitle="Choose the default engine for newly created WhatsApp sessions."/>
+        <div className="provider-grid">
+          <article className="provider-card">
+            <div><p className="eyebrow">Default / scalable</p><h3>Baileys</h3></div>
+            <Badge value={messagingEngine==='baileys'?'selected':'available'}/>
+            <p className="muted">Lightweight WebSocket-based WhatsApp Web protocol client. Best for density, lower RAM usage and many tenant sessions.</p>
+            <button className={messagingEngine==='baileys'?'primary-button':'secondary-button'} onClick={()=>setMessagingEngine('baileys')}>{messagingEngine==='baileys'?'Selected':'Use Baileys'}</button>
+          </article>
+          <article className="provider-card">
+            <div><p className="eyebrow">Browser compatibility</p><h3>Chromium / WhatsApp Web</h3></div>
+            <Badge value={messagingEngine==='chromium'?'selected':'available'}/>
+            <p className="muted">Runs a persistent real WhatsApp Web browser session through Puppeteer. Higher RAM/CPU usage and lower session density.</p>
+            <button className={messagingEngine==='chromium'?'primary-button':'secondary-button'} onClick={()=>setMessagingEngine('chromium')}>{messagingEngine==='chromium'?'Selected':'Use Chromium'}</button>
+          </article>
+        </div>
+        <div className="settings-help">
+          <strong>Safe switching policy</strong>
+          <p>Changing this setting affects new sessions only. Existing linked numbers stay on the engine they were paired with, so a platform setting change cannot unexpectedly log out active tenants. Moving an existing session between engines requires a fresh QR pairing because Baileys credentials and Chromium browser profiles are different.</p>
+        </div>
+        <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
+      </section>}
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
         <div className="platform-row platform-row-head subscription-admin-row"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span><span>Controls</span></div>
