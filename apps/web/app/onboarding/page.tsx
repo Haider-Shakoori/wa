@@ -57,6 +57,13 @@ export default function OnboardingPage() {
     setToken(current);
   },[router]);
 
+  function accountLogout() {
+    localStorage.removeItem('relaywa_access_token');
+    setToken('');
+    router.replace('/login');
+    router.refresh();
+  }
+
   async function load(current=token) {
     if (!current) return;
     setError('');
@@ -264,7 +271,7 @@ export default function OnboardingPage() {
     <section className="onboarding-main">
       <header className="onboarding-header">
         <div><p className="eyebrow">Welcome to relayWA</p><h1>Connect WhatsApp to your software.</h1></div>
-        <span className="setup-badge">Step {Math.min(activeIndex+1,6)} of 6</span>
+        <div className="onboarding-header-actions"><span className="setup-badge">Step {Math.min(activeIndex+1,6)} of 6</span><button className="danger-button account-logout" onClick={accountLogout}>Sign out</button></div>
       </header>
 
       {error && <div className="alert">{error}</div>}
