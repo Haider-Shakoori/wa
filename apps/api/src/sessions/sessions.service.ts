@@ -16,6 +16,7 @@ type SessionRow = {
   profile_picture_url: string | null;
   profile_synced_at: string | null;
   status: SessionStatus;
+  engine: 'baileys' | 'chromium';
   worker_id: string | null;
   worker_lease_expires_at: string | null;
   last_connected_at: string | null;
@@ -29,7 +30,7 @@ type SessionRow = {
 
 const SESSION_SELECT = `
   id, organization_id, name, phone_hint, phone_number, display_name,
-  whatsapp_jid, profile_picture_url, profile_synced_at, status, worker_id,
+  whatsapp_jid, profile_picture_url, profile_synced_at, status, engine, worker_id,
   worker_lease_expires_at, last_connected_at, last_disconnected_at,
   connection_opened_at, reconnect_attempts, last_connection_error,
   created_at, updated_at
@@ -64,13 +65,21 @@ export class SessionsService {
 
     await this.subscriptions.assertCanCreateSession(organizationId);
 
+    const engineSettings = await this.db.query<{ default_engine: 'baileys' | 'chromium' }>(
+      `SELECT default_engine
+       FROM messaging_engine_settings
+       WHERE id = 'global'
+       LIMIT 1`,
+    );
+    const engine = engineSettings.rows[0]?.default_engine ?? 'baileys';
+
     const id = randomUUID();
     const result = await this.db.query<SessionRow>(
       `INSERT INTO whatsapp_sessions
-        (id, organization_id, created_by_user_id, name, phone_hint, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
+        (id, organization_id, created_by_user_id, name, phone_hint, status, engine)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
        RETURNING ${SESSION_SELECT}`,
-      [id, organizationId, userId, input.name.trim(), input.phoneHint?.trim() || null],
+      [id, organizationId, userId, input.name.trim(), input.phoneHint?.trim() || null, engine],
     );
 
     return result.rows[0];
