@@ -420,7 +420,7 @@ export default function PlatformPage() {
             <div className="settings-help">
               <strong>Google Cloud setup</strong>
               <p>Create a Web application OAuth client in Google Cloud Console and add this site under Authorized JavaScript origins:</p>
-              <code>{typeof window !== 'undefined' ? window.location.origin : 'https://wasender.businessos.af'}</code>
+              <code>https://app.relaywa.com</code>
               <p>A Client Secret is not required for relayWA's current Google Identity Services ID-token flow.</p>
             </div>
             <button className="primary-button" onClick={()=>void saveGoogleAuth()}>Save Google settings</button>
