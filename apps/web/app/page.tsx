@@ -49,33 +49,108 @@ const plans = [
 export default function Home() {
   const [billing,setBilling]=useState<'monthly'|'annual'>('monthly');
 
-  return <main className="public-shell">
+  return <main className="public-shell relaywa-site">
     <header className="public-nav">
-      <a className="public-brand" href="/"><span className="brand-mark">rW</span><span><strong>relayWA</strong><small>WhatsApp API infrastructure</small></span></a>
-      <nav><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="https://app.relaywa.com/login">Sign in</a><a className="public-cta" href="https://app.relaywa.com/login">Start free</a></nav>
+      <a className="public-brand" href="/"><span className="brand-mark">rW</span><span><strong>RelayWA</strong><small>WhatsApp API infrastructure</small></span></a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#integration">Integration</a>
+        <a href="#pricing">Pricing</a>
+        <a href="https://app.relaywa.com/login">Sign in</a>
+        <a className="public-cta" href="https://app.relaywa.com/login">Start free</a>
+      </nav>
     </header>
 
-    <section className="public-hero">
+    <section className="public-hero hero-v5">
       <div className="public-hero-copy">
-        <span className="public-kicker">Built for developers, teams and BusinessOS apps</span>
-        <h1>WhatsApp messaging infrastructure without the operational mess.</h1>
-        <p>Connect numbers, send from your software through a clean REST API, receive webhooks, manage sessions and control delivery from one reliable workspace.</p>
-        <div className="public-actions"><a className="primary-button" href="https://app.relaywa.com/login">Start 7-day trial</a><a className="public-secondary" href="#pricing">View pricing</a></div>
-        <div className="public-proof"><span>REST API</span><span>Real-time webhooks</span><span>Multi-session</span><span>Safety Governor</span></div>
+        <span className="public-kicker">Developer-first WhatsApp API</span>
+        <h1>Ship WhatsApp messaging from your app. Keep the infrastructure under control.</h1>
+        <p>Connect numbers, send through a clean REST API, receive real-time webhooks and manage session health from one focused workspace.</p>
+        <div className="public-actions">
+          <a className="primary-button hero-primary" href="https://app.relaywa.com/login">Start 7-day trial</a>
+          <a className="public-secondary" href="#integration">Explore the API</a>
+        </div>
+        <div className="hero-assurance">
+          <span><b>✓</b>No card required</span>
+          <span><b>✓</b>Multi-session</span>
+          <span><b>✓</b>Real-time webhooks</span>
+          <span><b>✓</b>Safety controls</span>
+        </div>
       </div>
-      <div className="public-preview">
-        <div className="preview-top"><span>relayWA</span><span className="preview-live">● API online</span></div>
-        <div className="preview-card"><small>CONNECTED NUMBERS</small><strong>3</strong><span>All sessions healthy</span></div>
-        <div className="preview-card"><small>MESSAGE QUEUE</small><strong>24</strong><span>Protected by adaptive pacing</span></div>
-        <div className="preview-code"><code>POST https://api.relaywa.com/v1/messages</code><span>202 Accepted</span></div>
+
+      <div className="hero-product-wrap">
+        <div className="hero-product">
+          <div className="hero-product-bar">
+            <div><span className="product-dot"/><strong>RelayWA API</strong></div>
+            <span className="preview-live"><i/>Production online</span>
+          </div>
+
+          <div className="hero-product-grid">
+            <div className="hero-code-card">
+              <div className="hero-code-tabs"><span className="active">Request</span><span>Response</span></div>
+              <pre><code>{`POST /v1/messages
+Authorization: Bearer rw_live_••••••
+
+{
+  "to": "93744119422",
+  "text": "Your order is ready."
+}`}</code></pre>
+              <div className="hero-code-result"><span>202 Accepted</span><code>msg_9c84f2</code></div>
+            </div>
+
+            <div className="hero-runtime-stack">
+              <div className="runtime-card"><small>CONNECTED SESSIONS</small><strong>3</strong><span><i className="ok-dot"/>All healthy</span></div>
+              <div className="runtime-card"><small>QUEUE HEALTH</small><strong>12ms</strong><span>Adaptive pacing active</span></div>
+              <div className="runtime-card safety"><small>SAFETY GOVERNOR</small><strong>Protected</strong><span>Burst + duplicate controls</span></div>
+            </div>
+          </div>
+
+          <div className="hero-event-stream">
+            <div><span className="event-icon delivered">✓</span><p><strong>message.delivered</strong><small>WhatsApp delivery confirmed</small></p><time>now</time></div>
+            <div><span className="event-icon webhook">↗</span><p><strong>webhook.delivered</strong><small>200 OK · 184ms</small></p><time>1s</time></div>
+            <div><span className="event-icon inbound">↓</span><p><strong>message.received</strong><small>Inbound event captured</small></p><time>4s</time></div>
+          </div>
+        </div>
+        <div className="hero-float-card"><span>API</span><div><strong>One endpoint</strong><small>Text, media, contacts & locations</small></div></div>
       </div>
     </section>
 
-    <section className="public-feature-strip" id="features">
-      <div><strong>API-first</strong><span>Integrate from Laravel, Node, Python, .NET or any REST client.</span></div>
-      <div><strong>Session aware</strong><span>Manage several WhatsApp numbers with isolated credentials and queues.</span></div>
-      <div><strong>Operational controls</strong><span>Rate limits, retry policies, alerts and message safety controls.</span></div>
-      <div><strong>Event driven</strong><span>Receive inbound messages and delivery state through webhooks.</span></div>
+    <section className="public-feature-strip feature-strip-v5" id="features">
+      <div><span className="feature-index">01</span><strong>API-first by design</strong><span>Integrate from Laravel, Node, Python, .NET or any REST-capable application.</span></div>
+      <div><span className="feature-index">02</span><strong>Session aware</strong><span>Operate multiple WhatsApp numbers with isolated credentials, queues and health state.</span></div>
+      <div><span className="feature-index">03</span><strong>Built-in safeguards</strong><span>Control pacing, retries, duplicate suppression and automatic safety pauses.</span></div>
+      <div><span className="feature-index">04</span><strong>Event driven</strong><span>Receive inbound messages, delivery updates and session changes through webhooks.</span></div>
+    </section>
+
+    <section className="integration-section" id="integration">
+      <div className="integration-copy">
+        <span className="public-kicker">Simple integration · serious control</span>
+        <h2>From API call to WhatsApp delivery, every step stays visible.</h2>
+        <p>RelayWA keeps the developer experience simple while the worker layer handles queues, retries, session routing, delivery events and operational safeguards.</p>
+        <div className="integration-points">
+          <div><b>01</b><span><strong>Connect a session</strong><small>Link WhatsApp once and keep session health visible.</small></span></div>
+          <div><b>02</b><span><strong>Send through the API</strong><small>Use scoped API keys from your own application.</small></span></div>
+          <div><b>03</b><span><strong>React to events</strong><small>Receive delivery and inbound updates through webhooks.</small></span></div>
+        </div>
+      </div>
+      <div className="integration-console">
+        <div className="console-head"><span>Live request</span><span>JavaScript</span></div>
+        <pre><code>{`const response = await fetch(
+  "https://api.relaywa.com/v1/messages",
+  {
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${apiKey}\`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      to: "93744119422",
+      text: "Payment received. Thank you."
+    })
+  }
+);`}</code></pre>
+        <div className="console-response"><span>✓ Accepted into queue</span><code>202</code></div>
+      </div>
     </section>
 
     <section className="pricing-section" id="pricing">
@@ -95,6 +170,9 @@ export default function Home() {
       </div>
     </section>
 
-    <footer className="public-footer"><div className="public-brand"><span className="brand-mark">rW</span><span><strong>relayWA</strong><small>by BusinessOS</small></span></div><p>Use RelayWA for legitimate, consent-based messaging and follow applicable WhatsApp policies.</p></footer>
+    <footer className="public-footer">
+      <div className="public-brand"><span className="brand-mark">rW</span><span><strong>RelayWA</strong><small>WhatsApp API infrastructure</small></span></div>
+      <p>Use RelayWA for legitimate, consent-based messaging and follow applicable WhatsApp policies.</p>
+    </footer>
   </main>;
 }
