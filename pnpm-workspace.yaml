@@ -6,3 +6,4 @@ allowBuilds:
   '@whiskeysockets/baileys': true
   protobufjs: true
   msgpackr-extract: true
+  puppeteer: true
