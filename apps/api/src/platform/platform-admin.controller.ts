@@ -21,6 +21,14 @@ export class PlatformAdminController {
   @Get('subscriptions')
   subscriptions() { return this.platform.subscriptions(); }
 
+  @Patch('sessions/:sessionId/engine')
+  updateSessionEngine(
+    @Param('sessionId') sessionId: string,
+    @Body() body: UpdateMessagingEngineDto,
+  ) {
+    return this.platform.updateSessionEngine(sessionId, body);
+  }
+
   @Post('sessions/:sessionId/connect')
   connectSession(@Param('sessionId') sessionId: string) {
     return this.platform.sessionAction(sessionId, 'connect');
