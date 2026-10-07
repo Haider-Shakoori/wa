@@ -186,6 +186,11 @@ export class AuthService {
       [membership.organization_id],
     );
     const onboardingStep = onboarding.rows[0]?.onboarding_step ?? 'complete';
+    const platformAdmin = await this.db.query<{ is_platform_admin: boolean }>(
+      'SELECT is_platform_admin FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
+      [user.id],
+    );
+    const isPlatformAdmin = Boolean(platformAdmin.rows[0]?.is_platform_admin);
 
     const payload: AuthTokenPayload = {
       sub: user.id,
@@ -198,10 +203,11 @@ export class AuthService {
       accessToken: this.jwt.sign(payload),
       tokenType: 'Bearer',
       expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, isPlatformAdmin },
       organizationId: membership.organization_id,
       onboardingStep,
-      nextPath: onboardingStep === 'complete' ? '/dashboard' : '/onboarding',
+      isPlatformAdmin,
+      nextPath: isPlatformAdmin ? '/platform' : onboardingStep === 'complete' ? '/dashboard' : '/onboarding',
     };
   }
 
