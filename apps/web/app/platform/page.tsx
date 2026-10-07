@@ -404,7 +404,7 @@ export default function PlatformPage() {
             <label className="settings-toggle"><input type="checkbox" checked={googleEnabled} onChange={(e)=>setGoogleEnabled(e.target.checked)}/><span>{googleEnabled?'Enabled':'Disabled'}</span></label>
           </div>
           <div className="auth-settings-form">
-            <label>Google OAuth Web Client ID
+            <label>Google Client ID
               <input value={googleClientId} onChange={(e)=>setGoogleClientId(e.target.value)} placeholder="1234567890-xxxxxxxx.apps.googleusercontent.com"/>
             </label>
             <div className="settings-help">
