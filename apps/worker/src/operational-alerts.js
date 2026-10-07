@@ -49,8 +49,12 @@ export class OperationalAlertMailer {
 
   async recipients() {
     if (this.explicitRecipients.length) return this.explicitRecipients;
-    const admins = await this.store.listPlatformAdminEmails();
-    if (admins.length) return admins;
+    try {
+      const admins = await this.store.listPlatformAdminEmails();
+      if (admins.length) return admins;
+    } catch {
+      // A fatal database error can prevent recipient lookup. Fall back to env below.
+    }
 
     const fallback = String(process.env.RELAYWA_ADMIN_EMAIL ?? '').trim();
     return fallback ? [fallback] : [];
