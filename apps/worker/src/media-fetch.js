@@ -19,6 +19,7 @@ export async function fetchMedia(message) {
   const timeout = setTimeout(() => controller.abort(), Number(process.env.MEDIA_FETCH_TIMEOUT_MS ?? 20000));
   timeout.unref();
 
+  const chunks = [];
   try {
     const response = await fetch(url, {
       signal: controller.signal,
@@ -29,9 +30,10 @@ export async function fetchMedia(message) {
 
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > limit) throw new Error('Media exceeds allowed size');
+    const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (contentType && contentType !== 'application/octet-stream' && contentType !== message.media_mime_type?.toLowerCase()) throw new Error('Downloaded media MIME type does not match the request');
     if (!response.body) throw new Error('Media response has no body');
 
-    const chunks = [];
     let total = 0;
     for await (const chunk of response.body) {
       total += chunk.byteLength;
@@ -40,9 +42,13 @@ export async function fetchMedia(message) {
     }
     if (total === 0) throw new Error('Media file is empty');
 
+    const declaredSize = Number(message.media_size_bytes);
+    if (!Number.isSafeInteger(declaredSize) || declaredSize !== total) throw new Error('Downloaded media size does not match mediaSizeBytes');
     return Buffer.concat(chunks, total);
   } finally {
     clearTimeout(timeout);
+    controller.abort();
+    for (const chunk of chunks) chunk.fill(0);
   }
 }
 

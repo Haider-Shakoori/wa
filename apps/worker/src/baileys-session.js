@@ -182,6 +182,7 @@ export class BaileysSessionManager {
     if (!socket) throw new Error('Session socket is not active');
 
     const buffer = await fetchMedia(message);
+    try {
     let payload;
 
     if (message.message_type === 'image') {
@@ -221,8 +222,13 @@ export class BaileysSessionManager {
       providerMessageId,
       recipient: message.recipient_phone,
       messageType: message.message_type,
+      mediaSizeBytes: buffer.length,
+      mediaRetained: false,
     });
     return { providerMessageId };
+    } finally {
+      buffer.fill(0);
+    }
   }
 
   async sendAction(sessionId, message) {

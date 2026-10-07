@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import './docs-theme.css';
+import { FeatherIcon } from '../../components/feather-icon';
 import CodeShowcase from '../../components/code-showcase';
 import { integrationExamples } from '../../lib/integration-examples';
 import { Brand } from '../../components/relay-workspace';
@@ -162,7 +164,7 @@ var response = await client.PostAsJsonAsync(
 response.EnsureSuccessStatusCode();`;
 
   return `curl -X POST '${endpoint}' \\
-  -H 'Authorization: Bearer rw_live_YOUR_KEY' \\
+  -H 'Authorization: Bearer rw_session_YOUR_KEY' \\
   -H 'Content-Type: application/json' \\
   -d '{
     "to": "E164_RECIPIENT_NUMBER",
@@ -173,42 +175,59 @@ response.EnsureSuccessStatusCode();`;
 
 export default function DocsPage() {
   const [query,setQuery]=useState('');
+  const [navigationOpen,setNavigationOpen]=useState(false);
+  const articleRef=useRef<HTMLElement>(null);
+  const searchRef=useRef<HTMLInputElement>(null);
+  const [contentIndex,setContentIndex]=useState<Array<{id:string;title:string;group:string;text:string}>>([]);
+  useEffect(()=>{
+    setContentIndex(docsIndex.map(item=>{
+      const section=articleRef.current?.querySelector<HTMLElement>('#'+item.id);
+      const extra=item.id==='language-examples'?Object.entries(integrationExamples).map(([name,code])=>name+' '+code).join(' '):item.id==='quickstart'?languages.map(name=>name+' '+buildSnippet(name)).join(' '):'';
+      return {...item,text:((section?.innerText||'')+' '+extra).replace(/\s+/g,' ').trim()};
+    }));
+  },[]);
+  useEffect(()=>{
+    const handler=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();searchRef.current?.focus();}if(event.key==='Escape'){setQuery('');searchRef.current?.blur();}};
+    window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
+  },[]);
   const [language,setLanguage]=useState<Language>('cURL');
   const snippet=useMemo(()=>buildSnippet(language),[language]);
   const searchResults=useMemo(()=>{
     const clean=query.trim().toLowerCase();
     if (!clean) return [];
-    return docsIndex.filter((item)=>item.keywords.includes(clean) || item.title.toLowerCase().includes(clean));
-  },[query]);
+    const terms=clean.split(/\s+/);
+    return contentIndex.filter(item=>terms.every(term=>(item.title+' '+item.group+' '+item.text).toLowerCase().includes(term))).map(item=>{
+      const position=item.text.toLowerCase().indexOf(terms[0]);
+      const start=Math.max(0,position-45);
+      return {...item,excerpt:(start?'…':'')+item.text.slice(start,start+170)+'…'};
+    });
+  },[query,contentIndex]);
 
   return <main className="docs-v2 rw-docs">
     <header className="docs-v2-topbar">
       <Brand/>
+      <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls="docs-search-results" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
       <nav><a href="/">Product</a><a href="/#pricing">Pricing</a><a href="/login">Sign in</a><a className="public-cta" href="/login">Start free</a></nav>
     </header>
 
     <div className="docs-v2-layout">
-      <aside className="docs-v2-sidebar">
+      <aside className={"docs-v2-sidebar"+(navigationOpen?" navigation-open":"")+(query?" has-search":"")}><button type="button" className="docs-mobile-nav" aria-expanded={navigationOpen} onClick={()=>setNavigationOpen(!navigationOpen)}><FeatherIcon name="menu" size={16}/> Browse documentation <span>{navigationOpen?"−":"+"}</span></button>
         <div className="docs-v2-title"><strong>API Documentation</strong><span>RelayWA API</span></div>
-        <div className="docs-search">
-          <span>⌕</span>
-          <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search documentation"/>
-          {query && <button onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
-        </div>
 
-        {query ? <div className="docs-search-results">
-          <small>{searchResults.length} result{searchResults.length===1?'':'s'}</small>
-          {searchResults.map((item)=><a key={item.id} href={'#'+item.id} onClick={()=>setQuery('')}><strong>{item.title}</strong><span>{item.group}</span></a>)}
+
+        {query ? <div className="docs-search-results" id="docs-search-results">
+          <small role="status" aria-live="polite">{searchResults.length} result{searchResults.length===1?'':'s'}</small>
+          {searchResults.map((item)=><a key={item.id} href={'#'+item.id} onClick={()=>setQuery('')}><strong>{item.title}</strong><span>{item.group}</span><p>{item.excerpt}</p></a>)}
           {!searchResults.length && <p>No matching topic. Try “webhook”, “session”, “queue” or “safety”.</p>}
         </div> :
         <nav className="docs-nav-groups">
-          {navGroups.map((group)=><div className="docs-nav-group" key={group.label}><span>{group.label}</span>{group.items.map(([id,title])=><a key={id} href={'#'+id}>{title}</a>)}</div>)}
+          {navGroups.map((group)=><div className="docs-nav-group" key={group.label}><span>{group.label}</span>{group.items.map(([id,title])=><a key={id} href={'#'+id} onClick={()=>setNavigationOpen(false)}>{title}</a>)}</div>)}
         </nav>}
 
         <div className="docs-api-status"><span className="live-dot"/><div><strong>API endpoint</strong><code>{API_BASE}</code></div></div>
       </aside>
 
-      <article className="docs-v2-content">
+      <article ref={articleRef} className="docs-v2-content">
         <section className="docs-v2-hero" id="overview">
           <span className="public-kicker">RelayWA API</span>
           <h1>Build reliable WhatsApp messaging into your product.</h1>
@@ -225,19 +244,19 @@ export default function DocsPage() {
           <div className="docs-step-grid">
             <Step number="01" title="Create a workspace">Start the 7-day trial or choose a paid plan, then finish workspace setup.</Step>
             <Step number="02" title="Connect WhatsApp">Create a session, scan the QR from WhatsApp → Linked devices and wait for <code>connected</code>.</Step>
-            <Step number="03" title="Create an API key">Create an organization or session-bound key with <code>messages.send</code>.</Step>
-            <Step number="04" title="Send from your backend">Call the session text endpoint and store the RelayWA message ID for status checks.</Step>
+            <Step number="03" title="Copy your session key">Open View API key after connecting. Your session key is created automatically and includes <code>messages.send</code>.</Step>
+            <Step number="04" title="Send from your backend">Call /api/send-message with your session key and store the RelayWA message ID for status checks.</Step>
           </div>
 
           <div className="docs-code-card">
-            <div className="docs-code-head"><strong>Send your first message</strong><div>{languages.map((item)=><button key={item} className={language===item?'active':''} onClick={()=>setLanguage(item)}>{item}</button>)}</div></div>
+            <div className="docs-code-head"><strong>Send your first message</strong><div role="group" aria-label="Code example language">{languages.map((item)=><button type="button" aria-pressed={language===item} key={item} className={language===item?'active':''} onClick={()=>setLanguage(item)}>{item}</button>)}</div></div>
             <pre><code>{snippet}</code></pre>
-            <div className="docs-code-foot"><span>Replace <code>YOUR_SESSION_ID</code>, API key and <code>E164_RECIPIENT_NUMBER</code>.</span><button onClick={()=>void navigator.clipboard.writeText(snippet)}>Copy example</button></div>
+            <div className="docs-code-foot"><span>Replace your session API key and <code>E164_RECIPIENT_NUMBER</code>.</span><button onClick={()=>void navigator.clipboard.writeText(snippet)}>Copy example</button></div>
           </div>
         </DocSection>
 
         <DocSection id="authentication" eyebrow="Security" title="Authentication" intro="API requests use Bearer credentials. Keep them server-side and rotate/revoke them when an integration changes ownership.">
-          <Code value={'Authorization: Bearer rw_live_YOUR_KEY'}/>
+          <Code value={'Authorization: Bearer rw_session_YOUR_KEY'}/>
           <div className="docs-two">
             <InfoCard title="Organization key"><p>Can operate across sessions in its organization when the key has the required scope.</p></InfoCard>
             <InfoCard title="Session-bound key"><p>Starts with <code>rw_session_</code> and restricts the credential to one WhatsApp session for tighter isolation.</p></InfoCard>
@@ -287,6 +306,7 @@ export default function DocsPage() {
             <InfoCard title="Audio"><strong>16 MB</strong><p>Set <code>voiceNote: true</code> only for audio.</p></InfoCard>
             <InfoCard title="Documents"><strong>100 MB</strong><p>Document and supported media MIME types.</p></InfoCard>
           </div>
+          <Note title="Transfer checks & cleanup">Downloaded bytes must match mediaSizeBytes and stay within the file limit. The worker checks the supplied content type, sends media from memory, then clears temporary buffers after every attempt. RelayWA does not retain an outbound file copy or delete files from your source hosting. These checks do not include malware scanning.</Note>
           <h3>Action payload requirements</h3>
           <div className="docs-field-grid">
             <Field name="reply">Requires <code>quotedMessageId</code> and message text.</Field>

@@ -226,7 +226,9 @@ export class ChromiumSessionManager {
   async sendMedia(sessionId, message) {
     const client = this.clientFor(sessionId);
     const buffer = await fetchMedia(message);
-    const media = new MessageMedia(
+    let media;
+    try {
+    media = new MessageMedia(
       message.media_mime_type || 'application/octet-stream',
       buffer.toString('base64'),
       message.media_file_name || undefined,
@@ -237,7 +239,11 @@ export class ChromiumSessionManager {
       sendAudioAsVoice: message.message_type === 'audio' && Boolean(message.voice_note),
       sendMediaAsDocument: message.message_type === 'document',
     });
-    return this.markSent(sessionId, message, providerMessageId(result));
+    return await this.markSent(sessionId, message, providerMessageId(result), { mediaSizeBytes: buffer.length, mediaRetained: false });
+    } finally {
+      buffer.fill(0);
+      if (media) media.data = '';
+    }
   }
 
   async sendAction(sessionId, message) {
@@ -276,9 +282,10 @@ export class ChromiumSessionManager {
     return this.markSent(sessionId, message, providerMessageId(result));
   }
 
-  async markSent(sessionId, message, id) {
+  async markSent(sessionId, message, id, transfer = {}) {
     await this.store.markMessageSent(message.id, id);
     await this.store.event(sessionId, 'message.sent', {
+      ...transfer,
       messageId: message.id,
       providerMessageId: id,
       recipient: message.recipient_phone,
