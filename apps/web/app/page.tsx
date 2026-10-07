@@ -56,6 +56,7 @@ export default function Home() {
         <a href="#features">Features</a>
         <a href="#integration">Integration</a>
         <a href="#pricing">Pricing</a>
+        <a href="/docs">Documentation</a>
         <a href="https://app.relaywa.com/login">Sign in</a>
         <a className="public-cta" href="https://app.relaywa.com/login">Start free</a>
       </nav>
@@ -68,7 +69,7 @@ export default function Home() {
         <p>Connect numbers, send through a clean REST API, receive real-time webhooks and manage session health from one focused workspace.</p>
         <div className="public-actions">
           <a className="primary-button hero-primary" href="https://app.relaywa.com/login">Start 7-day trial</a>
-          <a className="public-secondary" href="#integration">Explore the API</a>
+          <a className="public-secondary" href="/docs">Read the docs</a>
         </div>
         <div className="hero-assurance">
           <span><b>✓</b>No card required</span>
@@ -88,14 +89,14 @@ export default function Home() {
           <div className="hero-product-grid">
             <div className="hero-code-card">
               <div className="hero-code-tabs"><span className="active">Request</span><span>Response</span></div>
-              <pre><code>{`POST /v1/messages
+              <pre><code>{`POST /api/v1/sessions/{sessionId}/messages/text
 Authorization: Bearer rw_live_••••••
 
 {
   "to": "93744119422",
   "text": "Your order is ready."
 }`}</code></pre>
-              <div className="hero-code-result"><span>202 Accepted</span><code>msg_9c84f2</code></div>
+              <div className="hero-code-result"><span>201 Created</span><code>msg_9c84f2</code></div>
             </div>
 
             <div className="hero-runtime-stack">
@@ -111,7 +112,7 @@ Authorization: Bearer rw_live_••••••
             <div><span className="event-icon inbound">↓</span><p><strong>message.received</strong><small>Inbound event captured</small></p><time>4s</time></div>
           </div>
         </div>
-        <div className="hero-float-card"><span>API</span><div><strong>One endpoint</strong><small>Text, media, contacts & locations</small></div></div>
+        <div className="hero-float-card"><span>API</span><div><strong>One consistent API</strong><small>Text, media, contacts & locations</small></div></div>
       </div>
     </section>
 
@@ -136,7 +137,7 @@ Authorization: Bearer rw_live_••••••
       <div className="integration-console">
         <div className="console-head"><span>Live request</span><span>JavaScript</span></div>
         <pre><code>{`const response = await fetch(
-  "https://api.relaywa.com/v1/messages",
+  "https://api.relaywa.com/api/v1/sessions/YOUR_SESSION_ID/messages/text",
   {
     method: "POST",
     headers: {
@@ -149,7 +150,7 @@ Authorization: Bearer rw_live_••••••
     })
   }
 );`}</code></pre>
-        <div className="console-response"><span>✓ Accepted into queue</span><code>202</code></div>
+        <div className="console-response"><span>✓ Queued by RelayWA</span><code>201</code></div>
       </div>
     </section>
 
