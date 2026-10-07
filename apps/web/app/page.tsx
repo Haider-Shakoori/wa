@@ -145,7 +145,7 @@ Authorization: Bearer rw_live_••••••
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      to: "93744119422",
+      to: "E164_RECIPIENT_NUMBER",
       text: "Payment received. Thank you."
     })
   }
