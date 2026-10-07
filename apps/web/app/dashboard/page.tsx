@@ -203,9 +203,9 @@ export default function DashboardPage() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>by BusinessOS</span></div></div>
+      <div className="brand"><div className="brand-mark">rW</div><div><strong>RelayWA</strong><span>Customer workspace</span></div></div>
       <nav>{nav.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="status-pill"><span className="live-dot"/>Platform operational</div><button className="ghost-button" onClick={()=>void refresh()}>Refresh data</button><button className="danger-button account-logout" onClick={accountLogout}>Sign out</button></div>
+      <div className="sidebar-bottom"><div className="status-pill"><span className="live-dot"/>RelayWA operational</div><button className="ghost-button" onClick={()=>void refresh()}>Refresh data</button><button className="danger-button account-logout" onClick={accountLogout}>Sign out</button></div>
     </aside>
 
     <main className="content">
@@ -224,9 +224,9 @@ export default function DashboardPage() {
       {active === 'Overview' && <>
         <section className="workspace-banner">
           <div>
-            <span className="product-kicker"><span className="live-dot"/>WhatsApp infrastructure online</span>
-            <h2>Everything you need to connect WhatsApp to your software.</h2>
-            <p>Manage linked numbers, test delivery, issue API credentials, monitor usage and ship your integration from one workspace.</p>
+            <span className="product-kicker"><span className="live-dot"/>Your messaging workspace is online</span>
+            <h2>Build, send and monitor WhatsApp messaging from one workspace.</h2>
+            <p>Manage linked numbers, test delivery, issue API credentials, monitor usage and keep your integration healthy with the same RelayWA controls you saw on the website.</p>
           </div>
           <div className="workspace-actions">
             <button className="primary-button" onClick={()=>setActive('Messages')}>Send test message</button>
