@@ -110,7 +110,14 @@ export class SubscriptionsService {
               monthly_price_cents, annual_price_cents, currency
        FROM subscription_plans
        WHERE active = true
-       ORDER BY max_sessions ASC`,
+       ORDER BY CASE code
+         WHEN 'trial' THEN 1
+         WHEN 'starter' THEN 2
+         WHEN 'growth' THEN 3
+         WHEN 'plus' THEN 4
+         WHEN 'scale' THEN 5
+         ELSE 99
+       END`,
     );
     return result.rows;
   }
