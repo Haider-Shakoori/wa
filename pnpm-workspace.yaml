@@ -7,3 +7,6 @@ allowBuilds:
   protobufjs: true
   msgpackr-extract: true
   puppeteer: true
+
+overrides:
+  'whatsapp-web.js>puppeteer': 25.12.0
