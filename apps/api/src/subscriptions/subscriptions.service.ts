@@ -65,6 +65,7 @@ export class SubscriptionsService {
       },
       limits: {
         sessions: subscription.max_sessions,
+        dailyMessages: subscription.daily_messages,
         monthlyMessages: subscription.monthly_messages,
         apiKeys: subscription.max_api_keys,
       },
