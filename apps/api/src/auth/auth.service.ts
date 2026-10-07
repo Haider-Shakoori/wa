@@ -73,7 +73,7 @@ export class AuthService {
     if (identity.rows[0]) {
       const row:any = identity.rows[0];
       return this.issueTokens(
-        { id: row.id, email: row.email, name: row.name, password_hash: row.password_hash },
+        { id: row.id, email: row.email, name: row.name },
         { id: row.membership_id, organization_id: row.organization_id },
       );
     }
