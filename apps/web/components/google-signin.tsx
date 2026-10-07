@@ -93,7 +93,8 @@ export function GoogleSignIn({ destination, preservePlan = false }: { destinatio
     return ()=>script.removeEventListener('load',initialize);
   },[clientId,enabled,loaded,router,destination,preservePlan]);
 
-  if (!loaded || !enabled || !clientId) return null;
+  if (!loaded) return null;
+  if (!enabled || !clientId) return <button type="button" className="github-signin-button" disabled title="Google sign-in requires a configured Google Client ID in Platform Admin">Continue with Google · Setup required</button>;
 
   return <div className="google-signin-wrap">
     <div ref={ref}/>
