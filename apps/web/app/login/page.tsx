@@ -75,7 +75,6 @@ export default function LoginPage() {
         </form>
 
         <p className="auth-legal">By continuing, you agree to use relayWA for legitimate, consent-based messaging and comply with applicable WhatsApp terms.</p>
-        <a className="auth-back-link" href="https://platform.relaywa.com">Platform administrator sign in →</a>
       </div>
     </section>
   </main>;
