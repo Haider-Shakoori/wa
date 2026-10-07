@@ -4,14 +4,40 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
 
+type AuthProviders = {
+  email?: { enabled?: boolean };
+  google?: { enabled?: boolean; clientId?: string };
+};
+
 export function GoogleSignIn() {
   const router = useRouter();
   const ref = useRef<HTMLDivElement|null>(null);
   const [error,setError] = useState('');
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const [clientId,setClientId] = useState('');
+  const [enabled,setEnabled] = useState(false);
+  const [loaded,setLoaded] = useState(false);
 
   useEffect(()=>{
-    if (!clientId || !ref.current) return;
+    let active=true;
+    void api<AuthProviders>('/v1/auth/providers')
+      .then((providers)=>{
+        if (!active) return;
+        const google=providers.google;
+        setEnabled(Boolean(google?.enabled && google.clientId));
+        setClientId(String(google?.clientId ?? ''));
+        setLoaded(true);
+      })
+      .catch(()=>{
+        if (!active) return;
+        setEnabled(false);
+        setClientId('');
+        setLoaded(true);
+      });
+    return ()=>{ active=false; };
+  },[]);
+
+  useEffect(()=>{
+    if (!loaded || !enabled || !clientId || !ref.current) return;
 
     const initialize = () => {
       const google = (window as any).google;
@@ -60,16 +86,13 @@ export function GoogleSignIn() {
     script.addEventListener('load',initialize,{once:true});
     document.head.appendChild(script);
     return ()=>script.removeEventListener('load',initialize);
-  },[clientId,router]);
+  },[clientId,enabled,loaded,router]);
 
-  if (!clientId) {
-    return <button className="social-button" type="button" disabled title="Google OAuth client ID is not configured">
-      <span className="google-g">G</span> Continue with Google
-    </button>;
-  }
+  if (!loaded || !enabled || !clientId) return null;
 
   return <div className="google-signin-wrap">
     <div ref={ref}/>
     {error && <div className="alert">{error}</div>}
+    <div className="auth-divider"><span>or continue with email</span></div>
   </div>;
 }

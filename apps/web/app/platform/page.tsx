@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 
-const sections = ['Overview','Organizations','Sessions','Subscriptions','Payments','Infrastructure','Providers','Diagnostics'];
+const sections = ['Overview','Organizations','Sessions','Subscriptions','Payments','Infrastructure','Providers','Authentication','Diagnostics'];
 
 export default function PlatformPage() {
   const [token,setToken] = useState('');
@@ -20,6 +20,8 @@ export default function PlatformPage() {
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
   const [query,setQuery] = useState('');
+  const [googleEnabled,setGoogleEnabled] = useState(false);
+  const [googleClientId,setGoogleClientId] = useState('');
 
   useEffect(()=>setToken(localStorage.getItem('relaywa_access_token') ?? ''),[]);
 
@@ -27,7 +29,7 @@ export default function PlatformPage() {
     if (!current) return;
     setError('');
     try {
-      const [o,t,s,subs,w,q,e,p,providerRows] = await Promise.all([
+      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows] = await Promise.all([
         api('/v1/platform/overview',current),
         api('/v1/platform/tenants',current),
         api('/v1/platform/sessions',current),
@@ -37,6 +39,7 @@ export default function PlatformPage() {
         api('/v1/platform/errors',current),
         api('/v1/platform/payments',current),
         api('/v1/billing/providers',current),
+        api('/v1/platform/settings/auth-providers',current),
       ]);
       setOverview(o);
       setTenants(t as any[]);
@@ -47,6 +50,9 @@ export default function PlatformPage() {
       setErrors(e);
       setPayments(p as any[]);
       setProviders(providerRows as any[]);
+      const google=(authProviderRows as any[]).find((item)=>item.provider==='google');
+      setGoogleEnabled(Boolean(google?.enabled));
+      setGoogleClientId(String(google?.public_config?.clientId ?? ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
     }
@@ -88,6 +94,23 @@ export default function PlatformPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update subscription');
+    }
+  }
+
+  async function saveGoogleAuth() {
+    setError(''); setNotice('');
+    try {
+      await api('/v1/platform/settings/auth-providers/google',token,{
+        method:'PATCH',
+        body:JSON.stringify({
+          enabled:googleEnabled,
+          clientId:googleClientId.trim(),
+        }),
+      });
+      setNotice(googleEnabled ? 'Google sign-in is enabled.' : 'Google sign-in is disabled.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save Google authentication settings');
     }
   }
 
@@ -184,6 +207,29 @@ export default function PlatformPage() {
       {active === 'Providers' && <section className="panel">
         <PanelHeading eyebrow="Payments" title="Payment providers" subtitle="Enable or disable platform-level payment methods. Secrets remain environment-only."/>
         <div className="provider-grid">{providers.map((provider)=><article className="provider-card" key={provider.provider}><div><p className="eyebrow">{provider.provider}</p><h3>{provider.provider==='stripe'?'Stripe Checkout':'Manual / offline'}</h3></div><Badge value={provider.enabled?'enabled':'disabled'}/><p className="muted">{provider.provider==='stripe'?'Online card payments through Stripe Checkout.':'For bank transfer, cash or locally arranged payments.'}</p><button className={provider.enabled?'secondary-button':'primary-button'} onClick={()=>void toggleProvider(provider)}>{provider.enabled?'Disable':'Enable'}</button></article>)}</div>
+      </section>}
+
+      {active === 'Authentication' && <section className="panel auth-settings-panel">
+        <PanelHeading eyebrow="Authentication" title="Login providers" subtitle="Control which sign-in methods customers can use on relayWA."/>
+        <div className="auth-provider-card">
+          <div className="auth-provider-head">
+            <div className="google-provider-logo">G</div>
+            <div className="grow"><h3>Google</h3><p className="muted">Google Identity Services ID-token sign-in for customer login and registration.</p></div>
+            <label className="settings-toggle"><input type="checkbox" checked={googleEnabled} onChange={(e)=>setGoogleEnabled(e.target.checked)}/><span>{googleEnabled?'Enabled':'Disabled'}</span></label>
+          </div>
+          <div className="auth-settings-form">
+            <label>Google Client ID
+              <input value={googleClientId} onChange={(e)=>setGoogleClientId(e.target.value)} placeholder="1234567890-xxxxxxxx.apps.googleusercontent.com"/>
+            </label>
+            <div className="settings-help">
+              <strong>Google Cloud setup</strong>
+              <p>Create a Web application OAuth client in Google Cloud Console and add this site under Authorized JavaScript origins:</p>
+              <code>{typeof window !== 'undefined' ? window.location.origin : 'https://wasender.businessos.af'}</code>
+              <p>A Client Secret is not required for relayWA's current Google Identity Services ID-token flow.</p>
+            </div>
+            <button className="primary-button" onClick={()=>void saveGoogleAuth()}>Save Google settings</button>
+          </div>
+        </div>
       </section>}
 
       {active === 'Diagnostics' && <section className="diagnostics-grid"><Diagnostic title="Session errors" rows={errors?.sessions ?? []}/><Diagnostic title="Message errors" rows={errors?.messages ?? []}/><Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []}/></section>}

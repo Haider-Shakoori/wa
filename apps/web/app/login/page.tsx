@@ -64,7 +64,6 @@ export default function LoginPage() {
         </div>
 
         <GoogleSignIn/>
-        <div className="auth-divider"><span>or continue with email</span></div>
 
         <form className="auth-v2-form" onSubmit={submit}>
           {mode==='register' && <label>Full name<input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Your name" required minLength={2}/></label>}

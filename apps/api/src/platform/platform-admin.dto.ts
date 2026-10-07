@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpdatePlatformSubscriptionDto {
   @IsOptional()
@@ -14,4 +14,14 @@ export class UpdatePlatformSubscriptionDto {
   @Min(1)
   @Max(365)
   extendDays?: number;
+}
+
+export class UpdateGoogleAuthProviderDto {
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
 }
