@@ -193,7 +193,6 @@ export default function OnboardingPage() {
         }),
       });
       setCreatedKey(result.token);
-      await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
       await load();
     });
   }
@@ -318,7 +317,7 @@ export default function OnboardingPage() {
         {!state.progress.apiKey && <button className="primary-button wide" onClick={()=>void createKey()} disabled={busy}>Generate API key</button>}
         {createdKey && <div className="token-reveal"><strong>Copy this key now</strong><p className="muted">The full value is shown only once.</p><code>{createdKey}</code><button className="secondary-button" onClick={()=>void navigator.clipboard.writeText(createdKey)}>Copy key</button></div>}
         {state.progress.apiKey && !createdKey && <><div className="success-alert">An active API key already exists for this workspace.</div><button className="primary-button wide" onClick={()=>void continueExistingKey()}>Continue</button></>}
-        {createdKey && <button className="primary-button wide setup-next" onClick={()=>void load()}>Continue to test message</button>}
+        {createdKey && <button className="primary-button wide setup-next" onClick={()=>void continueExistingKey()}>I saved my key — continue</button>}
       </section>}
 
       {state.step==='test' && <section className="onboarding-panel narrow">
