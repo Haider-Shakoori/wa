@@ -734,3 +734,52 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .github-signin-mark{display:inline-grid;place-items:center;color:#181b1f}
 .github-provider-logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#171a1e;color:#fff;font-size:9px;font-weight:900;letter-spacing:-.03em}
 .github-provider-card .settings-help code{word-break:break-all}
+
+/* Platform Console 2026: high-contrast premium visual refresh. */
+.platform-shell{--admin-line:#dce7e5;--admin-green:#06b88b;--admin-green-soft:#e0f8f0;background:#f1f6f8!important;color:#152b37}
+.platform-shell .sidebar{background:linear-gradient(180deg,#101f32 0%,#102b36 62%,#0b2130 100%)!important;border-right:1px solid #244052!important;box-shadow:14px 0 40px rgba(8,34,49,.13)!important}
+.platform-shell .sidebar .brand strong{color:#f4fffc!important;font-size:20px!important}
+.platform-shell .sidebar .brand span{color:#a8c7cd!important;font-size:11px!important}
+.platform-shell .sidebar .platform-nav-label{color:#87abb5!important;font-size:11px!important;letter-spacing:.12em}
+.platform-shell .sidebar .nav-item{color:#c4dde0!important;font-size:14px!important;font-weight:650!important;min-height:45px!important;border-radius:12px!important}
+.platform-shell .sidebar .nav-item:hover{background:rgba(255,255,255,.1)!important;color:#fff!important}
+.platform-shell .sidebar .nav-item.active{background:linear-gradient(105deg,#0fc795,#089c87)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 8px 24px rgba(0,187,144,.25)!important}
+.platform-shell .sidebar .nav-item.active:before{display:none!important}
+.platform-shell .sidebar .sidebar-bottom .platform-link,.platform-shell .sidebar .sidebar-bottom .status-pill{font-size:12px!important;color:#b8d4d8!important}
+.platform-shell .platform-page{background:radial-gradient(circle at 90% 4%,#dff6ee 0%,transparent 29%),#f1f6f8!important}
+.platform-shell .platform-topbar-v2{border-bottom:1px solid #d9e5e5!important;margin-bottom:24px!important}
+.platform-shell .platform-topbar-v2 h1{font-size:34px!important;font-weight:850!important;color:#122c3a!important}
+.platform-shell .platform-page-context{font-size:13px!important;color:#526e7b!important}
+.platform-shell .platform-search{height:44px!important;border-radius:13px!important}
+.platform-shell .platform-search input{font-size:13px!important}
+.platform-shell .api-badge{font-size:12px!important;font-weight:750!important;height:44px!important}
+.platform-shell .platform-hero-v2{background:linear-gradient(115deg,#102b40 0%,#114c57 58%,#0a8277 100%)!important;border:0!important;border-radius:24px!important;box-shadow:0 18px 55px rgba(14,67,75,.21)!important;padding:37px!important}
+.platform-shell .platform-hero-v2 h2{color:#fff!important;font-size:clamp(32px,3.3vw,50px)!important;line-height:1.07!important}
+.platform-shell .platform-hero-v2 .muted{color:#d3e8e6!important;font-size:14px!important;line-height:1.65!important}
+.platform-shell .platform-hero-v2 .eyebrow{color:#83f4d6!important;font-size:12px!important}
+.platform-shell .platform-hero-v2 .platform-health-card{background:rgba(255,255,255,.13)!important;border:1px solid rgba(255,255,255,.24)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 12px 40px rgba(0,0,0,.12)!important}
+.platform-shell .platform-hero-v2 .platform-health-head strong,.platform-shell .platform-hero-v2 .platform-health-stats b{color:#fff!important;font-size:18px!important}
+.platform-shell .platform-hero-v2 .platform-health-head small,.platform-shell .platform-hero-v2 .platform-health-stats span{color:#d6eeee!important;font-size:11px!important}
+.platform-shell .platform-hero-v2 .platform-health-stats span{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.18)!important}
+.platform-shell .platform-hero-v2 .platform-health-stats b{font-size:26px!important}
+.platform-shell .platform-hero-v2 .secondary-button{background:rgba(255,255,255,.13)!important;color:#fff!important;border-color:rgba(255,255,255,.4)!important}
+.platform-shell .platform-hero-v2 .primary-button{background:#18d5a3!important;color:#082b32!important;border-color:#18d5a3!important}
+.platform-shell .platform-metrics{gap:15px!important;margin:20px 0 24px!important}
+.platform-shell .metric-card{min-height:144px!important;background:#fff!important;border:1px solid #dbe8e9!important;border-radius:18px!important;padding:23px!important;box-shadow:0 10px 30px rgba(23,59,67,.07)!important;position:relative;overflow:hidden}
+.platform-shell .metric-card:before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#0bc595,#2a94c8)}
+.platform-shell .metric-card p{font-size:12px!important;color:#56737e!important;font-weight:750!important;letter-spacing:.035em!important}
+.platform-shell .metric-card strong{font-size:36px!important;color:#102b3a!important;line-height:1.2!important}
+.platform-shell .metric-card span{font-size:12px!important;color:#6a8590!important}
+.platform-shell .panel{border:1px solid #dbe8e9!important;border-radius:19px!important;box-shadow:0 11px 34px rgba(23,59,67,.06)!important}
+.platform-shell .panel-head h2{font-size:21px!important;font-weight:800!important}
+.platform-shell .panel .muted,.platform-shell .panel-subtitle{font-size:13px!important;line-height:1.6!important}
+.platform-shell .platform-row{font-size:13px!important;min-height:53px!important}
+.platform-shell .platform-row-head{font-size:11px!important;font-weight:800!important}
+.platform-shell .platform-row small,.platform-shell .session-row span{font-size:12px!important}
+.platform-shell .session-row strong{font-size:14px!important}
+.platform-shell .provider-card h3,.platform-shell .auth-provider-card h3{font-size:19px!important}
+.platform-shell .provider-card p,.platform-shell .auth-provider-card p,.platform-shell .settings-help p{font-size:13px!important;line-height:1.65!important}
+.platform-shell .primary-button,.platform-shell .secondary-button,.platform-shell .mini-button{font-size:12px!important;min-height:38px}
+.platform-shell .eyebrow{font-size:11px!important}
+@media(max-width:900px){.platform-shell .platform-hero-v2{padding:25px!important}.platform-shell .platform-metrics{gap:10px!important}.platform-shell .metric-card{padding:16px!important;min-height:125px!important}.platform-shell .metric-card strong{font-size:30px!important}}
+@media(max-width:600px){.platform-shell .platform-topbar-v2 h1{font-size:27px!important}.platform-shell .platform-hero-v2 h2{font-size:30px!important}.platform-shell .platform-hero-v2{padding:20px!important}.platform-shell .platform-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
