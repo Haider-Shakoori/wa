@@ -26,6 +26,16 @@ export class UpdateGoogleAuthProviderDto {
   enabled?: boolean;
 }
 
+export class UpdateGithubAuthProviderDto {
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
+
 
 export class UpdateMessagingEngineDto {
   @IsIn(['baileys', 'chromium'])
