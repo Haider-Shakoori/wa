@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
@@ -59,7 +59,7 @@ export class PlatformAdminService {
       `SELECT ws.id, ws.organization_id, o.name AS organization_name,
               ws.name, ws.phone_number, ws.display_name, ws.status, ws.engine, ws.next_engine,
               ws.worker_id, ws.last_connected_at, ws.last_disconnected_at,
-              ws.last_connection_error, ws.created_at, ws.updated_at
+              ws.last_connection_error, ws.messaging_paused_until, ws.messaging_pause_reason, ws.created_at, ws.updated_at
        FROM whatsapp_sessions ws
        JOIN organizations o ON o.id = ws.organization_id
        WHERE ws.deleted_at IS NULL
@@ -294,6 +294,105 @@ export class PlatformAdminService {
       [input.engine],
     );
     return this.messagingEngineSettings();
+  }
+
+  async messagingSafetySettings() {
+    const result = await this.db.query<any>(
+      `SELECT enabled, min_delay_ms, max_delay_ms, messages_per_minute, messages_per_hour,
+              burst_limit, burst_window_seconds, duplicate_window_seconds,
+              retry_base_ms, max_attempts, max_queue_age_seconds,
+              failure_pause_threshold, failure_window_seconds, auto_pause_seconds, updated_at
+       FROM messaging_safety_settings
+       WHERE id = 'global'
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException('Messaging safety settings are not initialized');
+
+    return {
+      enabled: row.enabled,
+      minDelayMs: row.min_delay_ms,
+      maxDelayMs: row.max_delay_ms,
+      messagesPerMinute: row.messages_per_minute,
+      messagesPerHour: row.messages_per_hour,
+      burstLimit: row.burst_limit,
+      burstWindowSeconds: row.burst_window_seconds,
+      duplicateWindowSeconds: row.duplicate_window_seconds,
+      retryBaseMs: row.retry_base_ms,
+      maxAttempts: row.max_attempts,
+      maxQueueAgeSeconds: row.max_queue_age_seconds,
+      failurePauseThreshold: row.failure_pause_threshold,
+      failureWindowSeconds: row.failure_window_seconds,
+      autoPauseSeconds: row.auto_pause_seconds,
+      updatedAt: row.updated_at,
+      hardMinimumDelayMs: 1000,
+      recommendation: 'For unofficial WhatsApp Web engines, slower and consent-based messaging is safer. These controls reduce burst risk but cannot guarantee that WhatsApp will not restrict an account.',
+    };
+  }
+
+  async updateMessagingSafety(input: UpdateMessagingSafetyDto) {
+    const current = await this.messagingSafetySettings();
+    const next = {
+      enabled: input.enabled ?? current.enabled,
+      minDelayMs: input.minDelayMs ?? current.minDelayMs,
+      maxDelayMs: input.maxDelayMs ?? current.maxDelayMs,
+      messagesPerMinute: input.messagesPerMinute ?? current.messagesPerMinute,
+      messagesPerHour: input.messagesPerHour ?? current.messagesPerHour,
+      burstLimit: input.burstLimit ?? current.burstLimit,
+      burstWindowSeconds: input.burstWindowSeconds ?? current.burstWindowSeconds,
+      duplicateWindowSeconds: input.duplicateWindowSeconds ?? current.duplicateWindowSeconds,
+      retryBaseMs: input.retryBaseMs ?? current.retryBaseMs,
+      maxAttempts: input.maxAttempts ?? current.maxAttempts,
+      maxQueueAgeSeconds: input.maxQueueAgeSeconds ?? current.maxQueueAgeSeconds,
+      failurePauseThreshold: input.failurePauseThreshold ?? current.failurePauseThreshold,
+      failureWindowSeconds: input.failureWindowSeconds ?? current.failureWindowSeconds,
+      autoPauseSeconds: input.autoPauseSeconds ?? current.autoPauseSeconds,
+    };
+
+    if (next.maxDelayMs < next.minDelayMs) {
+      throw new NotFoundException('Maximum delay must be greater than or equal to minimum delay');
+    }
+    if (next.messagesPerHour < next.messagesPerMinute) {
+      throw new NotFoundException('Hourly message limit must be at least the per-minute limit');
+    }
+
+    await this.db.query(
+      `UPDATE messaging_safety_settings
+       SET enabled = $1,
+           min_delay_ms = $2,
+           max_delay_ms = $3,
+           messages_per_minute = $4,
+           messages_per_hour = $5,
+           burst_limit = $6,
+           burst_window_seconds = $7,
+           duplicate_window_seconds = $8,
+           retry_base_ms = $9,
+           max_attempts = $10,
+           max_queue_age_seconds = $11,
+           failure_pause_threshold = $12,
+           failure_window_seconds = $13,
+           auto_pause_seconds = $14,
+           updated_at = now()
+       WHERE id = 'global'`,
+      [
+        next.enabled,
+        next.minDelayMs,
+        next.maxDelayMs,
+        next.messagesPerMinute,
+        next.messagesPerHour,
+        next.burstLimit,
+        next.burstWindowSeconds,
+        next.duplicateWindowSeconds,
+        next.retryBaseMs,
+        next.maxAttempts,
+        next.maxQueueAgeSeconds,
+        next.failurePauseThreshold,
+        next.failureWindowSeconds,
+        next.autoPauseSeconds,
+      ],
+    );
+
+    return this.messagingSafetySettings();
   }
 
   async workers() {
