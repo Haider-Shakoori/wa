@@ -2,22 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('Platform Admin uses grouped operations navigation and includes Ops Assistant', async () => {
+test('Platform Admin shares the tenant workspace shell and includes Ops Assistant', async () => {
   const platform = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
   const bot = await readFile(new URL('../components/platform-support-bot.tsx', import.meta.url), 'utf8');
-  const css = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../app/platform-tenant.css', import.meta.url), 'utf8');
 
   assert.match(platform, /navigationGroups/);
   assert.match(platform, /Operations/);
   assert.match(platform, /Commercial/);
   assert.match(platform, /System/);
   assert.match(platform, /PlatformSupportBot/);
-  assert.match(platform, /platform-hero-v2/);
+  assert.match(platform, /rw-app rw-platform-app/);
+  assert.match(platform, /rw-sidebar rw-platform-sidebar/);
+  assert.match(platform, /rw-topbar/);
+  assert.match(platform, /rw-body rw-platform-body/);
+  assert.match(platform, /rw-dashboard-welcome rw-platform-welcome/);
+  assert.doesNotMatch(platform, /app-shell platform-shell/);
   assert.match(bot, /RelayWA Ops Assistant/);
   assert.match(bot, /\/v1\/platform\/support\/ask/);
   assert.match(bot, /read-only diagnostics/);
-  assert.match(css, /RelayWA Admin \+ Docs v7/);
-  assert.match(css, /\.ops-bot-panel/);
+  assert.match(css, /Platform Admin deliberately reuses the tenant workspace visual language/);
+  assert.match(css, /\.rw-platform-app/);
+  assert.match(css, /\.rw-platform-app \.ops-bot-panel/);
 });
 
 test('developer portal is searchable and documents the actual RelayWA API surface', async () => {
