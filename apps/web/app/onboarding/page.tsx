@@ -64,8 +64,6 @@ export default function OnboardingPage() {
       const result=await api<OnboardingState>('/v1/onboarding/state',current);
       setState(result);
       setWorkspaceName((value)=>value || result.organization?.name || '');
-      const connected=result.sessions.find((session:any)=>session.status==='connected');
-      const first=connected || result.sessions[0];
       if (result.completed) router.replace('/dashboard');
     } catch(err) {
       setError(err instanceof Error ? err.message : 'Unable to load onboarding');
