@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
@@ -173,6 +173,29 @@ export class PlatformAdminService {
       requiresQrNow: false,
       message: 'Engine preference saved. The current authenticated engine stays active; RelayWA will not force a QR rescan.',
     };
+  }
+
+  async resumeSessionMessaging(sessionId: string) {
+    const result = await this.db.query(
+      `UPDATE whatsapp_sessions
+       SET messaging_paused_until = NULL,
+           messaging_pause_reason = NULL,
+           updated_at = now()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id, organization_id, status`,
+      [sessionId],
+    );
+    const session = result.rows[0];
+    if (!session) throw new NotFoundException('Session not found');
+
+    await this.db.query(
+      `INSERT INTO whatsapp_session_events
+        (organization_id, session_id, event_type, payload)
+       VALUES ($1, $2, 'session.messaging_safety_resumed', '{}'::jsonb)`,
+      [session.organization_id, sessionId],
+    );
+
+    return { sessionId, resumed: true };
   }
 
   async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto) {
@@ -350,10 +373,10 @@ export class PlatformAdminService {
     };
 
     if (next.maxDelayMs < next.minDelayMs) {
-      throw new NotFoundException('Maximum delay must be greater than or equal to minimum delay');
+      throw new BadRequestException('Maximum delay must be greater than or equal to minimum delay');
     }
     if (next.messagesPerHour < next.messagesPerMinute) {
-      throw new NotFoundException('Hourly message limit must be at least the per-minute limit');
+      throw new BadRequestException('Hourly message limit must be at least the per-minute limit');
     }
 
     await this.db.query(
