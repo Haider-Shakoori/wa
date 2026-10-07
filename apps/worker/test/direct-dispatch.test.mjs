@@ -41,3 +41,14 @@ test('worker no longer requires Redis queue packages',async()=>{
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
  assert.equal(pkg.dependencies.bullmq,undefined);assert.equal(pkg.dependencies.ioredis,undefined);
 });
+
+test('uploaded files reach transport and are cleared on success and failure',async t=>{
+ let captured; let shouldFail=false; let size=4;
+ const store={claimDirectMessage:async id=>({id,session_id:'session',message_type:'document',media_size_bytes:size}),markMessageFailed:async()=>{}};
+ const sessions={sendMedia:async(id,message,buffer)=>{captured=buffer;assert.deepEqual([...buffer],[1,2,3,4]);if(shouldFail)throw new Error('Send failed');}};
+ const dispatch=await startDirectDispatch({store,sessions,secret:'test',port:0});t.after(()=>dispatch.close());
+ const send=()=>fetch(`http://127.0.0.1:${dispatch.server.address().port}/dispatch/00000000-0000-4000-8000-000000000001`,{method:'POST',headers:{authorization:'Bearer test','content-type':'application/octet-stream'},body:Buffer.from([1,2,3,4])});
+ assert.equal((await send()).status,200);assert.deepEqual([...captured],[0,0,0,0]);
+ shouldFail=true;assert.equal((await send()).status,502);assert.deepEqual([...captured],[0,0,0,0]);
+ size=5;captured=undefined;assert.equal((await send()).status,502);assert.equal(captured,undefined);
+});

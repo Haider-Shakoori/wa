@@ -34,8 +34,8 @@ export class MessagingSessionManager {
     return (await this.managerFor(sessionId)).sendText(sessionId, message);
   }
 
-  async sendMedia(sessionId, message) {
-    return (await this.managerFor(sessionId)).sendMedia(sessionId, message);
+  async sendMedia(sessionId, message, uploadedBuffer) {
+    return (await this.managerFor(sessionId)).sendMedia(sessionId, message, uploadedBuffer);
   }
 
   async sendAction(sessionId, message) {

@@ -223,9 +223,9 @@ export class ChromiumSessionManager {
     return this.markSent(sessionId, message, providerMessageId(result));
   }
 
-  async sendMedia(sessionId, message) {
+  async sendMedia(sessionId, message, uploadedBuffer) {
     const client = this.clientFor(sessionId);
-    const buffer = await fetchMedia(message);
+    const buffer = uploadedBuffer ?? await fetchMedia(message);
     let media;
     try {
     media = new MessageMedia(

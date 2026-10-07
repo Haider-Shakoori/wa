@@ -9,18 +9,25 @@ export async function startDirectDispatch({store,sessions,secret=process.env.WOR
   if(actual.length!==expected.length||!timingSafeEqual(actual,expected))return respond(401,{message:'Unauthorized'});
   const match=req.url?.match(/^\/dispatch\/([0-9a-f-]{36})$/i);
   if(req.method!=='POST'||!match)return respond(404,{message:'Not found'});
-  let message;
+  let message;let uploaded;const chunks=[];
   try{
    message=await store.claimDirectMessage(match[1]);
    if(!message)return respond(409,{message:'Message is already dispatched or session is unavailable'});
+   if(req.headers['content-type']==='application/octet-stream'){
+    if(!['image','video','audio','document'].includes(message.message_type))throw new Error('File is not valid for this message');
+    const limit=({image:16,video:64,audio:16,document:100})[message.message_type]*1024*1024;
+    let size=0;for await(const chunk of req){chunks.push(chunk);size+=chunk.length;if(size>limit)throw new Error('File exceeds size limit');}
+    if(!size||size!==Number(message.media_size_bytes))throw new Error('Upload size mismatch');
+    uploaded=Buffer.concat(chunks,size);
+   }
    if(message.message_type==='text')await sessions.sendText(message.session_id,message);
-   else if(['image','video','audio','document'].includes(message.message_type))await sessions.sendMedia(message.session_id,message);
+   else if(['image','video','audio','document'].includes(message.message_type))await sessions.sendMedia(message.session_id,message,uploaded);
    else await sessions.sendAction(message.session_id,message);
    respond(200,{sent:true,messageId:message.id});
   }catch(error){
    if(message)await store.markMessageFailed(message.id,error).catch(()=>{});
    respond(502,{message:String(error?.message||error).slice(0,500),messageId:message?.id});
-  }
+  }finally{uploaded?.fill(0);for(const chunk of chunks)chunk.fill(0);}
  });
  server.requestTimeout=120000;
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve);});

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { API_BASE, api } from '../lib/api';
 
 type Session = {
   id:string;
@@ -59,6 +59,8 @@ export function QuickSend({
   const [sessionId,setSessionId] = useState('');
   const [to,setTo] = useState('');
   const [text,setText] = useState('Hello from relayWA');
+  const [kind,setKind]=useState('text');
+  const [file,setFile]=useState<File>();
   const [status,setStatus] = useState('');
   const [sending,setSending] = useState(false);
 
@@ -72,18 +74,18 @@ export function QuickSend({
     setSending(true);
     try {
       if (!sessionId) throw new Error('Choose a connected WhatsApp session.');
-      const result = await api<any>('/whatsapp-sessions/' + sessionId + '/messages/text',token,{
-        method:'POST',
-        body:JSON.stringify({
-          to,
-          text,
-          clientMessageId:'portal-test-' + Date.now(),
-        }),
-      });
-      setStatus('Queued successfully · ' + result.id);
+      let result:any;
+      if(kind==='text')result=await api<any>('/whatsapp-sessions/'+sessionId+'/messages/text',token,{method:'POST',body:JSON.stringify({to,text,clientMessageId:crypto.randomUUID()})});
+      else {
+        if(!file)throw new Error('Choose a file to send.');
+        const form=new FormData();form.append('file',file);form.append('to',to);form.append('type',kind);form.append('caption',text);
+        const response=await fetch(API_BASE+'/whatsapp-sessions/'+sessionId+'/messages/file',{method:'POST',headers:{authorization:'Bearer '+token},body:form});
+        result=await response.json();if(!response.ok)throw new Error(result.message||'Unable to send file');
+      }
+      setStatus('Sent successfully - '+result.id);
       await onSent?.();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'Unable to queue test message');
+      setStatus(err instanceof Error ? err.message : 'Unable to send test message');
     } finally {
       setSending(false);
     }
@@ -101,10 +103,12 @@ export function QuickSend({
       <label>Recipient number
         <input value={to} onChange={(e)=>setTo(e.target.value)} placeholder="e.g. 12025550123" minLength={7} required/>
       </label>
-      <label className="quick-send-message">Message
-        <textarea value={text} onChange={(e)=>setText(e.target.value)} maxLength={4096} required/>
+      <label>Send type<select value={kind} disabled={sending} onChange={e=>{setKind(e.target.value);setFile(undefined);}}><option value="text">Text message</option><option value="image">Image</option><option value="video">Video</option><option value="audio">Audio</option><option value="document">Document / file</option></select></label>
+      {kind!=='text'&&<label className="quick-send-message">Choose file<input key={kind} type="file" required disabled={sending} accept={kind==='document'?undefined:kind+'/*'} onChange={e=>setFile(e.target.files?.[0])}/><small>{file?file.name+' - '+(file.size/1024).toFixed(1)+' KB':'Image/audio: 16 MB - video: 64 MB - document: 100 MB. Uploaded files are discarded after sending.'}</small></label>}
+      <label className="quick-send-message">{kind==='text'?'Message':'Caption (optional)'}
+        <textarea value={text} onChange={(e)=>setText(e.target.value)} maxLength={4096} required={kind==='text'}/>
       </label>
-      <button className="primary-button" disabled={sending || !connected.length} type="submit">{sending?'Sending…':'Send test message'}</button>
+      <button className="primary-button" disabled={sending || !connected.length} type="submit">{sending?'Sending…':kind==='text'?'Send test message':'Send test file'}</button>
       {!connected.length && <p className="form-hint">Connect a WhatsApp session before sending a test message.</p>}
       {status && <p className="form-status">{status}</p>}
     </form>

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { ApiAccessGuard, type ApiAuthenticatedRequest } from '../auth/api-access.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
@@ -11,6 +11,8 @@ import {
   SendReactionDto,
   SendReplyDto,
 } from './action.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { validateMediaInput, type MediaType } from './media-policy';
 import { MessagesService } from './messages.service';
 
 @Controller(['whatsapp-sessions/:sessionId/messages', 'v1/sessions/:sessionId/messages'])
@@ -25,6 +27,21 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
   ) {
     return this.messages.list(request.auth.org, sessionId);
+  }
+
+  @Post('file')
+  @RequirePermissions(PERMISSIONS.MESSAGES_SEND)
+  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:100*1024*1024,files:1,fields:3}}))
+  async sendFile(@Req() request: ApiAuthenticatedRequest,@Param('sessionId') sessionId:string,
+    @UploadedFile() file:{buffer:Buffer;size:number;mimetype:string;originalname:string},
+    @Body() body:{to:string;type:MediaType;caption?:string}) {
+    try {
+    if(!file||!['image','video','audio','document'].includes(body.type)||typeof body.to!=='string')throw new BadRequestException('Choose a file, type and recipient');
+    if(body.caption!==undefined&&(typeof body.caption!=='string'||body.caption.length>4096))throw new BadRequestException('Caption must be at most 4096 characters');
+    validateMediaInput(body.type,'https://upload.relaywa.invalid/file',file.mimetype,file.size);
+    return await this.messages.sendMedia(request.auth.org,request.auth.sub,sessionId,body.type,
+      {to:body.to,url:'https://upload.relaywa.invalid/file',mimeType:file.mimetype,mediaSizeBytes:file.size,fileName:file.originalname.slice(0,255),caption:body.caption},file.buffer);
+    } finally { file?.buffer.fill(0); }
   }
 
   @Post('text')

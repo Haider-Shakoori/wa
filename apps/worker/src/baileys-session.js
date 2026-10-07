@@ -177,11 +177,11 @@ export class BaileysSessionManager {
     return { providerMessageId };
   }
 
-  async sendMedia(sessionId, message) {
+  async sendMedia(sessionId, message, uploadedBuffer) {
     const socket = this.sockets.get(sessionId);
     if (!socket) throw new Error('Session socket is not active');
 
-    const buffer = await fetchMedia(message);
+    const buffer = uploadedBuffer ?? await fetchMedia(message);
     try {
     let payload;
 

@@ -98,6 +98,7 @@ export class MessagesService {
     sessionId: string,
     type: MediaType,
     input: SendMediaMessageDto,
+    file?: Buffer,
   ) {
     const session = await this.getSession(organizationId, sessionId);
     const dispatch = resolveDispatch(session.status, input);
@@ -148,7 +149,7 @@ export class MessagesService {
       ],
     );
     await this.subscriptions.recordOutboundMessage(organizationId);
-    return this.dispatchNow(organizationId, sessionId, result.rows[0]);
+    return this.dispatchNow(organizationId, sessionId, result.rows[0],file);
   }
 
   async sendAction(
@@ -240,14 +241,15 @@ export class MessagesService {
     return this.dispatchNow(organizationId, sessionId, result.rows[0]);
   }
 
-  private async dispatchNow(organizationId: string, sessionId: string, message: MessageRow) {
+  private async dispatchNow(organizationId: string, sessionId: string, message: MessageRow, file?: Buffer) {
     const owner=await this.db.query<{worker_id:string}>('SELECT worker_id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2',[sessionId,organizationId]);
     const secret=process.env.WORKER_DISPATCH_SECRET||process.env.JWT_SECRET;
+    const payload=file?new Uint8Array(file):undefined;
     try {
       const routes=JSON.parse(process.env.WORKER_DISPATCH_URLS||'{}') as Record<string,string>;
       const base=routes[owner.rows[0]?.worker_id]||process.env.WORKER_DISPATCH_URL||'http://127.0.0.1:3002';
       if(!secret)throw new Error('Worker dispatch secret is not configured');
-      const response=await fetch(base.replace(/\/$/,'')+'/dispatch/'+message.id,{method:'POST',headers:{authorization:'Bearer '+secret},signal:AbortSignal.timeout(120000)});
+      const response=await fetch(base.replace(/\/$/,'')+'/dispatch/'+message.id,{method:'POST',headers:{authorization:'Bearer '+secret,...(file?{'content-type':'application/octet-stream'}:{})},...(payload?{body:payload}:{}),signal:AbortSignal.timeout(120000)});
       if(!response.ok){const body=await response.json().catch(()=>({}));throw new BadGatewayException({message:body.message||'Worker send failed',messageId:message.id});}
       return await this.get(organizationId,sessionId,message.id);
     }catch(error){
@@ -255,7 +257,7 @@ export class MessagesService {
       await this.db.query("UPDATE whatsapp_messages SET status='failed',last_error=$2,failed_at=now(),updated_at=now() WHERE id=$1 AND status='queued'",[message.id,String(error instanceof Error?error.message:error).slice(0,2000)]);
       if(error instanceof BadGatewayException)throw error;
       throw new ServiceUnavailableException({message:'Worker response unavailable. Check message status before retrying.',messageId:message.id});
-    }
+    } finally { payload?.fill(0); }
   }
 
   async list(organizationId: string, sessionId: string) {

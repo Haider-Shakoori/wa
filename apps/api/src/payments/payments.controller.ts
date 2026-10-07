@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
@@ -29,6 +29,13 @@ export class PaymentsController {
   @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
   history(@Req() request: AuthenticatedRequest) {
     return this.payments.history(request.auth.org);
+  }
+
+  @Get('payments/:paymentId/invoice')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
+  invoice(@Req() request: AuthenticatedRequest,@Param('paymentId', ParseUUIDPipe) paymentId: string) {
+    return this.payments.invoice(request.auth.org,paymentId);
   }
 
   @Post('checkout/stripe')
@@ -64,7 +71,7 @@ export class PaymentsController {
 
   @Post('admin/manual/:paymentId/approve')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
-  approveManual(@Param('paymentId') paymentId: string) {
+  approveManual(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
     return this.payments.approveManual(paymentId);
   }
 

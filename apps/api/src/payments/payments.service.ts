@@ -39,6 +39,20 @@ export class PaymentsService {
     return result.rows;
   }
 
+  async invoice(organizationId: string, paymentId: string) {
+    const result=await this.db.query(`SELECT pay.id,pay.provider,pay.status,pay.amount_cents,pay.currency,
+      pay.billing_interval,pay.paid_at,pay.created_at,plan.name AS plan_name,org.name AS organization_name
+      FROM payments pay JOIN subscription_plans plan ON plan.code=pay.plan_code
+      JOIN organizations org ON org.id=pay.organization_id
+      WHERE pay.id=$1 AND pay.organization_id=$2`,[paymentId,organizationId]);
+    const payment=result.rows[0];
+    if(!payment)throw new NotFoundException('Invoice not found');
+    return {number:(payment.provider==='demo'?'DEMO-':'INV-')+payment.id, paymentId:payment.id,
+      demo:payment.provider==='demo',status:payment.status,issuedAt:payment.paid_at||payment.created_at,
+      organizationName:payment.organization_name,planName:payment.plan_name,
+      billingInterval:payment.billing_interval,totalCents:payment.amount_cents,currency:payment.currency};
+  }
+
   async createStripeCheckout(organizationId: string, input: CreateCheckoutDto) {
     await this.assertProviderEnabled('stripe');
     const plan = await this.plan(input.planCode);
@@ -96,6 +110,7 @@ export class PaymentsService {
     const plan = await this.plan(input.planCode);
     const interval = input.billingInterval ?? 'monthly';
     const amount = interval === 'annual' ? plan.annual_price_cents : plan.monthly_price_cents;
+    if(plan.code==='trial'||amount<=0)throw new BadRequestException('Choose a paid subscription plan');
     const id = randomUUID();
     // No card data is accepted or stored. Demo activation and receipt commit together.
     await this.db.transaction(async client => {
@@ -105,8 +120,11 @@ export class PaymentsService {
       if (usage.rows[0].total > limits.rows[0].max_sessions) throw new ConflictException('Remove extra sessions before switching to this plan');
       await client.query(`INSERT INTO payments (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,currency,paid_at,metadata) VALUES ($1,$2,$3,'demo',$4,'paid',$5,$6,now(),'{"demo":true}'::jsonb)`, [id,organizationId,plan.code,interval,amount,plan.currency]);
       await client.query(`INSERT INTO organization_subscriptions (organization_id,plan_code,status,current_period_start,current_period_end,trial_ends_at,cancel_at_period_end,provider,provider_subscription_id) VALUES ($1,$2,'active',now(),now()+($3*interval '1 month'),NULL,false,'demo',$4) ON CONFLICT (organization_id) DO UPDATE SET plan_code=EXCLUDED.plan_code,status='active',current_period_start=now(),current_period_end=EXCLUDED.current_period_end,trial_ends_at=NULL,cancel_at_period_end=false,provider='demo',provider_customer_id=NULL,provider_subscription_id=$4,updated_at=now()`, [organizationId,plan.code,interval==='annual'?12:1,id]);
+      await client.query("UPDATE organizations SET selected_plan_code=$2,selected_billing_interval=$3,onboarding_step=CASE WHEN onboarding_step='payment' THEN 'workspace' ELSE onboarding_step END,updated_at=now() WHERE id=$1",[organizationId,plan.code,interval]);
     });
-    return {paymentId:id, demo:true, activated:true, amountCents:amount, currency:plan.currency};
+    const subscription=await this.subscriptions.summary(organizationId);
+    const invoice=await this.invoice(organizationId,id);
+    return {paymentId:id,demo:true,activated:subscription.subscription.status==='active'&&subscription.subscription.plan_code===plan.code,amountCents:amount,currency:plan.currency,subscription:subscription.subscription,invoice};
   }
 
   async handleStripeEvent(event: any) {
