@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DeveloperGuide } from '../../components/developer-guide';
 import { MessageHistory, OnboardingChecklist, QuickSend } from '../../components/customer-operations';
 import { api } from '../../lib/api';
@@ -24,6 +25,7 @@ type BillingSummary = {
 const nav = ['Overview','Sessions','Messages','API Keys','Developers','Webhooks','Billing'];
 
 export default function DashboardPage() {
+  const router=useRouter();
   const [token,setToken] = useState('');
   const [active,setActive] = useState('Overview');
   const [sessions,setSessions] = useState<Session[]>([]);
@@ -62,7 +64,21 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(()=>{ void refresh(); },[token]);
+  useEffect(()=>{
+    if (!token) return;
+    void (async()=>{
+      try {
+        const onboarding=await api<any>('/v1/onboarding/state',token);
+        if (!onboarding.completed) {
+          router.replace('/onboarding');
+          return;
+        }
+        await refresh();
+      } catch {
+        await refresh();
+      }
+    })();
+  },[token,router]);
 
   useEffect(()=>{
     if (!token) return;

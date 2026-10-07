@@ -80,25 +80,32 @@ export class SubscriptionsService {
   ) {
     const months = billingInterval === 'annual' ? 12 : 1;
     await this.db.query(
-      `UPDATE organization_subscriptions
-       SET plan_code = $1,
-           status = 'active',
-           current_period_start = now(),
-           current_period_end = now() + ($2 * interval '1 month'),
-           trial_ends_at = NULL,
-           cancel_at_period_end = false,
-           provider = $3,
-           provider_customer_id = $4,
-           provider_subscription_id = $5,
-           updated_at = now()
-       WHERE organization_id = $6`,
+      `INSERT INTO organization_subscriptions
+        (organization_id, plan_code, status, current_period_start, current_period_end,
+         trial_ends_at, cancel_at_period_end, provider, provider_customer_id,
+         provider_subscription_id)
+       VALUES ($6, $1, 'active', now(), now() + ($2 * interval '1 month'),
+               NULL, false, $3, $4, $5)
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         plan_code = EXCLUDED.plan_code,
+         status = 'active',
+         current_period_start = now(),
+         current_period_end = now() + ($2 * interval '1 month'),
+         trial_ends_at = NULL,
+         cancel_at_period_end = false,
+         provider = EXCLUDED.provider,
+         provider_customer_id = EXCLUDED.provider_customer_id,
+         provider_subscription_id = EXCLUDED.provider_subscription_id,
+         updated_at = now()`,
       [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId],
     );
   }
 
   async listPlans() {
     const result = await this.db.query(
-      `SELECT code, name, max_sessions, monthly_messages, max_api_keys
+      `SELECT code, name, max_sessions, monthly_messages, max_api_keys,
+              monthly_price_cents, annual_price_cents, currency
        FROM subscription_plans
        WHERE active = true
        ORDER BY max_sessions ASC`,

@@ -11,6 +11,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { PaymentsModule } from './payments/payments.module';
     ApiKeysModule,
     SubscriptionsModule,
     PaymentsModule,
+    OnboardingModule,
   ],
   controllers: [AppController],
 })

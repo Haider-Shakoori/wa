@@ -19,8 +19,8 @@ test('dashboard QR flow calls session lifecycle and QR endpoints', async () => {
   assert.match(source, /dataUrl/);
 });
 
-test('login persists relayWA access token and routes to dashboard', async () => {
+test('login persists relayWA access token and respects server nextPath', async () => {
   const source = await readFile(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /relaywa_access_token/);
-  assert.match(source, /router\.push\('\/dashboard'\)/);
+  assert.match(source, /result\.nextPath/);
 });
