@@ -99,7 +99,7 @@ export function QuickSend({
         </select>
       </label>
       <label>Recipient number
-        <input value={to} onChange={(e)=>setTo(e.target.value)} placeholder="93744119422" minLength={7} required/>
+        <input value={to} onChange={(e)=>setTo(e.target.value)} placeholder="e.g. 12025550123" minLength={7} required/>
       </label>
       <label className="quick-send-message">Message
         <textarea value={text} onChange={(e)=>setText(e.target.value)} maxLength={4096} required/>
