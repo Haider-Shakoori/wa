@@ -76,3 +76,10 @@ export class UpdateMessagingSafetyDto {
   @IsOptional() @IsInt() @Min(60) @Max(86400)
   autoPauseSeconds?: number;
 }
+
+export class PlatformSupportQuestionDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  message!: string;
+}
