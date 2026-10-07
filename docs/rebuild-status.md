@@ -42,3 +42,7 @@ The provided account exposed the customer workspace. Platform-admin parity remai
 ## Verification
 
 Latest pre-push checks: all service typechecks and production builds pass. Worker tests pass 43/43; API tests pass 65/67; web tests pass 33/46. The two API migration-chain assertions expect the former shell migration command. Several web assertions expect previous UI strings/routes; remaining failures require individual review. These checks do not substitute for production or live transport verification. See server-update-prompt.md for deployment instructions.
+
+## Direct sending update
+
+Outbound BullMQ and Redis dispatch, automatic retry, pacing, and duplicate-content suppression have been removed. API requests use an authenticated private HTTP worker listener and return after sending. Scheduling/retry options are rejected; callers implement them in their own job systems. Migration027 retires outstanding legacy queue rows. Worker tests pass 52/52, including real HTTP dispatch tests with mocked transport; API suite passes 68/68, including the direct-send behavior test. No real message was sent for this verification.

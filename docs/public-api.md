@@ -12,7 +12,7 @@ Content-Type: application/json
 {"to":"12025550123","text":"Hello from RelayWA"}
 ```
 
-The Bearer session key determines which WhatsApp number sends the message. An organization API key or dashboard access token cannot use this endpoint. Existing message scope permissions, subscription checks, queues, and safety controls apply. The response is `{ "success": true, "data": ... }`, with the queued message's actual RelayWA state. Queued does not mean delivered.
+The Bearer session key determines which WhatsApp number sends the message. An organization API key or dashboard access token cannot use this endpoint. Scope permissions and subscription checks apply. Sending is immediate, without Redis/BullMQ, randomized pacing, duplicate-content suppression, or automatic retries. The response is `{ "success": true, "data": ... }` after transport acceptance, with the actual message state. Recipient delivery is a separate acknowledgement. Laravel Jobs or your application must handle scheduling, pacing, and retries. `scheduledAt`, `priority`, and `maxAttempts` are rejected. Keep `clientMessageId` for idempotency; a timeout may have an unknown outcome, so check status before resending.
 
 ## Connect a session
 
@@ -39,4 +39,10 @@ The endpoint naming is modeled on WasenderAPI's documented send-message and sess
 
 ## Media transfer and retention
 
-Outbound media URLs are fetched into worker memory, not retained as RelayWA disk files. The worker enforces the streaming size cap, requires actual downloaded bytes to match `mediaSizeBytes`, and checks a provided Content-Type against the requested MIME (generic application/octet-stream is allowed). These checks are not a malware scan or binary format verification. After each send attempt the worker clears its download buffers; Chromium's base64 media reference is cleared too. Failed attempts fetch the source URL again on retry. Message records and sent events retain metadata, including verified transferred byte count, rather than file contents. Source files on customer hosting are not deleted. A sent event means transport acceptance; recipient delivery acknowledgement remains a separate event.
+Outbound media URLs are fetched into worker memory, not retained as RelayWA disk files. The worker enforces the streaming size cap, requires actual downloaded bytes to match `mediaSizeBytes`, and checks a provided Content-Type against the requested MIME (generic application/octet-stream is allowed). These checks are not a malware scan or binary format verification. After each send attempt the worker clears its download buffers; Chromium's base64 media reference is cleared too. If your application retries with a new request, the worker fetches the source URL again. Message records and sent events retain metadata, including verified transferred byte count, rather than file contents. Source files on customer hosting are not deleted. A sent event means transport acceptance; recipient delivery acknowledgement remains a separate event.
+
+## Private worker dispatch configuration
+
+The API calls a private worker HTTP listener on WORKER_DISPATCH_URL (default http://127.0.0.1:3002). The worker listens on WORKER_DISPATCH_HOST/PORT (defaults 127.0.0.1/3002). Both use WORKER_DISPATCH_SECRET, falling back to JWT_SECRET. Keep the listener private; never expose it through the public proxy. For separate containers use a private network hostname and bind the worker to 0.0.0.0 inside that network. For multiple workers configure WORKER_DISPATCH_URLS as a JSON mapping from worker IDs to internal URLs. Requests wait up to 120 seconds and are never automatically replayed after timeout.
+
+During upgrades stop the old worker before migration027, which retires outstanding legacy queue jobs and clears legacy messaging pauses. Restart API and worker together. Old Redis outbound jobs are no longer read. Message database rows remain for status/history; legacy queue columns are retained for schema compatibility, not used as a delivery scheduler. Session lifecycle commands and webhook/operational email delivery remain asynchronous and separate from outbound sending.

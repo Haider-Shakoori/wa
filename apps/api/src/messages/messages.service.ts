@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException, BadGatewayException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { normalizeWhatsAppRecipient } from './recipient';
@@ -46,7 +46,7 @@ export class MessagesService {
     private readonly subscriptions: SubscriptionsService,
   ) {}
 
-  async queueText(
+  async sendText(
     organizationId: string,
     userId: string,
     sessionId: string,
@@ -89,10 +89,10 @@ export class MessagesService {
       ],
     );
     await this.subscriptions.recordOutboundMessage(organizationId);
-    return result.rows[0];
+    return this.dispatchNow(organizationId, sessionId, result.rows[0]);
   }
 
-  async queueMedia(
+  async sendMedia(
     organizationId: string,
     userId: string,
     sessionId: string,
@@ -148,10 +148,10 @@ export class MessagesService {
       ],
     );
     await this.subscriptions.recordOutboundMessage(organizationId);
-    return result.rows[0];
+    return this.dispatchNow(organizationId, sessionId, result.rows[0]);
   }
 
-  async queueAction(
+  async sendAction(
     organizationId: string,
     userId: string,
     sessionId: string,
@@ -237,7 +237,25 @@ export class MessagesService {
       ],
     );
     await this.subscriptions.recordOutboundMessage(organizationId);
-    return result.rows[0];
+    return this.dispatchNow(organizationId, sessionId, result.rows[0]);
+  }
+
+  private async dispatchNow(organizationId: string, sessionId: string, message: MessageRow) {
+    const owner=await this.db.query<{worker_id:string}>('SELECT worker_id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2',[sessionId,organizationId]);
+    const secret=process.env.WORKER_DISPATCH_SECRET||process.env.JWT_SECRET;
+    try {
+      const routes=JSON.parse(process.env.WORKER_DISPATCH_URLS||'{}') as Record<string,string>;
+      const base=routes[owner.rows[0]?.worker_id]||process.env.WORKER_DISPATCH_URL||'http://127.0.0.1:3002';
+      if(!secret)throw new Error('Worker dispatch secret is not configured');
+      const response=await fetch(base.replace(/\/$/,'')+'/dispatch/'+message.id,{method:'POST',headers:{authorization:'Bearer '+secret},signal:AbortSignal.timeout(120000)});
+      if(!response.ok){const body=await response.json().catch(()=>({}));throw new BadGatewayException({message:body.message||'Worker send failed',messageId:message.id});}
+      return await this.get(organizationId,sessionId,message.id);
+    }catch(error){
+      // A transport timeout can have an unknown outcome. Do not retry or mark an in-flight send failed.
+      await this.db.query("UPDATE whatsapp_messages SET status='failed',last_error=$2,failed_at=now(),updated_at=now() WHERE id=$1 AND status='queued'",[message.id,String(error instanceof Error?error.message:error).slice(0,2000)]);
+      if(error instanceof BadGatewayException)throw error;
+      throw new ServiceUnavailableException({message:'Worker response unavailable. Check message status before retrying.',messageId:message.id});
+    }
   }
 
   async list(organizationId: string, sessionId: string) {
@@ -295,19 +313,7 @@ export class MessagesService {
 }
 
 function resolveDispatch(sessionStatus: string, input: DispatchInput) {
-  const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
-  const future = Boolean(scheduledAt && scheduledAt.getTime() > Date.now() + 1000);
-
-  if (!future && sessionStatus !== 'connected') {
-    throw new ConflictException('WhatsApp session is not connected');
-  }
-
-  const when = future ? scheduledAt!.toISOString() : new Date().toISOString();
-  return {
-    status: future ? 'scheduled' : 'queued',
-    scheduledAt: future ? when : null,
-    nextAttemptAt: when,
-    priority: input.priority ?? 5,
-    maxAttempts: input.maxAttempts ?? 5,
-  };
+  if(input.scheduledAt||input.priority!==undefined||input.maxAttempts!==undefined)throw new BadRequestException('Scheduling, priorities and retries must be handled by your application.');
+  if(sessionStatus!=='connected')throw new ConflictException('WhatsApp session is not connected');
+  return {status:'queued',scheduledAt:null,nextAttemptAt:new Date().toISOString(),priority:5,maxAttempts:1};
 }

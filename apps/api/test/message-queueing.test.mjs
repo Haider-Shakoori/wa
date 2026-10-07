@@ -10,7 +10,7 @@ test('outbound messages support scheduling priority and retry policy', async () 
   assert.match(sql, /retrying/);
 });
 
-test('send DTOs expose scheduledAt for delayed dispatch', async () => {
-  const source = await readFile(new URL('../src/messages/messages.dto.ts', import.meta.url), 'utf8');
-  assert.match(source, /scheduledAt/);
+test('legacy scheduling fields are rejected by direct dispatch', async () => {
+  const source = await readFile(new URL('../src/messages/messages.service.ts', import.meta.url), 'utf8');
+  assert.match(source, /handled by your application/);
 });

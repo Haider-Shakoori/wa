@@ -321,7 +321,7 @@ export default function PlatformPage() {
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
         <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
-        {filteredSessions.map((s)=>{ const paused=Boolean(s.messaging_paused_until && new Date(s.messaging_paused_until).getTime()>Date.now()); return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
+        {filteredSessions.map((s)=>{ const paused=false; return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
       </TableSection>}
 
       {active === 'Messaging' && <>
@@ -347,62 +347,7 @@ export default function PlatformPage() {
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
       </section>
-      <section className="panel auth-settings-panel">
-        <PanelHeading eyebrow="API messaging safety" title="Safety Governor" subtitle="Control API message pacing and automatically slow or pause risky bursts without restarting RelayWA."/>
-        <div className="auth-provider-card">
-          <div className="auth-provider-head">
-            <div className="session-avatar small">SG</div>
-            <div className="grow"><h3>Outbound protection</h3><p className="muted">Applies to messages sent through the RelayWA API on both Baileys and Chromium sessions.</p></div>
-            <label className="settings-toggle"><input type="checkbox" checked={Boolean(messagingSafety.enabled)} onChange={(e)=>setMessagingSafety((current:any)=>({...current,enabled:e.target.checked}))}/><span>{messagingSafety.enabled?'Enabled':'Disabled'}</span></label>
-          </div>
-          <div className="auth-settings-form">
-            <label>Minimum delay between messages (ms)
-              <input type="number" min="1000" max="60000" value={messagingSafety.minDelayMs} onChange={(e)=>setSafetyNumber('minDelayMs',e.target.value)}/>
-            </label>
-            <label>Maximum randomized delay (ms)
-              <input type="number" min="1000" max="120000" value={messagingSafety.maxDelayMs} onChange={(e)=>setSafetyNumber('maxDelayMs',e.target.value)}/>
-            </label>
-            <label>Messages per minute
-              <input type="number" min="1" max="120" value={messagingSafety.messagesPerMinute} onChange={(e)=>setSafetyNumber('messagesPerMinute',e.target.value)}/>
-            </label>
-            <label>Messages per hour
-              <input type="number" min="1" max="5000" value={messagingSafety.messagesPerHour} onChange={(e)=>setSafetyNumber('messagesPerHour',e.target.value)}/>
-            </label>
-            <label>Burst limit
-              <input type="number" min="1" max="50" value={messagingSafety.burstLimit} onChange={(e)=>setSafetyNumber('burstLimit',e.target.value)}/>
-            </label>
-            <label>Burst window (seconds)
-              <input type="number" min="1" max="60" value={messagingSafety.burstWindowSeconds} onChange={(e)=>setSafetyNumber('burstWindowSeconds',e.target.value)}/>
-            </label>
-            <label>Duplicate suppression window (seconds)
-              <input type="number" min="0" max="3600" value={messagingSafety.duplicateWindowSeconds} onChange={(e)=>setSafetyNumber('duplicateWindowSeconds',e.target.value)}/>
-            </label>
-            <label>Retry base delay (ms)
-              <input type="number" min="1000" max="60000" value={messagingSafety.retryBaseMs} onChange={(e)=>setSafetyNumber('retryBaseMs',e.target.value)}/>
-            </label>
-            <label>Maximum send attempts
-              <input type="number" min="1" max="10" value={messagingSafety.maxAttempts} onChange={(e)=>setSafetyNumber('maxAttempts',e.target.value)}/>
-            </label>
-            <label>Maximum queue age (seconds)
-              <input type="number" min="60" max="86400" value={messagingSafety.maxQueueAgeSeconds} onChange={(e)=>setSafetyNumber('maxQueueAgeSeconds',e.target.value)}/>
-            </label>
-            <label>Auto-pause after final failures
-              <input type="number" min="2" max="20" value={messagingSafety.failurePauseThreshold} onChange={(e)=>setSafetyNumber('failurePauseThreshold',e.target.value)}/>
-            </label>
-            <label>Failure observation window (seconds)
-              <input type="number" min="60" max="3600" value={messagingSafety.failureWindowSeconds} onChange={(e)=>setSafetyNumber('failureWindowSeconds',e.target.value)}/>
-            </label>
-            <label>Automatic pause duration (seconds)
-              <input type="number" min="60" max="86400" value={messagingSafety.autoPauseSeconds} onChange={(e)=>setSafetyNumber('autoPauseSeconds',e.target.value)}/>
-            </label>
-            <div className="settings-help">
-              <strong>{Number(messagingSafety.minDelayMs) < 2000 ? 'Aggressive pacing selected' : 'Safety floor active'}</strong>
-              <p>RelayWA never allows less than {messagingSafety.hardMinimumDelayMs ?? 1000} ms between configured message slots. A 2–5 second randomized delay is the safer default for normal transactional traffic. These controls reduce burst risk but cannot guarantee that an unofficial WhatsApp Web session will never be restricted.</p>
-            </div>
-            <button className="primary-button" onClick={()=>void saveMessagingSafety()}>Save Safety Governor</button>
-          </div>
-        </div>
-      </section>
+      <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
@@ -478,7 +423,7 @@ function platformSubtitle(section:string) {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
-    Messaging:'Default engine selection and platform-wide Safety Governor settings.',
+    Messaging:'Default engine selection and immediate message dispatch.',
     Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',
     Payments:'Payment activity, manual approvals and provider status.',
     Providers:'Payment provider availability and platform configuration.',

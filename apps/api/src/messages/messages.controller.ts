@@ -34,7 +34,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendTextMessageDto,
   ) {
-    return this.messages.queueText(request.auth.org, request.auth.sub, sessionId, body);
+    return this.messages.sendText(request.auth.org, request.auth.sub, sessionId, body);
   }
 
   @Post('image')
@@ -44,7 +44,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
-    return this.messages.queueMedia(request.auth.org, request.auth.sub, sessionId, 'image', body);
+    return this.messages.sendMedia(request.auth.org, request.auth.sub, sessionId, 'image', body);
   }
 
   @Post('video')
@@ -54,7 +54,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
-    return this.messages.queueMedia(request.auth.org, request.auth.sub, sessionId, 'video', body);
+    return this.messages.sendMedia(request.auth.org, request.auth.sub, sessionId, 'video', body);
   }
 
   @Post('audio')
@@ -64,7 +64,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
-    return this.messages.queueMedia(request.auth.org, request.auth.sub, sessionId, 'audio', body);
+    return this.messages.sendMedia(request.auth.org, request.auth.sub, sessionId, 'audio', body);
   }
 
   @Post('document')
@@ -74,7 +74,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendMediaMessageDto,
   ) {
-    return this.messages.queueMedia(request.auth.org, request.auth.sub, sessionId, 'document', body);
+    return this.messages.sendMedia(request.auth.org, request.auth.sub, sessionId, 'document', body);
   }
 
   @Post('reply')
@@ -84,7 +84,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendReplyDto,
   ) {
-    return this.messages.queueAction(request.auth.org, request.auth.sub, sessionId, 'reply', body);
+    return this.messages.sendAction(request.auth.org, request.auth.sub, sessionId, 'reply', body);
   }
 
   @Post('reaction')
@@ -94,7 +94,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendReactionDto,
   ) {
-    return this.messages.queueAction(request.auth.org, request.auth.sub, sessionId, 'reaction', body);
+    return this.messages.sendAction(request.auth.org, request.auth.sub, sessionId, 'reaction', body);
   }
 
   @Post('location')
@@ -104,7 +104,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendLocationDto,
   ) {
-    return this.messages.queueAction(request.auth.org, request.auth.sub, sessionId, 'location', body);
+    return this.messages.sendAction(request.auth.org, request.auth.sub, sessionId, 'location', body);
   }
 
   @Post('contact')
@@ -114,7 +114,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendContactDto,
   ) {
-    return this.messages.queueAction(request.auth.org, request.auth.sub, sessionId, 'contact', body);
+    return this.messages.sendAction(request.auth.org, request.auth.sub, sessionId, 'contact', body);
   }
 
   @Post('poll')
@@ -124,7 +124,7 @@ export class MessagesController {
     @Param('sessionId') sessionId: string,
     @Body() body: SendPollDto,
   ) {
-    return this.messages.queueAction(request.auth.org, request.auth.sub, sessionId, 'poll', body);
+    return this.messages.sendAction(request.auth.org, request.auth.sub, sessionId, 'poll', body);
   }
 
   @Get(':messageId')

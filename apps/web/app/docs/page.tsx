@@ -32,9 +32,9 @@ const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
   {
     label:'Delivery',
     items:[
-      ['queue','Queue & scheduling'],
+      ['queue','Direct sending & retries'],
       ['webhooks','Webhooks'],
-      ['safety','Safety Governor'],
+      ['safety','Application responsibilities'],
       ['errors','Errors & status'],
     ],
   },
@@ -218,7 +218,7 @@ export default function DocsPage() {
         {query ? <div className="docs-search-results" id="docs-search-results">
           <small role="status" aria-live="polite">{searchResults.length} result{searchResults.length===1?'':'s'}</small>
           {searchResults.map((item)=><a key={item.id} href={'#'+item.id} onClick={()=>setQuery('')}><strong>{item.title}</strong><span>{item.group}</span><p>{item.excerpt}</p></a>)}
-          {!searchResults.length && <p>No matching topic. Try “webhook”, “session”, “queue” or “safety”.</p>}
+          {!searchResults.length && <p>No matching topic. Try “webhook”, “session”, “media” or “retry”.</p>}
         </div> :
         <nav className="docs-nav-groups">
           {navGroups.map((group)=><div className="docs-nav-group" key={group.label}><span>{group.label}</span>{group.items.map(([id,title])=><a key={id} href={'#'+id} onClick={()=>setNavigationOpen(false)}>{title}</a>)}</div>)}
@@ -231,7 +231,7 @@ export default function DocsPage() {
         <section className="docs-v2-hero" id="overview">
           <span className="public-kicker">RelayWA API</span>
           <h1>Build reliable WhatsApp messaging into your product.</h1>
-          <p>Everything needed to connect sessions, send and track messages, receive inbound events, manage webhooks, understand queue behavior and operate RelayWA safely.</p>
+          <p>Everything needed to connect sessions, send and track messages, receive inbound events, manage webhooks, understand direct sending and operate RelayWA safely.</p>
           <div className="docs-base-url"><span>Base URL</span><code>{API_BASE}</code><button onClick={()=>void navigator.clipboard.writeText(API_BASE)}>Copy</button></div>
           <div className="docs-hero-cards">
             <InfoCard title="REST API"><strong>JSON over HTTPS</strong><p>Use scoped Bearer credentials from your backend.</p></InfoCard>
@@ -240,7 +240,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        <DocSection id="quickstart" eyebrow="Getting started" title="Quickstart" intro="The shortest path from account creation to your first queued WhatsApp message.">
+        <DocSection id="quickstart" eyebrow="Getting started" title="Quickstart" intro="The shortest path from account creation to your first WhatsApp message.">
           <div className="docs-step-grid">
             <Step number="01" title="Create a workspace">Start the 7-day trial or choose a paid plan, then finish workspace setup.</Step>
             <Step number="02" title="Connect WhatsApp">Create a session, scan the QR from WhatsApp → Linked devices and wait for <code>connected</code>.</Step>
@@ -272,7 +272,7 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <DocSection id="sessions" eyebrow="WhatsApp connections" title="Sessions & QR lifecycle" intro="A session represents one linked WhatsApp account and owns its runtime, queue routing and connection state.">
+        <DocSection id="sessions" eyebrow="WhatsApp connections" title="Sessions & QR lifecycle" intro="A session represents one linked WhatsApp account and owns its runtime, message routing and connection state.">
           <EndpointTable rows={sessionEndpoints}/>
           <h3>Session states</h3>
           <div className="docs-chip-row">{['pending','connecting','need_scan','connected','reconnecting','disconnected','logged_out','error'].map((state)=><span key={state}>{state}</span>)}</div>
@@ -283,21 +283,21 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <DocSection id="messages" eyebrow="Outbound messaging" title="Send messages" intro="All outbound messages are stored first and dispatched by RelayWA workers. Accepted API responses are not the same as WhatsApp delivery confirmation.">
+        <DocSection id="messages" eyebrow="Outbound messaging" title="Send messages" intro="Outbound requests are dispatched immediately. A successful send means WhatsApp transport acceptance; recipient delivery confirmation is a separate status update.">
           <EndpointTable rows={messageEndpoints}/>
           <h3>Text payload</h3>
-          <Code value={['{','  "to": "E164_RECIPIENT_NUMBER",','  "text": "Your order is ready.",','  "clientMessageId": "order-1001",','  "priority": 5,','  "maxAttempts": 5','}'].join('\n')}/>
+          <Code value={['{','  "to": "E164_RECIPIENT_NUMBER",','  "text": "Your order is ready.",','  "clientMessageId": "order-1001"','}'].join('\n')}/>
           <div className="docs-field-grid">
             <Field name="to" required>E.164 international number, digits only, or another supported WhatsApp recipient identifier. Length 7–32.</Field>
             <Field name="text" required>Message body from 1 to 4096 characters.</Field>
             <Field name="clientMessageId">Your idempotency key, up to 120 characters. Reuse prevents accidental duplicate creation.</Field>
-            <Field name="scheduledAt">ISO date/time for future queue eligibility.</Field>
-            <Field name="priority">Integer 1–10. Default is 5.</Field>
-            <Field name="maxAttempts">Integer 1–10 and still bounded by platform safety policy.</Field>
+
+
+
           </div>
         </DocSection>
 
-        <DocSection id="media-actions" eyebrow="Rich messaging" title="Media & actions" intro="Media and interaction endpoints use the same recipient, scheduling, retry and idempotency controls as text messages.">
+        <DocSection id="media-actions" eyebrow="Rich messaging" title="Media & actions" intro="Media and interaction endpoints use the same recipient and idempotency validation as text messages.">
           <h3>Media payload</h3>
           <Code value={['{','  "to": "E164_RECIPIENT_NUMBER",','  "url": "https://cdn.example.com/invoice.pdf",','  "mimeType": "application/pdf",','  "mediaSizeBytes": 245820,','  "fileName": "invoice.pdf",','  "caption": "Your invoice",','  "clientMessageId": "invoice-1001"','}'].join('\n')}/>
           <div className="media-limit-grid">
@@ -322,14 +322,9 @@ export default function DocsPage() {
           <Note title="Scope isolation">A session-bound key can only read directory data for its bound session. Organization keys still need the matching read scope.</Note>
         </DocSection>
 
-        <DocSection id="queue" eyebrow="Dispatch" title="Queue, scheduling, retries & idempotency" intro="RelayWA separates API acceptance from worker delivery so integrations stay responsive under load.">
-          <div className="docs-four">
-            <InfoCard title="Immediate"><p>Without future <code>scheduledAt</code>, the selected session must be connected.</p></InfoCard>
-            <InfoCard title="Scheduled"><p>Future messages stay stored until their scheduled time becomes eligible.</p></InfoCard>
-            <InfoCard title="Retries"><p>Transient failures use bounded attempts and exponential backoff.</p></InfoCard>
-            <InfoCard title="Idempotency"><p><code>clientMessageId</code> protects callers from creating the same send twice.</p></InfoCard>
-          </div>
-          <Note title="Safety pacing still applies">A paid plan’s allowance does not bypass Safety Governor. Accepted messages may wait in the queue to respect platform pacing and session health.</Note>
+        <DocSection id="queue" eyebrow="Direct dispatch" title="Immediate sending & application jobs" intro="RelayWA sends each request directly to the connected WhatsApp runtime. There is no outbound Redis queue, randomized gap, or automatic retry.">
+          <div className="docs-two"><InfoCard title="Immediate result"><p>A successful send response includes the message record after transport acceptance. Recipient delivery and read receipts arrive later through status updates and webhooks.</p></InfoCard><InfoCard title="Your application's jobs"><p>Use Laravel Jobs or your own job system for scheduling, throttling, backoff, and retries. RelayWA rejects scheduledAt, priority, and maxAttempts.</p></InfoCard></div>
+          <Note title="Avoid duplicate sends">Use clientMessageId for idempotency. If a request times out, check its message ID or repeat the same idempotency key to inspect the existing result before deciding to send again. A timeout can have an unknown delivery outcome.</Note>
         </DocSection>
 
         <DocSection id="webhooks" eyebrow="Realtime delivery" title="Webhooks" intro="Webhook endpoints receive signed HTTPS POST callbacks for subscribed RelayWA session events.">
@@ -344,14 +339,8 @@ export default function DocsPage() {
           <Note title="Public HTTPS only">Webhook URLs must use HTTPS. RelayWA blocks localhost and private-network IP ranges.</Note>
         </DocSection>
 
-        <DocSection id="safety" eyebrow="Responsible delivery" title="Safety Governor" intro="Platform-wide safeguards reduce burst behavior and protect worker/session health independently of plan quotas.">
-          <div className="docs-four">
-            <InfoCard title="Random pacing"><p>Configurable minimum/maximum delay between session sends.</p></InfoCard>
-            <InfoCard title="Rate ceilings"><p>Per-session burst, minute and hour windows.</p></InfoCard>
-            <InfoCard title="Duplicate guard"><p>Suppresses matching sends inside a configurable window.</p></InfoCard>
-            <InfoCard title="Auto-pause"><p>Repeated final failures can pause that session’s outbound API traffic.</p></InfoCard>
-          </div>
-          <div className="docs-warning"><strong>Unofficial transport notice</strong><p>Baileys and Chromium use WhatsApp Web behavior. Safety controls reduce operational risk but cannot guarantee that WhatsApp will never restrict an account. Use consent-based messaging and avoid abusive bulk outreach.</p></div>
+        <DocSection id="safety" eyebrow="Application controls" title="Pacing belongs in your application" intro="Configure the sending cadence, scheduling, retry policy, and duplicate-business-event handling in your own application.">
+          <Note title="API checks remain">RelayWA still authenticates requests, enforces scopes and subscription quotas, validates recipients and media, and requires a connected session. It does not add a platform sending delay.</Note>
         </DocSection>
 
         <DocSection id="errors" eyebrow="HTTP behavior" title="Errors & message status" intro="Use HTTP status codes for request-level failures and message status for asynchronous delivery state.">
@@ -373,10 +362,10 @@ export default function DocsPage() {
           <Note title="Engine switching">Changing the platform default affects new sessions. Connected sessions keep their active engine; a requested per-session change is deferred rather than forcing logout or immediate QR pairing.</Note>
         </DocSection>
 
-        <DocSection id="troubleshooting" eyebrow="Operations" title="Troubleshooting" intro="Start with the session state, then inspect queue/worker health and only log out when re-pairing is actually required.">
+        <DocSection id="troubleshooting" eyebrow="Operations" title="Troubleshooting" intro="Start with the session state, then inspect worker health and only log out when re-pairing is actually required.">
           <div className="troubleshooting-list">
             <Trouble title="QR keeps loading" answer="Check the session state and worker lease. If state is need_scan, read the latest QR again. Avoid repeatedly creating new sessions."/>
-            <Trouble title="API accepted but no message sent" answer="Read the message status. Check scheduledAt, Safety Governor pacing, retry state, session connectivity and worker ownership."/>
+            <Trouble title="API accepted but no message sent" answer="Read the message status and failure reason. Check session connectivity, worker ownership, and the private dispatch endpoint. Retry policy belongs in your application."/>
             <Trouble title="Session keeps reconnecting" answer="Inspect diagnostics and network stability. Restart can be tried without logout. Logout should be reserved for intentionally re-pairing the WhatsApp account."/>
             <Trouble title="Webhook keeps failing" answer="Confirm public HTTPS reachability, verify your endpoint returns 2xx quickly, validate HMAC using the raw body and inspect recent delivery attempts."/>
             <Trouble title="403 from API" answer="Check the key type, scopes and session binding. Dashboard-only management operations are not available to ordinary API keys."/>
@@ -389,9 +378,9 @@ export default function DocsPage() {
               'Store API keys only in server-side secret/environment storage.',
               'Use a unique clientMessageId for business-critical sends.',
               'Verify webhook signatures and keep the raw request body.',
-              'Handle queued/retrying/failed states instead of assuming API acceptance means delivery.',
+              'Check failed messages and distinguish transport acceptance from recipient delivery.',
               'Monitor session disconnected/logged_out/reconnecting state.',
-              'Keep Safety Governor enabled and avoid zero-delay burst traffic.',
+              'Implement pacing and bounded retry jobs in your application.',
               'Use HTTPS for webhook/media URLs and avoid private-network targets.',
               'Test failure handling before sending production traffic.',
             ].map((item)=><div key={item}><span>✓</span><p>{item}</p></div>)}
