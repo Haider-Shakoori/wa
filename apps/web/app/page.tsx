@@ -63,9 +63,9 @@ export default function Home() {
 
     <section className="public-hero hero-v5">
       <div className="public-hero-copy">
-        <span className="public-kicker">Developer-first WhatsApp API</span>
+        <span className="public-kicker">Developer-first WhatsApp API · built for global teams</span>
         <h1>Ship WhatsApp messaging from your app. Keep the infrastructure under control.</h1>
-        <p>Connect numbers, send through a clean REST API, receive real-time webhooks and manage session health from one focused workspace.</p>
+        <p>Connect WhatsApp numbers in international format, send through a clean REST API, receive real-time webhooks and manage session health from one focused workspace.</p>
         <div className="public-actions">
           <a className="primary-button hero-primary" href="https://app.relaywa.com/login">Start 7-day trial</a>
           <a className="public-secondary" href="#integration">Explore the API</a>
@@ -92,7 +92,7 @@ export default function Home() {
 Authorization: Bearer rw_live_••••••
 
 {
-  "to": "93744119422",
+  "to": "recipient_e164",
   "text": "Your order is ready."
 }`}</code></pre>
               <div className="hero-code-result"><span>202 Accepted</span><code>msg_9c84f2</code></div>
