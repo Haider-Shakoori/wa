@@ -24,6 +24,28 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
+  async providers() {
+    const result = await this.db.query<any>(
+      `SELECT enabled, public_config
+       FROM auth_provider_settings
+       WHERE provider = 'google'
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    const clientId = String(row?.public_config?.clientId ?? process.env.GOOGLE_CLIENT_ID ?? '').trim();
+    const enabled = row ? Boolean(row.enabled) : Boolean(clientId);
+
+    return {
+      google: {
+        enabled: enabled && Boolean(clientId),
+        clientId: enabled ? clientId : '',
+      },
+      email: {
+        enabled: true,
+      },
+    };
+  }
+
   async register(input: RegisterDto) {
     const email = input.email.trim().toLowerCase();
     const existing = await this.db.query<{ id: string }>('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
@@ -184,8 +206,11 @@ export class AuthService {
   }
 
   private async verifyGoogleCredential(credential: string) {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) throw new ServiceUnavailableException('Google sign-in is not configured');
+    const settings = await this.providers();
+    const clientId = settings.google.clientId;
+    if (!settings.google.enabled || !clientId) {
+      throw new ServiceUnavailableException('Google sign-in is disabled or not configured');
+    }
 
     let response: Response;
     try {
