@@ -278,3 +278,13 @@ button,input,select,textarea{color:inherit}
 @media(max-width:1180px){.pricing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.price-card.featured{transform:none}.public-hero{gap:35px}.public-feature-strip{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:900px){.public-hero{grid-template-columns:1fr;padding-top:55px}.public-preview{transform:none}.split-login-shell{grid-template-columns:1fr}.split-login-brand{min-height:390px;padding:34px}.split-login-panel{padding:30px 16px}.public-nav nav a:not(.public-cta){display:none}}
 @media(max-width:720px){.app-shell:not(.platform-shell){display:block}.pricing-heading{display:grid;align-items:start}.pricing-grid{grid-template-columns:1fr}.public-feature-strip{grid-template-columns:1fr}.public-hero{padding:46px 18px}.public-nav{padding:0 18px}.pricing-section{padding:58px 18px}.public-feature-strip{padding:0 18px 58px}.public-footer{grid-template-columns:1fr;text-align:center;padding:28px 18px}.public-footer .public-brand{justify-content:center}.public-footer p{text-align:center}.price-card{min-height:auto}}
+
+/* Five-tier onboarding plan layout */
+.plan-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.plan-card{background:#fff;border-color:#e1e7ea;color:#1d2932}
+.plan-card.featured{background:linear-gradient(180deg,#f2fbf7,#fff);border-color:#7dc5aa;box-shadow:0 14px 36px rgba(24,139,98,.08)}
+.plan-card h3{color:#17232c}.plan-card>small,.plan-card li{color:#70818b}.popular-badge{background:#eaf8f2;border-color:#cbe9dc;color:#167a57}
+.billing-toggle{background:#f1f4f5;border-color:#e0e6e9}.billing-toggle button{color:#6f808a}.billing-toggle button.active{background:#fff;color:#1d2a32;box-shadow:0 2px 8px rgba(23,36,44,.05)}
+@media(max-width:1250px){.plan-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:850px){.plan-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.plan-grid{grid-template-columns:1fr}}
