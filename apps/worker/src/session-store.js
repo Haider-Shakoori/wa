@@ -780,6 +780,22 @@ export class SessionStore {
     );
   }
 
+  async rescheduleMessageForSafety(messageId, retryAt, reason) {
+    await this.pool.query(
+      `UPDATE whatsapp_messages
+       SET status = 'retrying',
+           next_attempt_at = $1,
+           rate_limited_until = $1,
+           bull_job_id = NULL,
+           worker_id = NULL,
+           claimed_at = NULL,
+           last_error = $2,
+           updated_at = now()
+       WHERE id = $3`,
+      [retryAt, String(reason || 'safety_throttle').slice(0, 2000), messageId],
+    );
+  }
+
   async markMessageAttemptFailed(messageId, error, retrying) {
     await this.pool.query(
       `UPDATE whatsapp_messages
