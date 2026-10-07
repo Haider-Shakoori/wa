@@ -42,3 +42,14 @@ test('onboarding uses neutral international E.164 recipient guidance', async () 
   assert.doesNotMatch(source, /93744119422/);
   assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
 });
+
+
+test('public docs and tenant developer guide avoid region-specific sample identities', async () => {
+  const docs = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
+  const guide = await readFile(new URL('../components/developer-guide.tsx', import.meta.url), 'utf8');
+  for (const source of [docs, guide]) {
+    assert.doesNotMatch(source, /93744119422/);
+    assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
+    assert.match(source, /E164_RECIPIENT_NUMBER/);
+  }
+});
