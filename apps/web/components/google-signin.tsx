@@ -52,7 +52,7 @@ export function GoogleSignIn() {
               body:JSON.stringify({credential:response.credential}),
             });
             localStorage.setItem('relaywa_access_token',result.accessToken);
-            router.push(result.nextPath || '/onboarding');
+            router.push(result.onboardingStep==='complete'?'/dashboard':'/onboarding');
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Google sign-in failed');
           }

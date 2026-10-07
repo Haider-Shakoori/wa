@@ -10,6 +10,7 @@ type SubscriptionRow = {
   trial_ends_at: string | null;
   cancel_at_period_end: boolean;
   max_sessions: number;
+  daily_messages: number | null;
   monthly_messages: number;
   max_api_keys: number;
 };
@@ -64,6 +65,7 @@ export class SubscriptionsService {
       },
       limits: {
         sessions: subscription.max_sessions,
+        dailyMessages: subscription.daily_messages,
         monthlyMessages: subscription.monthly_messages,
         apiKeys: subscription.max_api_keys,
       },
@@ -104,11 +106,18 @@ export class SubscriptionsService {
 
   async listPlans() {
     const result = await this.db.query(
-      `SELECT code, name, max_sessions, monthly_messages, max_api_keys,
+      `SELECT code, name, max_sessions, daily_messages, monthly_messages, max_api_keys,
               monthly_price_cents, annual_price_cents, currency
        FROM subscription_plans
        WHERE active = true
-       ORDER BY max_sessions ASC`,
+       ORDER BY CASE code
+         WHEN 'trial' THEN 1
+         WHEN 'starter' THEN 2
+         WHEN 'growth' THEN 3
+         WHEN 'plus' THEN 4
+         WHEN 'scale' THEN 5
+         ELSE 99
+       END`,
     );
     return result.rows;
   }
@@ -145,37 +154,56 @@ export class SubscriptionsService {
 
   async assertCanSendMessage(organizationId: string) {
     const subscription = await this.getActiveSubscription(organizationId);
-    const usage = await this.db.query<{ quantity: string }>(
-      `SELECT quantity::text
+    const usage = await this.db.query<{ metric: string; quantity: string }>(
+      `SELECT metric, quantity::text
        FROM subscription_usage
        WHERE organization_id = $1
-         AND period_start = date_trunc('month', now())::date
-         AND metric = 'outbound_messages'
-       LIMIT 1`,
+         AND (
+           (period_start = date_trunc('month', now())::date AND metric = 'outbound_messages')
+           OR
+           (period_start = current_date AND metric = 'outbound_messages_daily')
+         )`,
       [organizationId],
     );
-    if (Number(usage.rows[0]?.quantity ?? 0) >= subscription.monthly_messages) {
+
+    const monthly = Number(usage.rows.find((row) => row.metric === 'outbound_messages')?.quantity ?? 0);
+    const daily = Number(usage.rows.find((row) => row.metric === 'outbound_messages_daily')?.quantity ?? 0);
+
+    if (monthly >= subscription.monthly_messages) {
       throw new ConflictException('Monthly message quota reached for the current relayWA plan');
+    }
+    if (subscription.daily_messages !== null && daily >= subscription.daily_messages) {
+      throw new ConflictException('Daily message cap reached for the current relayWA plan');
     }
   }
 
   async recordOutboundMessage(organizationId: string) {
-    await this.db.query(
-      `INSERT INTO subscription_usage
-        (organization_id, period_start, metric, quantity)
-       VALUES ($1, date_trunc('month', now())::date, 'outbound_messages', 1)
-       ON CONFLICT (organization_id, period_start, metric)
-       DO UPDATE SET quantity = subscription_usage.quantity + 1, updated_at = now()`,
-      [organizationId],
-    );
+    await this.db.transaction(async (client) => {
+      await client.query(
+        `INSERT INTO subscription_usage
+          (organization_id, period_start, metric, quantity)
+         VALUES ($1, date_trunc('month', now())::date, 'outbound_messages', 1)
+         ON CONFLICT (organization_id, period_start, metric)
+         DO UPDATE SET quantity = subscription_usage.quantity + 1, updated_at = now()`,
+        [organizationId],
+      );
+      await client.query(
+        `INSERT INTO subscription_usage
+          (organization_id, period_start, metric, quantity)
+         VALUES ($1, current_date, 'outbound_messages_daily', 1)
+         ON CONFLICT (organization_id, period_start, metric)
+         DO UPDATE SET quantity = subscription_usage.quantity + 1, updated_at = now()`,
+        [organizationId],
+      );
+    });
   }
 
   private async getActiveSubscription(organizationId: string) {
     const result = await this.db.query<SubscriptionRow>(
       `SELECT s.organization_id, s.plan_code, s.status,
               s.current_period_start, s.current_period_end, s.trial_ends_at,
-              s.cancel_at_period_end, p.max_sessions, p.monthly_messages,
-              p.max_api_keys
+              s.cancel_at_period_end, p.max_sessions, p.daily_messages,
+              p.monthly_messages, p.max_api_keys
        FROM organization_subscriptions s
        JOIN subscription_plans p ON p.code = s.plan_code AND p.active = true
        WHERE s.organization_id = $1

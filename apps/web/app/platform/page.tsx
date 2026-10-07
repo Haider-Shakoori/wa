@@ -46,7 +46,7 @@ export default function PlatformPage() {
   useEffect(()=>{
     const current=localStorage.getItem('relaywa_access_token') ?? '';
     if (!current) {
-      router.replace('/login');
+      router.replace('/platform/login');
       return;
     }
     setToken(current);
@@ -55,7 +55,7 @@ export default function PlatformPage() {
   function accountLogout() {
     localStorage.removeItem('relaywa_access_token');
     setToken('');
-    router.replace('/login');
+    router.replace('/platform/login');
     router.refresh();
   }
 
@@ -260,7 +260,7 @@ export default function PlatformPage() {
       <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>Platform Admin</span></div></div>
       <nav>{sections.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
       <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
+        <a className="ghost-button platform-link" href="https://app.relaywa.com/dashboard">Customer workspace</a>
         <div className="status-pill"><span className="live-dot"/>Platform administration</div>
         <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>
@@ -387,7 +387,7 @@ export default function PlatformPage() {
 
       {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
         <div className="platform-row platform-row-head subscription-admin-row"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span><span>Controls</span></div>
-        {filteredSubscriptions.map((s)=><div className="platform-row subscription-admin-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span><select className="table-select" value={s.plan_code} onChange={(e)=>void updateSubscription(s.organization_id,{planCode:e.target.value})}>{['trial','starter','growth','scale'].map((plan)=><option value={plan} key={plan}>{plan}</option>)}</select></span><span><select className="table-select" value={s.status} onChange={(e)=>void updateSubscription(s.organization_id,{status:e.target.value})}>{['trialing','active','past_due','paused','canceled','expired'].map((status)=><option value={status} key={status}>{status}</option>)}</select></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span><span><button className="mini-button" onClick={()=>void updateSubscription(s.organization_id,{extendDays:7})}>+7 days</button></span></div>)}
+        {filteredSubscriptions.map((s)=><div className="platform-row subscription-admin-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span><select className="table-select" value={s.plan_code} onChange={(e)=>void updateSubscription(s.organization_id,{planCode:e.target.value})}>{[['trial','Trial'],['starter','Basic'],['growth','Pro'],['plus','Plus'],['scale','Business']].map(([plan,label])=><option value={plan} key={plan}>{label}</option>)}</select></span><span><select className="table-select" value={s.status} onChange={(e)=>void updateSubscription(s.organization_id,{status:e.target.value})}>{['trialing','active','past_due','paused','canceled','expired'].map((status)=><option value={status} key={status}>{status}</option>)}</select></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span><span><button className="mini-button" onClick={()=>void updateSubscription(s.organization_id,{extendDays:7})}>+7 days</button></span></div>)}
       </TableSection>}
 
       {active === 'Payments' && <TableSection eyebrow="Revenue" title="Payments" subtitle="Stripe and manual payment activity across all tenants.">
