@@ -9,7 +9,8 @@ test('login supports sign in, registration and Google', async () => {
   assert.match(login,/\/v1\/auth\/register/);
   assert.match(login,/GoogleSignIn/);
   assert.match(google,/\/v1\/auth\/google/);
-  assert.match(google,/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
+  assert.match(google,/\/v1\/auth\/providers/);
+  assert.doesNotMatch(google,/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
 });
 
 test('onboarding implements plan through webhook setup', async () => {
