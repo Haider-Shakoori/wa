@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { BaileysSessionManager } from './baileys-session.js';
+import { ChromiumSessionManager } from './chromium-session.js';
+import { MessagingSessionManager } from './messaging-session-manager.js';
 import { runCommandLoop } from './command-loop.js';
 import { createMessageQueue, pumpReadyMessages } from './message-queue.js';
 import { recoverSessions, startRecoveryWatchdog } from './recovery.js';
@@ -22,8 +24,11 @@ export async function startWorker() {
   if (!redisUrl) throw new Error('REDIS_URL is required');
 
   const authRoot = resolve(process.env.WA_AUTH_DIR ?? '.data/wa-auth');
+  const chromiumAuthRoot = resolve(process.env.WA_CHROMIUM_AUTH_DIR ?? '.data/wa-chromium-auth');
   const store = new SessionStore({ databaseUrl, workerId: workerIdentity.workerId });
-  const sessions = new BaileysSessionManager({ store, authRoot });
+  const baileys = new BaileysSessionManager({ store, authRoot });
+  const chromium = new ChromiumSessionManager({ store, authRoot: chromiumAuthRoot });
+  const sessions = new MessagingSessionManager({ store, baileys, chromium });
   const controller = new AbortController();
   const messageQueue = createMessageQueue({ redisUrl, store, sessions });
 
@@ -37,6 +42,7 @@ export async function startWorker() {
     controller.abort();
     await pumpPromise.catch(() => {});
     await messageQueue.close();
+    await sessions.close();
     await store.close();
   };
 
