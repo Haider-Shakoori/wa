@@ -57,7 +57,7 @@ export class PlatformAdminService {
   async sessions() {
     const result = await this.db.query(
       `SELECT ws.id, ws.organization_id, o.name AS organization_name,
-              ws.name, ws.phone_number, ws.display_name, ws.status,
+              ws.name, ws.phone_number, ws.display_name, ws.status, ws.engine,
               ws.worker_id, ws.last_connected_at, ws.last_disconnected_at,
               ws.last_connection_error, ws.created_at, ws.updated_at
        FROM whatsapp_sessions ws
@@ -192,6 +192,37 @@ export class PlatformAdminService {
       [enabled, JSON.stringify({ clientId, source: 'platform' })],
     );
     return result.rows[0];
+  }
+
+  async messagingEngineSettings() {
+    const result = await this.db.query<{ default_engine: 'baileys' | 'chromium'; updated_at: string | null }>(
+      `SELECT default_engine, updated_at
+       FROM messaging_engine_settings
+       WHERE id = 'global'
+       LIMIT 1`,
+    );
+    const row = result.rows[0] ?? { default_engine: 'baileys' as const, updated_at: null };
+
+    return {
+      defaultEngine: row.default_engine,
+      updatedAt: row.updated_at,
+      engines: [
+        { key: 'baileys', name: 'Baileys', transport: 'WebSocket protocol client', profile: 'Lightweight and scalable' },
+        { key: 'chromium', name: 'Chromium / WhatsApp Web', transport: 'Real WhatsApp Web browser session', profile: 'Higher resource usage; persistent browser profile' },
+      ],
+      existingSessionPolicy: 'Existing sessions keep their assigned engine. New sessions use the selected default.',
+    };
+  }
+
+  async updateMessagingEngine(input: { engine: 'baileys' | 'chromium' }) {
+    await this.db.query(
+      `INSERT INTO messaging_engine_settings (id, default_engine, updated_at)
+       VALUES ('global', $1, now())
+       ON CONFLICT (id)
+       DO UPDATE SET default_engine = EXCLUDED.default_engine, updated_at = now()`,
+      [input.engine],
+    );
+    return this.messagingEngineSettings();
   }
 
   async workers() {
