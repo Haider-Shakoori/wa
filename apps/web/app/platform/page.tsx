@@ -55,7 +55,7 @@ export default function PlatformPage() {
   function accountLogout() {
     localStorage.removeItem('relaywa_access_token');
     setToken('');
-    router.replace('/login');
+    router.replace('/platform/login');
     router.refresh();
   }
 
@@ -260,7 +260,7 @@ export default function PlatformPage() {
       <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>Platform Admin</span></div></div>
       <nav>{sections.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
       <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
+        <a className="ghost-button platform-link" href="https://app.relaywa.com/dashboard">Customer workspace</a>
         <div className="status-pill"><span className="live-dot"/>Platform administration</div>
         <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>
