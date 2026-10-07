@@ -110,10 +110,11 @@ export class AuthService {
     return this.issueTokens(account.user, account.membership);
   }
 
-  githubAuthorizeUrl(returnTo?: string) {
-    const clientId = String(process.env.GITHUB_CLIENT_ID ?? '').trim();
-    if (!clientId) {
-      throw new ServiceUnavailableException('GitHub sign-in is not configured');
+  async githubAuthorizeUrl(returnTo?: string) {
+    const settings = await this.providers();
+    const clientId = settings.github.clientId;
+    if (!settings.github.enabled || !clientId) {
+      throw new ServiceUnavailableException('GitHub sign-in is disabled or not configured');
     }
 
     const state = this.jwt.sign(
@@ -390,10 +391,11 @@ export class AuthService {
   }
 
   private async verifyGithubCode(code: string) {
-    const clientId = String(process.env.GITHUB_CLIENT_ID ?? '').trim();
+    const settings = await this.providers();
+    const clientId = settings.github.clientId;
     const clientSecret = String(process.env.GITHUB_CLIENT_SECRET ?? '').trim();
-    if (!clientId || !clientSecret) {
-      throw new ServiceUnavailableException('GitHub sign-in is not configured');
+    if (!settings.github.enabled || !clientId || !clientSecret) {
+      throw new ServiceUnavailableException('GitHub sign-in is disabled or not configured');
     }
 
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
