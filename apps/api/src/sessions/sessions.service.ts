@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import type { SessionStatus } from './session-status';
-import { CreateSessionDto } from './sessions.dto';
+import { CreateSessionDto, UpdateSessionDto } from './sessions.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 type SessionRow = {
@@ -116,5 +116,47 @@ export class SessionsService {
     );
 
     return { commandId, sessionId, action, status: 'queued' as const };
+  }
+
+  async update(organizationId: string, sessionId: string, input: UpdateSessionDto) {
+    await this.get(organizationId, sessionId);
+    const result = await this.db.query<SessionRow>(
+      `UPDATE whatsapp_sessions SET name = COALESCE($3, name),
+         phone_hint = COALESCE($4, phone_hint), updated_at = now()
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+       RETURNING ${SESSION_SELECT}`,
+      [sessionId, organizationId, input.name?.trim() || null, input.phoneHint?.trim() ?? null],
+    );
+    return result.rows[0];
+  }
+
+  async logs(organizationId: string, sessionId: string) {
+    await this.get(organizationId, sessionId);
+    return (await this.db.query(
+      `SELECT id, event_type, created_at FROM whatsapp_session_events
+       WHERE organization_id = $1 AND session_id = $2 ORDER BY id DESC LIMIT 100`,
+      [organizationId, sessionId],
+    )).rows;
+  }
+
+  async remove(organizationId: string, sessionId: string) {
+    return this.db.transaction(async client => {
+      const result = await client.query(
+        `SELECT status FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2
+         AND deleted_at IS NULL FOR UPDATE`, [sessionId, organizationId],
+      );
+      if (!result.rowCount) throw new NotFoundException('Session not found');
+      if (!['pending', 'logged_out'].includes(result.rows[0].status)) {
+        throw new ConflictException('Disconnect this session before deleting it');
+      }
+      const commands = await client.query(
+        `SELECT id FROM whatsapp_session_commands WHERE session_id=$1
+         AND status IN ('queued','claimed') LIMIT 1`, [sessionId],
+      );
+      if (commands.rowCount) throw new ConflictException('Wait for the session operation to finish before deleting');
+      await client.query('UPDATE whatsapp_sessions SET deleted_at=now(), updated_at=now() WHERE id=$1', [sessionId]);
+      await client.query('UPDATE api_keys SET enabled=false, revoked_at=now(), updated_at=now() WHERE session_id=$1 AND revoked_at IS NULL', [sessionId]);
+      return {id:sessionId,deleted:true};
+    });
   }
 }

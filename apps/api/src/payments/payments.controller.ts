@@ -10,7 +10,7 @@ import { CreateCheckoutDto, CreateManualPaymentDto, UpdateProviderDto } from './
 import { PaymentsService } from './payments.service';
 import { StripeProvider } from './stripe.provider';
 
-@Controller('v1/billing')
+@Controller(['billing', 'v1/billing'])
 export class PaymentsController {
   constructor(
     private readonly payments: PaymentsService,
@@ -43,6 +43,13 @@ export class PaymentsController {
   @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
   manual(@Req() request: AuthenticatedRequest, @Body() body: CreateManualPaymentDto) {
     return this.payments.createManual(request.auth.org, body);
+  }
+
+  @Post('checkout/demo')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
+  demo(@Req() request: AuthenticatedRequest, @Body() body: CreateCheckoutDto) {
+    return this.payments.createDemo(request.auth.org, body);
   }
 
   @Post('stripe/webhook')

@@ -59,7 +59,7 @@ export function DeveloperGuide({
         payload.sessionId = sessionId;
       }
 
-      const result = await api<any>('/v1/api-keys',token,{
+      const result = await api<any>('/api-keys',token,{
         method:'POST',
         body:JSON.stringify(payload),
       });
@@ -169,7 +169,7 @@ export function DeveloperGuide({
 
       <div className="guide-notes">
         <h4>Endpoint</h4>
-        <code>{API_BASE + '/v1/sessions/' + effectiveSessionId + '/messages/text'}</code>
+        <code>{API_BASE + '/send-message'}</code>
         <h4>Phone format</h4>
         <p>Use E.164 international format with country code, digits only. Replace <code>E164_RECIPIENT_NUMBER</code> with the destination number.</p>
         <h4>Security</h4>
@@ -180,7 +180,7 @@ export function DeveloperGuide({
 }
 
 function buildSnippet(language:string,base:string,sessionId:string,token:string) {
-  const endpoint = base + '/v1/sessions/' + sessionId + '/messages/text';
+  const endpoint = base + '/send-message';
   const payload = '{"to":"E164_RECIPIENT_NUMBER","text":"Hello from my app","clientMessageId":"order-1001"}';
 
   if (language === 'Laravel / PHP') {

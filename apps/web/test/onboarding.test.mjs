@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('login supports sign in, registration and Google', async () => {
-  const login = await readFile(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+  const login = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
   const google = await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8');
-  assert.match(login,/Create account/);
-  assert.match(login,/\/v1\/auth\/register/);
+  assert.match(login,/Create your account/);
+  assert.match(login,/\/v1\/auth\//);
   assert.match(login,/GoogleSignIn/);
   assert.match(google,/\/v1\/auth\/google/);
   assert.match(google,/\/v1\/auth\/providers/);
@@ -26,8 +26,8 @@ test('onboarding implements plan through webhook setup', async () => {
   assert.match(source,/\/v1\/webhooks/);
 });
 
-test('dashboard redirects incomplete organizations back to onboarding', async () => {
-  const source = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  assert.match(source,/\/v1\/onboarding\/state/);
-  assert.match(source,/router\.replace\('\/onboarding'\)/);
+test('dashboard provides guided setup without blocking the workspace', async () => {
+  const source = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
+  assert.match(source,/Build your integration/);
+  assert.match(source,/Create a session/);
 });

@@ -20,6 +20,7 @@ export class BaileysSessionManager {
     this.sockets = new Map();
     this.heartbeats = new Map();
     this.reconnectTimers = new Map();
+    this.qrTimers = new Map();
     this.profileControllers = new Map();
   }
 
@@ -33,7 +34,10 @@ export class BaileysSessionManager {
   }
 
   async connect(sessionId, { recovery = false } = {}) {
-    if (this.sockets.has(sessionId)) return;
+    if (this.sockets.has(sessionId)) {
+      if (recovery || this.sockets.get(sessionId).user) return;
+      await this.disconnectRuntime(sessionId);
+    }
     this.clearReconnect(sessionId);
 
     const authPath = this.authPath(sessionId);
@@ -96,10 +100,13 @@ export class BaileysSessionManager {
     });
 
     socket.ev.on('connection.update', async (update) => {
+      if (this.sockets.get(sessionId) !== socket) return;
       try {
-        if (update.qr) await this.store.setQr(sessionId, update.qr);
+        if (update.qr) { await this.store.setQr(sessionId, update.qr); this.startQrExpiry(sessionId); }
 
         if (update.connection === 'open') {
+          clearTimeout(this.qrTimers.get(sessionId));
+          this.qrTimers.delete(sessionId);
           const profileController = new AbortController();
           this.cancelProfileSync(sessionId);
           this.profileControllers.set(sessionId, profileController);
@@ -111,6 +118,7 @@ export class BaileysSessionManager {
             signal: profileController.signal,
           });
 
+          if (this.sockets.get(sessionId) !== socket) return;
           await this.store.setStatus(sessionId, 'connected', {
             ...identity,
             clearQr: true,
@@ -312,9 +320,14 @@ export class BaileysSessionManager {
 
   async logout(sessionId) {
     const socket = this.sockets.get(sessionId);
+    this.stopHeartbeat(sessionId);
+    this.clearReconnect(sessionId);
+    this.cancelProfileSync(sessionId);
+    this.sockets.delete(sessionId);
     try {
       if (socket) await socket.logout();
     } finally {
+      if (socket) socket.end(undefined);
       await this.disconnectRuntime(sessionId);
       await rm(this.authPath(sessionId), { recursive: true, force: true });
       await this.store.setStatus(sessionId, 'logged_out', { clearQr: true });
@@ -322,7 +335,22 @@ export class BaileysSessionManager {
     }
   }
 
+  startQrExpiry(sessionId) {
+    if (this.qrTimers.has(sessionId)) return;
+    const timer = setTimeout(async () => {
+      try {
+        await this.disconnectRuntime(sessionId);
+        await this.store.setStatus(sessionId, 'logged_out', {clearQr:false});
+        await this.store.event(sessionId, 'session.qr_expired', {});
+      } catch (error) { logger.error({err:error,sessionId}, 'QR expiry failed'); }
+    }, 60000);
+    timer.unref();
+    this.qrTimers.set(sessionId,timer);
+  }
+
   async disconnectRuntime(sessionId) {
+    clearTimeout(this.qrTimers.get(sessionId));
+    this.qrTimers.delete(sessionId);
     this.stopHeartbeat(sessionId);
     this.clearReconnect(sessionId);
     this.cancelProfileSync(sessionId);

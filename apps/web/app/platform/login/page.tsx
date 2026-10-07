@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { Brand } from '../../../components/relay-workspace';
 
 export default function PlatformLoginPage() {
   const router=useRouter();
@@ -14,8 +15,8 @@ export default function PlatformLoginPage() {
   useEffect(()=>{
     const current=localStorage.getItem('relaywa_access_token');
     if (!current) return;
-    void api<any>('/v1/auth/me',current)
-      .then(()=>api<any>('/v1/platform/overview',current))
+    void api<any>('/auth/me',current)
+      .then(()=>api<any>('/platform/overview',current))
       .then(()=>router.replace('/platform'))
       .catch(()=>localStorage.removeItem('relaywa_access_token'));
   },[router]);
@@ -25,7 +26,7 @@ export default function PlatformLoginPage() {
     setBusy(true);
     setError('');
     try {
-      const result=await api<any>('/v1/auth/login',undefined,{
+      const result=await api<any>('/auth/login',undefined,{
         method:'POST',
         body:JSON.stringify({email,password}),
       });
@@ -44,7 +45,7 @@ export default function PlatformLoginPage() {
 
   return <main className="split-login-shell platform-login-shell">
     <section className="split-login-brand">
-      <a className="public-brand" href="https://relaywa.com"><span className="brand-mark">rW</span><span><strong>RelayWA</strong><small>Platform control plane</small></span></a>
+      <Brand/>
       <div>
         <span className="public-kicker">Private administration</span>
         <h1>Operate RelayWA separately from customer workspaces.</h1>
@@ -61,7 +62,7 @@ export default function PlatformLoginPage() {
         <label>Password<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" required minLength={8}/></label>
         {error && <div className="alert">{error}</div>}
         <button className="primary-button wide" disabled={busy}>{busy?'Signing in…':'Sign in to platform'}</button>
-        <a className="auth-back-link" href="https://app.relaywa.com/login">Customer workspace sign in →</a>
+        <a className="auth-back-link" href="/login">Customer workspace sign in →</a>
       </form>
     </section>
   </main>;

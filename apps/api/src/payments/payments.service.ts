@@ -89,6 +89,26 @@ export class PaymentsService {
     return result.rows[0];
   }
 
+  async createDemo(organizationId: string, input: CreateCheckoutDto) {
+    if (process.env.DEMO_PAYMENTS_ENABLED !== 'true' || process.env.NODE_ENV === 'production') {
+      throw new ConflictException('Demo payments are unavailable');
+    }
+    const plan = await this.plan(input.planCode);
+    const interval = input.billingInterval ?? 'monthly';
+    const amount = interval === 'annual' ? plan.annual_price_cents : plan.monthly_price_cents;
+    const id = randomUUID();
+    // No card data is accepted or stored. Demo activation and receipt commit together.
+    await this.db.transaction(async client => {
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE', [organizationId]);
+      const usage = await client.query(`SELECT count(*)::int AS total FROM whatsapp_sessions WHERE organization_id=$1 AND deleted_at IS NULL`, [organizationId]);
+      const limits = await client.query('SELECT max_sessions FROM subscription_plans WHERE code=$1', [plan.code]);
+      if (usage.rows[0].total > limits.rows[0].max_sessions) throw new ConflictException('Remove extra sessions before switching to this plan');
+      await client.query(`INSERT INTO payments (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,currency,paid_at,metadata) VALUES ($1,$2,$3,'demo',$4,'paid',$5,$6,now(),'{"demo":true}'::jsonb)`, [id,organizationId,plan.code,interval,amount,plan.currency]);
+      await client.query(`INSERT INTO organization_subscriptions (organization_id,plan_code,status,current_period_start,current_period_end,trial_ends_at,cancel_at_period_end,provider,provider_subscription_id) VALUES ($1,$2,'active',now(),now()+($3*interval '1 month'),NULL,false,'demo',$4) ON CONFLICT (organization_id) DO UPDATE SET plan_code=EXCLUDED.plan_code,status='active',current_period_start=now(),current_period_end=EXCLUDED.current_period_end,trial_ends_at=NULL,cancel_at_period_end=false,provider='demo',provider_customer_id=NULL,provider_subscription_id=$4,updated_at=now()`, [organizationId,plan.code,interval==='annual'?12:1,id]);
+    });
+    return {paymentId:id, demo:true, activated:true, amountCents:amount, currency:plan.currency};
+  }
+
   async handleStripeEvent(event: any) {
     if (event.type !== 'checkout.session.completed') return { ignored: true };
     const session = event.data.object;

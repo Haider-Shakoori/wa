@@ -1,11 +1,13 @@
 export const API_SCOPES = {
   SESSIONS_READ: 'sessions.read',
+  SESSIONS_MANAGE: 'sessions.manage',
   MESSAGES_READ: 'messages.read',
   MESSAGES_SEND: 'messages.send',
   CONTACTS_READ: 'contacts.read',
   CHATS_READ: 'chats.read',
   GROUPS_READ: 'groups.read',
   WEBHOOKS_READ: 'webhooks.read',
+  WEBHOOKS_MANAGE: 'webhooks.manage',
 } as const;
 
 export type ApiScope = (typeof API_SCOPES)[keyof typeof API_SCOPES];

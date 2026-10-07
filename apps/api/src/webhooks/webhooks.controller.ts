@@ -6,7 +6,7 @@ import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { CreateWebhookDto, UpdateWebhookDto } from './webhooks.dto';
 import { WebhooksService } from './webhooks.service';
 
-@Controller('v1/webhooks')
+@Controller(['webhooks', 'v1/webhooks'])
 @UseGuards(ApiAccessGuard, PermissionGuard)
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}

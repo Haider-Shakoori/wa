@@ -68,7 +68,7 @@ export default function OnboardingPage() {
     if (!current) return;
     setError('');
     try {
-      const result=await api<OnboardingState>('/v1/onboarding/state',current);
+      const result=await api<OnboardingState>('/onboarding/state',current);
       setState(result);
       setWorkspaceName((value)=>value || result.organization?.name || '');
       if (result.completed) router.replace('/dashboard');
@@ -95,7 +95,7 @@ export default function OnboardingPage() {
 
   async function selectPlan(plan:any) {
     await run(async()=>{
-      await api('/v1/onboarding/plan',token,{
+      await api('/onboarding/plan',token,{
         method:'POST',
         body:JSON.stringify({planCode:plan.code,billingInterval}),
       });
@@ -106,7 +106,7 @@ export default function OnboardingPage() {
   async function startStripe() {
     if (!state?.organization?.selected_plan_code) return;
     await run(async()=>{
-      const result=await api<any>('/v1/billing/checkout/stripe',token,{
+      const result=await api<any>('/billing/checkout/stripe',token,{
         method:'POST',
         body:JSON.stringify({
           planCode:state.organization.selected_plan_code,
@@ -121,7 +121,7 @@ export default function OnboardingPage() {
     event.preventDefault();
     if (!state?.organization?.selected_plan_code) return;
     await run(async()=>{
-      await api('/v1/billing/manual',token,{
+      await api('/billing/manual',token,{
         method:'POST',
         body:JSON.stringify({
           planCode:state.organization.selected_plan_code,
@@ -135,7 +135,7 @@ export default function OnboardingPage() {
 
   async function checkPayment() {
     await run(async()=>{
-      await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
+      await api('/onboarding/continue',token,{method:'POST',body:'{}'});
       await load();
     });
   }
@@ -143,7 +143,7 @@ export default function OnboardingPage() {
   async function saveWorkspace(event:FormEvent) {
     event.preventDefault();
     await run(async()=>{
-      await api('/v1/onboarding/workspace',token,{
+      await api('/onboarding/workspace',token,{
         method:'PATCH',
         body:JSON.stringify({name:workspaceName}),
       });
@@ -153,7 +153,7 @@ export default function OnboardingPage() {
 
   async function createSession() {
     await run(async()=>{
-      const session=await api<any>('/v1/sessions',token,{
+      const session=await api<any>('/whatsapp-sessions',token,{
         method:'POST',
         body:JSON.stringify({name:sessionName}),
       });
@@ -164,17 +164,17 @@ export default function OnboardingPage() {
   async function connectSession(sessionId:string) {
     setQr(null);
     await run(async()=>{
-      await api('/v1/sessions/' + sessionId + '/connect',token,{method:'POST'});
+      await api('/whatsapp-sessions/' + sessionId + '/connect',token,{method:'POST'});
       for(let attempt=0;attempt<30;attempt+=1){
         await wait(700);
-        const current=await api<any>('/v1/sessions/' + sessionId,token);
+        const current=await api<any>('/whatsapp-sessions/' + sessionId,token);
         if(current.status==='connected'){
           setNotice('WhatsApp connected: ' + (current.phone_number ? '+' + current.phone_number : current.display_name || sessionName));
-          await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
+          await api('/onboarding/continue',token,{method:'POST',body:'{}'});
           await load();
           return;
         }
-        const qrValue=await api<any>('/v1/sessions/' + sessionId + '/qr',token);
+        const qrValue=await api<any>('/whatsapp-sessions/' + sessionId + '/qr',token);
         if(qrValue.available && qrValue.dataUrl) setQr(qrValue);
       }
       throw new Error('QR is ready but the connection has not completed yet. Keep this page open and scan again if needed.');
@@ -185,7 +185,7 @@ export default function OnboardingPage() {
     const session=state?.sessions.find((item:any)=>item.status==='connected') || state?.sessions[0];
     if(!session) return;
     await run(async()=>{
-      const result=await api<any>('/v1/api-keys',token,{
+      const result=await api<any>('/api-keys',token,{
         method:'POST',
         body:JSON.stringify({
           name:'Onboarding API key',
@@ -201,7 +201,7 @@ export default function OnboardingPage() {
 
   async function continueExistingKey() {
     await run(async()=>{
-      await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
+      await api('/onboarding/continue',token,{method:'POST',body:'{}'});
       await load();
     });
   }
@@ -211,7 +211,7 @@ export default function OnboardingPage() {
     const session=state?.sessions.find((item:any)=>item.status==='connected');
     if(!session) return;
     await run(async()=>{
-      await api('/v1/sessions/' + session.id + '/messages/text',token,{
+      await api('/whatsapp-sessions/' + session.id + '/messages/text',token,{
         method:'POST',
         body:JSON.stringify({
           to:recipient,
@@ -219,7 +219,7 @@ export default function OnboardingPage() {
           clientMessageId:'onboarding-' + Date.now(),
         }),
       });
-      await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
+      await api('/onboarding/continue',token,{method:'POST',body:'{}'});
       await load();
     });
   }
@@ -227,7 +227,7 @@ export default function OnboardingPage() {
   async function createWebhook(event:FormEvent) {
     event.preventDefault();
     await run(async()=>{
-      await api('/v1/webhooks',token,{
+      await api('/webhooks',token,{
         method:'POST',
         body:JSON.stringify({
           name:'Primary webhook',
@@ -235,14 +235,14 @@ export default function OnboardingPage() {
           eventTypes:['message.received','message.status','session.status'],
         }),
       });
-      await api('/v1/onboarding/continue',token,{method:'POST',body:'{}'});
+      await api('/onboarding/continue',token,{method:'POST',body:'{}'});
       await load();
     });
   }
 
   async function skipWebhook() {
     await run(async()=>{
-      const result=await api<OnboardingState>('/v1/onboarding/continue',token,{
+      const result=await api<OnboardingState>('/onboarding/continue',token,{
         method:'POST',
         body:JSON.stringify({skipWebhook:true}),
       });
@@ -310,7 +310,7 @@ export default function OnboardingPage() {
       {state.step==='connect' && <section className="onboarding-panel">
         <div className="onboarding-title"><p className="eyebrow">Connect WhatsApp</p><h2>Link the number your application will send from.</h2><p>Open WhatsApp → Linked devices → Link a device, then scan the QR.</p></div>
         {!state.sessions.length ? <div className="connect-setup"><label>Session name<input value={sessionName} onChange={(e)=>setSessionName(e.target.value)}/></label><button className="primary-button" onClick={()=>void createSession()} disabled={busy}>Create WhatsApp session</button></div> :
-        <div className="connect-grid">{state.sessions.map((session:any)=><article className="connect-session-card" key={session.id}><div><strong>{session.name}</strong><span>{session.phone_number?'+' + session.phone_number:session.status.replace('_',' ')}</span></div>{session.status==='connected'?<button className="primary-button" onClick={()=>void api('/v1/onboarding/continue',token,{method:'POST',body:'{}'}).then(()=>load())}>Use this number</button>:<button className="secondary-button" onClick={()=>void connectSession(session.id)} disabled={busy}>Connect / QR</button>}</article>)}</div>}
+        <div className="connect-grid">{state.sessions.map((session:any)=><article className="connect-session-card" key={session.id}><div><strong>{session.name}</strong><span>{session.phone_number?'+' + session.phone_number:session.status.replace('_',' ')}</span></div>{session.status==='connected'?<button className="primary-button" onClick={()=>void api('/onboarding/continue',token,{method:'POST',body:'{}'}).then(()=>load())}>Use this number</button>:<button className="secondary-button" onClick={()=>void connectSession(session.id)} disabled={busy}>Connect / QR</button>}</article>)}</div>}
         {qr?.dataUrl && <div className="onboarding-qr"><img src={qr.dataUrl} alt="WhatsApp QR"/><div><strong>Scan this QR with WhatsApp</strong><p>The page will advance automatically after the linked number is verified.</p></div></div>}
       </section>}
 

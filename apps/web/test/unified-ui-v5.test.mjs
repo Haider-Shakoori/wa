@@ -3,22 +3,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('public RelayWA hero is developer-focused and does not expose BusinessOS branding', async () => {
-  const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /Developer-first WhatsApp API/);
-  assert.match(source, /Ship WhatsApp messaging from your app/);
-  assert.match(source, /hero-product-grid/);
-  assert.match(source, /message\.sent/);
-  assert.match(source, /integration-section/);
+  const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
+  assert.match(source, /WhatsApp API/);
+  assert.match(source, /Bring WhatsApp into your product/);
+  assert.match(source, /rw-hero-visual/);
+  assert.match(source, /messages\/text/);
+  assert.match(source, /rw-integration/);
   assert.doesNotMatch(source, /BusinessOS/i);
   assert.doesNotMatch(source, /93744119422/);
   assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
 });
 
 test('tenant workspace and login use standalone RelayWA branding', async () => {
-  const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  const login = await readFile(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
-  assert.match(dashboard, /<strong>RelayWA<\/strong><span>Customer workspace<\/span>/);
-  assert.match(login, /<strong>RelayWA<\/strong><span>WhatsApp API workspace<\/span>/);
+  const dashboard = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
+  const login = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
+  assert.match(dashboard, /relay<span>wa/);
+  assert.match(login, /Brand/);
   assert.doesNotMatch(dashboard, /by BusinessOS/i);
   assert.doesNotMatch(login, /by BusinessOS/i);
 });
@@ -57,11 +57,11 @@ test('public docs and tenant developer guide avoid region-specific sample identi
 
 test('all rendered web surfaces avoid legacy Afghanistan-specific and BusinessOS presentation', async () => {
   const paths = [
-    '../app/page.tsx',
+    '../components/relay-home.tsx',
     '../app/layout.tsx',
-    '../app/login/page.tsx',
+    '../components/relay-auth.tsx',
     '../app/onboarding/page.tsx',
-    '../app/dashboard/page.tsx',
+    '../components/relay-workspace.tsx',
     '../app/docs/page.tsx',
     '../app/platform/login/page.tsx',
     '../app/platform/page.tsx',

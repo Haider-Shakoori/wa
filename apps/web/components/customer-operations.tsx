@@ -72,7 +72,7 @@ export function QuickSend({
     setSending(true);
     try {
       if (!sessionId) throw new Error('Choose a connected WhatsApp session.');
-      const result = await api<any>('/v1/sessions/' + sessionId + '/messages/text',token,{
+      const result = await api<any>('/whatsapp-sessions/' + sessionId + '/messages/text',token,{
         method:'POST',
         body:JSON.stringify({
           to,
@@ -124,8 +124,8 @@ export function MessageHistory({
   const [error,setError] = useState('');
 
   useEffect(()=>{
-    if (!sessionId && connected[0]) setSessionId(connected[0].id);
-  },[connected,sessionId]);
+    if (!sessionId && sessions[0]) setSessionId(sessions[0].id);
+  },[sessions,sessionId]);
 
   useEffect(()=>{
     if (!token || !sessionId) return;
@@ -135,7 +135,7 @@ export function MessageHistory({
   async function load() {
     try {
       setError('');
-      const rows=await api<any[]>('/v1/sessions/' + sessionId + '/messages',token);
+      const rows=await api<any[]>('/whatsapp-sessions/' + sessionId + '/messages',token);
       setMessages(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load messages');

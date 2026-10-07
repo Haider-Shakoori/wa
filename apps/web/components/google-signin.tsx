@@ -9,7 +9,7 @@ type AuthProviders = {
   google?: { enabled?: boolean; clientId?: string };
 };
 
-export function GoogleSignIn() {
+export function GoogleSignIn({ destination }: { destination?: string } = {}) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement|null>(null);
   const [error,setError] = useState('');
@@ -19,7 +19,7 @@ export function GoogleSignIn() {
 
   useEffect(()=>{
     let active=true;
-    void api<AuthProviders>('/v1/auth/providers')
+    void api<AuthProviders>('/auth/providers')
       .then((providers)=>{
         if (!active) return;
         const google=providers.google;
@@ -47,12 +47,12 @@ export function GoogleSignIn() {
         callback: async (response:any) => {
           setError('');
           try {
-            const result = await api<any>('/v1/auth/google',undefined,{
+            const result = await api<any>('/auth/google',undefined,{
               method:'POST',
               body:JSON.stringify({credential:response.credential}),
             });
             localStorage.setItem('relaywa_access_token',result.accessToken);
-            router.push(result.onboardingStep==='complete'?'/dashboard':'/onboarding');
+            router.push(destination ?? (result.onboardingStep==='complete'?'/dashboard':'/onboarding'));
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Google sign-in failed');
           }
@@ -86,7 +86,7 @@ export function GoogleSignIn() {
     script.addEventListener('load',initialize,{once:true});
     document.head.appendChild(script);
     return ()=>script.removeEventListener('load',initialize);
-  },[clientId,enabled,loaded,router]);
+  },[clientId,enabled,loaded,router,destination]);
 
   if (!loaded || !enabled || !clientId) return null;
 

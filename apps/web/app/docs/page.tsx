@@ -1,8 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import CodeShowcase from '../../components/code-showcase';
+import { integrationExamples } from '../../lib/integration-examples';
+import { Brand } from '../../components/relay-workspace';
 
-const API_BASE = 'https://api.relaywa.com/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
 
 const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
   {
@@ -11,6 +14,7 @@ const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
       ['overview','Overview'],
       ['quickstart','Quickstart'],
       ['authentication','Authentication'],
+      ['language-examples','Languages & frameworks'],
       ['api-keys','API keys & scopes'],
     ],
   },
@@ -48,50 +52,53 @@ const docsIndex = navGroups.flatMap((group)=>group.items.map(([id,title])=>({
 })));
 
 const sessionEndpoints = [
-  ['GET','/v1/sessions','sessions.read','List workspace sessions'],
-  ['GET','/v1/sessions/:sessionId','sessions.read','Read one session'],
-  ['GET','/v1/sessions/:sessionId/qr','sessions.read','Read QR availability / data'],
-  ['GET','/v1/sessions/:sessionId/events','sessions.read','Server-sent session events'],
-  ['POST','/v1/sessions','sessions.manage','Create a session'],
-  ['POST','/v1/sessions/:sessionId/connect','sessions.manage','Start or resume pairing'],
-  ['POST','/v1/sessions/:sessionId/restart','sessions.manage','Restart runtime without logout'],
-  ['POST','/v1/sessions/:sessionId/logout','sessions.manage','Log out linked WhatsApp'],
+  ['GET','/whatsapp-sessions','sessions.read','List workspace sessions'],
+  ['GET','/whatsapp-sessions/:sessionId','sessions.read','Read one session'],
+  ['GET','/whatsapp-sessions/:sessionId/qrcode','sessions.read','Read QR availability / data'],
+  ['GET','/whatsapp-sessions/:sessionId/events','sessions.read','Server-sent session events'],
+  ['POST','/whatsapp-sessions','sessions.manage','Create a session'],
+  ['PATCH','/whatsapp-sessions/:sessionId','sessions.manage','Update session name or phone hint'],
+  ['DELETE','/whatsapp-sessions/:sessionId','sessions.manage','Delete an unlinked or logged-out session'],
+  ['GET','/whatsapp-sessions/:sessionId/logs','sessions.read','Read connection event history'],
+  ['POST','/whatsapp-sessions/:sessionId/connect','sessions.manage','Start or resume pairing'],
+  ['POST','/whatsapp-sessions/:sessionId/restart','sessions.manage','Restart runtime without logout'],
+  ['POST','/whatsapp-sessions/:sessionId/disconnect','sessions.manage','Log out linked WhatsApp'],
 ];
 
 const messageEndpoints = [
-  ['GET','/v1/sessions/:sessionId/messages','messages.read','List recent messages'],
-  ['GET','/v1/sessions/:sessionId/messages/:messageId','messages.read','Read message state'],
-  ['POST','/v1/sessions/:sessionId/messages/text','messages.send','Send text'],
-  ['POST','/v1/sessions/:sessionId/messages/image','messages.send','Send image'],
-  ['POST','/v1/sessions/:sessionId/messages/video','messages.send','Send video'],
-  ['POST','/v1/sessions/:sessionId/messages/audio','messages.send','Send audio / voice note'],
-  ['POST','/v1/sessions/:sessionId/messages/document','messages.send','Send document'],
-  ['POST','/v1/sessions/:sessionId/messages/reply','messages.send','Reply to a message'],
-  ['POST','/v1/sessions/:sessionId/messages/reaction','messages.send','Send reaction'],
-  ['POST','/v1/sessions/:sessionId/messages/location','messages.send','Send location'],
-  ['POST','/v1/sessions/:sessionId/messages/contact','messages.send','Send vCard contact'],
-  ['POST','/v1/sessions/:sessionId/messages/poll','messages.send','Send poll'],
+  ['GET','/whatsapp-sessions/:sessionId/messages','messages.read','List recent messages'],
+  ['GET','/whatsapp-sessions/:sessionId/messages/:messageId','messages.read','Read message state'],
+  ['POST','/send-message','messages.send','Send text'],
+  ['POST','/send-image','messages.send','Send image'],
+  ['POST','/send-video','messages.send','Send video'],
+  ['POST','/send-audio','messages.send','Send audio / voice note'],
+  ['POST','/send-document','messages.send','Send document'],
+  ['POST','/send-reply','messages.send','Reply to a message'],
+  ['POST','/send-reaction','messages.send','Send reaction'],
+  ['POST','/send-location','messages.send','Send location'],
+  ['POST','/send-contact','messages.send','Send vCard contact'],
+  ['POST','/send-poll','messages.send','Send poll'],
 ];
 
 const directoryEndpoints = [
-  ['GET','/v1/sessions/:sessionId/contacts','contacts.read','Read synchronized contacts'],
-  ['GET','/v1/sessions/:sessionId/chats','chats.read','Read synchronized chats'],
-  ['GET','/v1/sessions/:sessionId/groups','groups.read','Read synchronized groups'],
+  ['GET','/whatsapp-sessions/:sessionId/contacts','contacts.read','Read synchronized contacts'],
+  ['GET','/whatsapp-sessions/:sessionId/chats','chats.read','Read synchronized chats'],
+  ['GET','/whatsapp-sessions/:sessionId/groups','groups.read','Read synchronized groups'],
 ];
 
 const webhookEndpoints = [
-  ['GET','/v1/webhooks','webhooks.read','List webhook endpoints'],
-  ['GET','/v1/webhooks/:endpointId/deliveries','webhooks.read','Inspect last 100 deliveries'],
-  ['POST','/v1/webhooks','webhooks.manage','Create webhook endpoint'],
-  ['PATCH','/v1/webhooks/:endpointId','webhooks.manage','Update endpoint'],
-  ['DELETE','/v1/webhooks/:endpointId','webhooks.manage','Delete endpoint'],
+  ['GET','/webhooks','webhooks.read','List webhook endpoints'],
+  ['GET','/webhooks/:endpointId/deliveries','webhooks.read','Inspect last 100 deliveries'],
+  ['POST','/webhooks','webhooks.manage','Create webhook endpoint'],
+  ['PATCH','/webhooks/:endpointId','webhooks.manage','Update endpoint'],
+  ['DELETE','/webhooks/:endpointId','webhooks.manage','Delete endpoint'],
 ];
 
 const languages = ['cURL','JavaScript','Laravel / PHP','Python','C# / .NET'] as const;
 type Language = typeof languages[number];
 
 function buildSnippet(language:Language) {
-  const endpoint = API_BASE + '/v1/sessions/YOUR_SESSION_ID/messages/text';
+  const endpoint = API_BASE + '/send-message';
   if (language === 'JavaScript') return `const response = await fetch(
   "${endpoint}",
   {
@@ -174,15 +181,15 @@ export default function DocsPage() {
     return docsIndex.filter((item)=>item.keywords.includes(clean) || item.title.toLowerCase().includes(clean));
   },[query]);
 
-  return <main className="docs-v2">
+  return <main className="docs-v2 rw-docs">
     <header className="docs-v2-topbar">
-      <a className="public-brand" href="/"><span className="brand-mark">rW</span><span><strong>RelayWA</strong><small>Developer documentation</small></span></a>
-      <nav><a href="/">Product</a><a href="/#pricing">Pricing</a><a href="https://app.relaywa.com/login">Sign in</a><a className="public-cta" href="https://app.relaywa.com/login">Start free</a></nav>
+      <Brand/>
+      <nav><a href="/">Product</a><a href="/#pricing">Pricing</a><a href="/login">Sign in</a><a className="public-cta" href="/login">Start free</a></nav>
     </header>
 
     <div className="docs-v2-layout">
       <aside className="docs-v2-sidebar">
-        <div className="docs-v2-title"><strong>API Documentation</strong><span>RelayWA API v1</span></div>
+        <div className="docs-v2-title"><strong>API Documentation</strong><span>RelayWA API</span></div>
         <div className="docs-search">
           <span>⌕</span>
           <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search documentation"/>
@@ -198,12 +205,12 @@ export default function DocsPage() {
           {navGroups.map((group)=><div className="docs-nav-group" key={group.label}><span>{group.label}</span>{group.items.map(([id,title])=><a key={id} href={'#'+id}>{title}</a>)}</div>)}
         </nav>}
 
-        <div className="docs-api-status"><span className="live-dot"/><div><strong>Production API</strong><code>{API_BASE}</code></div></div>
+        <div className="docs-api-status"><span className="live-dot"/><div><strong>API endpoint</strong><code>{API_BASE}</code></div></div>
       </aside>
 
       <article className="docs-v2-content">
         <section className="docs-v2-hero" id="overview">
-          <span className="public-kicker">RelayWA API v1</span>
+          <span className="public-kicker">RelayWA API</span>
           <h1>Build reliable WhatsApp messaging into your product.</h1>
           <p>Everything needed to connect sessions, send and track messages, receive inbound events, manage webhooks, understand queue behavior and operate RelayWA safely.</p>
           <div className="docs-base-url"><span>Base URL</span><code>{API_BASE}</code><button onClick={()=>void navigator.clipboard.writeText(API_BASE)}>Copy</button></div>
@@ -239,7 +246,7 @@ export default function DocsPage() {
         </DocSection>
 
         <DocSection id="api-keys" eyebrow="Access control" title="API keys & scopes" intro="Dashboard users create and revoke keys. API access is then limited by scopes and, for session tokens, by the bound session.">
-          <div className="scope-doc-grid">{['sessions.read','messages.read','messages.send','contacts.read','chats.read','groups.read','webhooks.read'].map((scope)=><code key={scope}>{scope}</code>)}</div>
+          <div className="scope-doc-grid">{['sessions.read','sessions.manage','messages.read','messages.send','contacts.read','chats.read','groups.read','webhooks.read','webhooks.manage'].map((scope)=><code key={scope}>{scope}</code>)}</div>
           <div className="docs-two">
             <InfoCard title="Dashboard-only management"><p>Creating/revoking API keys and changing session lifecycle requires authenticated dashboard permissions.</p></InfoCard>
             <InfoCard title="Least privilege"><p>Give integrations only the scopes they need. A reporting service usually does not need <code>messages.send</code>.</p></InfoCard>
@@ -371,7 +378,7 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="https://app.relaywa.com/login">Start 7-day trial</a></section>
+        <section id="language-examples"><h2>Languages &amp; frameworks</h2><p>Use your session API key with POST /api/send-message. The Bearer key identifies the number; no session ID is needed in the URL. These HTTP examples connect directly to RelayWA.</p><CodeShowcase examples={integrationExamples}/></section><section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="/login">Start 7-day trial</a></section>
       </article>
 
       <aside className="docs-v2-toc">

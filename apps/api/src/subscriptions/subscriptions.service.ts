@@ -11,7 +11,7 @@ type SubscriptionRow = {
   cancel_at_period_end: boolean;
   max_sessions: number;
   daily_messages: number | null;
-  monthly_messages: number;
+  monthly_messages: number | null;
   max_api_keys: number;
 };
 
@@ -169,7 +169,7 @@ export class SubscriptionsService {
     const monthly = Number(usage.rows.find((row) => row.metric === 'outbound_messages')?.quantity ?? 0);
     const daily = Number(usage.rows.find((row) => row.metric === 'outbound_messages_daily')?.quantity ?? 0);
 
-    if (monthly >= subscription.monthly_messages) {
+    if (subscription.monthly_messages !== null && monthly >= subscription.monthly_messages) {
       throw new ConflictException('Monthly message quota reached for the current relayWA plan');
     }
     if (subscription.daily_messages !== null && daily >= subscription.daily_messages) {

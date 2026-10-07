@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import { JwtAuthGuard, type AuthenticatedRequest } from './jwt-auth.guard';
 
-@Controller('v1/auth')
+@Controller(['auth', 'v1/auth'])
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -29,7 +29,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@Req() request: AuthenticatedRequest) {
-    return { auth: request.auth };
+  async me(@Req() request: AuthenticatedRequest) {
+    return { auth: request.auth, user: await this.auth.profile(request.auth.sub) };
   }
 }

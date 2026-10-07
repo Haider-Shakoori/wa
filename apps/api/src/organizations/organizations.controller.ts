@@ -2,7 +2,7 @@ import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
-@Controller('v1/organizations')
+@Controller(['organizations', 'v1/organizations'])
 @UseGuards(JwtAuthGuard)
 export class OrganizationsController {
   constructor(private readonly db: DatabaseService) {}

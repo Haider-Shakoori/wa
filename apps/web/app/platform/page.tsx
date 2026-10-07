@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
+import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
@@ -69,18 +70,18 @@ export default function PlatformPage() {
     setError('');
     try {
       const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings,messagingSafetySettings] = await Promise.all([
-        api('/v1/platform/overview',current),
-        api('/v1/platform/tenants',current),
-        api('/v1/platform/sessions',current),
-        api('/v1/platform/subscriptions',current),
-        api('/v1/platform/workers',current),
-        api('/v1/platform/queues',current),
-        api('/v1/platform/errors',current),
-        api('/v1/platform/payments',current),
-        api('/v1/billing/providers',current),
-        api('/v1/platform/settings/auth-providers',current),
-        api('/v1/platform/settings/messaging-engine',current),
-        api('/v1/platform/settings/messaging-safety',current),
+        api('/platform/overview',current),
+        api('/platform/tenants',current),
+        api('/platform/sessions',current),
+        api('/platform/subscriptions',current),
+        api('/platform/workers',current),
+        api('/platform/queues',current),
+        api('/platform/errors',current),
+        api('/platform/payments',current),
+        api('/billing/providers',current),
+        api('/platform/settings/auth-providers',current),
+        api('/platform/settings/messaging-engine',current),
+        api('/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
       setTenants(t as any[]);
@@ -106,7 +107,7 @@ export default function PlatformPage() {
   async function approveManual(paymentId:string) {
     setError(''); setNotice('');
     try {
-      await api('/v1/billing/admin/manual/' + paymentId + '/approve', token, { method:'POST' });
+      await api('/billing/admin/manual/' + paymentId + '/approve', token, { method:'POST' });
       setNotice('Manual payment approved and the subscription was activated.');
       await refresh();
     } catch (err) {
@@ -118,7 +119,7 @@ export default function PlatformPage() {
     setError(''); setNotice('');
     if (action === 'logout' && !window.confirm('Log this tenant WhatsApp session out? It will require a new QR scan.')) return;
     try {
-      await api('/v1/platform/sessions/' + sessionId + '/' + action,token,{method:'POST'});
+      await api('/platform/sessions/' + sessionId + '/' + action,token,{method:'POST'});
       setNotice('Session ' + action + ' command queued.');
       await refresh();
     } catch (err) {
@@ -129,7 +130,7 @@ export default function PlatformPage() {
   async function resumeSessionMessaging(sessionId:string) {
     setError(''); setNotice('');
     try {
-      await api('/v1/platform/sessions/' + sessionId + '/messaging/resume',token,{method:'POST'});
+      await api('/platform/sessions/' + sessionId + '/messaging/resume',token,{method:'POST'});
       setNotice('Safety pause cleared. API messaging can resume for this session.');
       await refresh();
     } catch (err) {
@@ -140,7 +141,7 @@ export default function PlatformPage() {
   async function changeSessionEngine(sessionId:string, engine:'baileys'|'chromium') {
     setError(''); setNotice('');
     try {
-      const result:any = await api('/v1/platform/sessions/' + sessionId + '/engine',token,{
+      const result:any = await api('/platform/sessions/' + sessionId + '/engine',token,{
         method:'PATCH',
         body:JSON.stringify({engine}),
       });
@@ -154,7 +155,7 @@ export default function PlatformPage() {
   async function updateSubscription(organizationId:string, patch:any) {
     setError(''); setNotice('');
     try {
-      await api('/v1/platform/subscriptions/' + organizationId,token,{
+      await api('/platform/subscriptions/' + organizationId,token,{
         method:'PATCH',
         body:JSON.stringify(patch),
       });
@@ -168,7 +169,7 @@ export default function PlatformPage() {
   async function saveGoogleAuth() {
     setError(''); setNotice('');
     try {
-      await api('/v1/platform/settings/auth-providers/google',token,{
+      await api('/platform/settings/auth-providers/google',token,{
         method:'PATCH',
         body:JSON.stringify({
           enabled:googleEnabled,
@@ -185,7 +186,7 @@ export default function PlatformPage() {
   async function saveMessagingEngine() {
     setError(''); setNotice('');
     try {
-      await api('/v1/platform/settings/messaging-engine',token,{
+      await api('/platform/settings/messaging-engine',token,{
         method:'PATCH',
         body:JSON.stringify({engine:messagingEngine}),
       });
@@ -203,7 +204,7 @@ export default function PlatformPage() {
         setError('Maximum message delay must be greater than or equal to minimum delay.');
         return;
       }
-      await api('/v1/platform/settings/messaging-safety',token,{
+      await api('/platform/settings/messaging-safety',token,{
         method:'PATCH',
         body:JSON.stringify({
           enabled:Boolean(messagingSafety.enabled),
@@ -236,7 +237,7 @@ export default function PlatformPage() {
   async function toggleProvider(provider:any) {
     setError(''); setNotice('');
     try {
-      await api('/v1/billing/admin/providers',token,{
+      await api('/billing/admin/providers',token,{
         method:'POST',
         body:JSON.stringify({
           provider:provider.provider,
@@ -262,7 +263,7 @@ export default function PlatformPage() {
 
   return <div className="app-shell platform-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">rW</div><div><strong>RelayWA</strong><span>Control plane</span></div></div>
+      <div className="brand"><Brand/></div>
       <nav className="platform-nav-groups">
         {navigationGroups.map((group)=><div className="platform-nav-group" key={group.label}>
           <span className="platform-nav-label">{group.label}</span>

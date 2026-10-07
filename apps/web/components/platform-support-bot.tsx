@@ -40,7 +40,7 @@ export function PlatformSupportBot({
     setBusy(true);
     setError('');
     try {
-      const answer=await api<BotAnswer>('/v1/platform/support/ask',token,{
+      const answer=await api<BotAnswer>('/platform/support/ask',token,{
         method:'POST',
         body:JSON.stringify({message:clean}),
       });

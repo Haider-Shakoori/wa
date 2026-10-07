@@ -3,26 +3,26 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('dashboard contains core relayWA customer areas', async () => {
-  const source = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  for (const label of ['Sessions','Messages','API Keys','Developers','Webhooks','Billing']) {
+  const source = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
+  for (const label of ['WhatsApp sessions','MessageHistory','API access','API documentation','Webhooks','Subscription']) {
     assert.match(source, new RegExp(label));
   }
-  assert.match(source, /Connect \/ QR/);
+  assert.match(source, /Connect \/ show QR/);
   assert.match(source, /billing\/subscription/);
-  assert.match(source, /Send test message/);
+  assert.match(source, /QuickSend/);
 });
 
 test('dashboard QR flow calls session lifecycle and QR endpoints', async () => {
-  const source = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /\/connect/);
+  const source = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
+  assert.match(source, /lifecycle\('connect'\)/);
   assert.match(source, /\/qr/);
   assert.match(source, /dataUrl/);
 });
 
 test('tenant login persists access token and stays in tenant routing', async () => {
-  const source = await readFile(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
   assert.match(source, /relaywa_access_token/);
-  assert.match(source, /result\.onboardingStep/);
+  assert.match(source, /register/);
   assert.match(source, /\/dashboard/);
-  assert.match(source, /\/onboarding/);
+  assert.match(source, /\/register/);
 });

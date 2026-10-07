@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../auth/permissions';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { DirectoryService } from './directory.service';
 
-@Controller('v1/sessions/:sessionId')
+@Controller(['whatsapp-sessions/:sessionId', 'v1/sessions/:sessionId'])
 @UseGuards(ApiAccessGuard, PermissionGuard)
 export class DirectoryController {
   constructor(private readonly directory: DirectoryService) {}

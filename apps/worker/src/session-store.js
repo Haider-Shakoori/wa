@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHash, createCipheriv } from 'node:crypto';
 import { nextLeaseExpiry } from './session-runtime.js';
 
 const { Pool } = pg;
@@ -323,6 +323,28 @@ export class SessionStore {
         this.workerId,
       ],
     );
+    if (status === 'connected') {
+      try { await this.ensureSessionKey(sessionId); }
+      catch { console.error('Unable to create the connected session API key'); }
+    }
+  }
+
+  async ensureSessionKey(sessionId) {
+    const key = Buffer.from(process.env.WEBHOOK_ENCRYPTION_KEY || '', 'base64');
+    if (key.length !== 32) throw new Error('WEBHOOK_ENCRYPTION_KEY must decode to 32 bytes');
+    const token = 'rw_session_' + randomBytes(32).toString('base64url');
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+    const value = [iv, cipher.getAuthTag(), encrypted].map(part=>part.toString('base64url')).join('.');
+    await this.pool.query(`INSERT INTO api_keys
+      (id, organization_id, created_by_user_id, session_id, name, key_prefix, key_hash, token_type, scopes, token_encrypted, auto_generated)
+      SELECT $1, organization_id, created_by_user_id, id, 'Connected session ' || id::text,
+        $2, $3, 'session', $4, $5, true FROM whatsapp_sessions
+      WHERE id=$6 AND status='connected' AND worker_id=$7 AND deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM api_keys WHERE session_id=$6 AND enabled AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now()))
+      ON CONFLICT DO NOTHING`, [randomUUID(), token.slice(0,20), createHash('sha256').update(token).digest('hex'),
+        ['sessions.read','messages.read','messages.send','contacts.read','chats.read','groups.read'], value, sessionId, this.workerId]);
   }
 
   async syncProfile(sessionId, profile) {
@@ -474,11 +496,11 @@ export class SessionStore {
     return Number(result.rows[0]?.reconnect_attempts ?? 1);
   }
 
-  async setQr(sessionId, qr, ttlMs = 55000) {
+  async setQr(sessionId, qr, ttlMs = 60000) {
     await this.pool.query(
       `UPDATE whatsapp_sessions
        SET status = 'need_scan', qr_code = $1,
-           qr_expires_at = now() + ($2 * interval '1 millisecond'),
+           qr_expires_at = CASE WHEN status='need_scan' THEN qr_expires_at ELSE now() + (LEAST($2::int,60000) * interval '1 millisecond') END,
            updated_at = now()
        WHERE id = $3 AND worker_id = $4`,
       [qr, ttlMs, sessionId, this.workerId],
@@ -523,7 +545,7 @@ export class SessionStore {
       `INSERT INTO system_alerts
         (id, event_type, severity, dedupe_key, organization_id, session_id,
          resource_type, resource_id, subject, summary, details)
-       SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb
+       SELECT $1::uuid, $2::text, $3::text, $4::text, $5::uuid, $6::uuid, $7::text, $8::text, $9::text, $10::text, $11::jsonb
        WHERE NOT EXISTS (
          SELECT 1
          FROM system_alerts

@@ -159,12 +159,25 @@ export class AuthService {
         'INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, $4)',
         [membershipId, organizationId, userId, 'owner'],
       );
+      const trialDays = Number(process.env.TRIAL_DAYS ?? 7);
+      await client.query(
+        `INSERT INTO organization_subscriptions
+         (organization_id, plan_code, status, current_period_start, current_period_end, trial_ends_at)
+         VALUES ($1, 'trial', 'trialing', now(), now() + ($2 * interval '1 day'), now() + ($2 * interval '1 day'))`,
+        [organizationId, trialDays],
+      );
     });
 
     return {
       user: { id: userId, email: input.email, name: input.name, password_hash: input.passwordHash },
       membership: { id: membershipId, organization_id: organizationId },
     };
+  }
+
+  async profile(userId: string) {
+    const result = await this.db.query<{id:string;name:string;email:string}>(
+      'SELECT id, name, email FROM users WHERE id=$1', [userId]);
+    return result.rows[0] ?? null;
   }
 
   private async membership(userId: string) {

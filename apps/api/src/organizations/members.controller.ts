@@ -6,7 +6,7 @@ import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { PERMISSIONS } from '../auth/permissions';
 import { UpdateMemberRoleDto } from './members.dto';
 
-@Controller('v1/organizations/current/members')
+@Controller(['organizations/current/members', 'v1/organizations/current/members'])
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class MembersController {
   constructor(private readonly db: DatabaseService) {}

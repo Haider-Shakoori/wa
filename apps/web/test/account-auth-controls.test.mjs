@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const pages = [
-  ['dashboard', '../app/dashboard/page.tsx'],
+  ['dashboard', '../components/relay-workspace.tsx'],
   ['platform', '../app/platform/page.tsx'],
   ['onboarding', '../app/onboarding/page.tsx'],
 ];
@@ -19,8 +19,8 @@ for (const [name, path] of pages) {
 }
 
 test('dashboard and platform redirect to their own login surfaces when no token exists', async () => {
-  const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+  const dashboard = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
   const platform = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
-  assert.match(dashboard, /if \(!current\)[\s\S]*router\.replace\('\/login'\)/);
-  assert.match(platform, /if \(!current\)[\s\S]*router\.replace\('\/platform\/login'\)/);
+  assert.match(dashboard, /if\s*\(!current\)[\s\S]*router\.replace\('\/login'\)/);
+  assert.match(platform, /if\s*\(!current\)[\s\S]*router\.replace\('\/platform\/login'\)/);
 });

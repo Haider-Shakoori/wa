@@ -10,7 +10,7 @@ import {
 
 export class CreateCheckoutDto {
   @IsString()
-  @IsIn(['starter','growth','scale'])
+  @IsIn(['starter','growth','plus','scale'])
   planCode!: string;
 
   @IsOptional()

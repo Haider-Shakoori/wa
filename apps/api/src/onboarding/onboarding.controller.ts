@@ -3,7 +3,7 @@ import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard'
 import { ContinueOnboardingDto, SelectPlanDto, UpdateWorkspaceDto } from './onboarding.dto';
 import { OnboardingService } from './onboarding.service';
 
-@Controller('v1/onboarding')
+@Controller(['onboarding', 'v1/onboarding'])
 @UseGuards(JwtAuthGuard)
 export class OnboardingController {
   constructor(private readonly onboarding: OnboardingService) {}

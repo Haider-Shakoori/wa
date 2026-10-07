@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('customer portal includes onboarding, live send and message history', async () => {
-  const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+  const dashboard = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
   const ops = await readFile(new URL('../components/customer-operations.tsx', import.meta.url), 'utf8');
-  assert.match(dashboard, /OnboardingChecklist/);
+  assert.match(dashboard, /Build your integration/);
   assert.match(dashboard, /QuickSend/);
   assert.match(dashboard, /MessageHistory/);
   assert.match(ops, /portal-test-/);
@@ -14,10 +14,10 @@ test('customer portal includes onboarding, live send and message history', async
 });
 
 test('customer portal exposes session restart and logout controls', async () => {
-  const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
-  assert.match(dashboard, /sessionAction/);
+  const dashboard = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
+  assert.match(dashboard, /lifecycle/);
   assert.match(dashboard, /Restart/);
-  assert.match(dashboard, /Log out/);
+  assert.match(dashboard, /Disconnect/);
 });
 
 test('platform console supports search and tenant operations', async () => {

@@ -1,6 +1,7 @@
+import { resolve, relative, isAbsolute } from 'node:path';
 import WhatsAppWeb from 'whatsapp-web.js';
 import pino from 'pino';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { fetchMedia } from './media-fetch.js';
 
 const { Client, LocalAuth, Location, MessageMedia, Poll } = WhatsAppWeb;
@@ -68,6 +69,7 @@ export class ChromiumSessionManager {
     this.clients = new Map();
     this.heartbeats = new Map();
     this.reconnectTimers = new Map();
+    this.qrTimers = new Map();
     this.maxSessions = Number(process.env.CHROMIUM_MAX_SESSIONS_PER_WORKER ?? 6);
   }
 
@@ -76,7 +78,10 @@ export class ChromiumSessionManager {
   }
 
   async connect(sessionId, { recovery = false } = {}) {
-    if (this.clients.has(sessionId)) return;
+    if (this.clients.has(sessionId)) {
+      if (recovery || this.clients.get(sessionId).info) return;
+      await this.disconnectRuntime(sessionId);
+    }
     if (this.maxSessions > 0 && this.clients.size >= this.maxSessions) {
       throw new Error(`Chromium session capacity reached for this worker (${this.maxSessions})`);
     }
@@ -103,9 +108,12 @@ export class ChromiumSessionManager {
     client.on('qr', async (qr) => {
       if (this.clients.get(sessionId) !== client) return;
       await this.store.setQr(sessionId, qr);
+      this.startQrExpiry(sessionId);
     });
 
     client.on('ready', async () => {
+      clearTimeout(this.qrTimers.get(sessionId));
+      this.qrTimers.delete(sessionId);
       if (this.clients.get(sessionId) !== client) return;
       try {
         const jid = client.info?.wid?._serialized ?? null;
@@ -288,17 +296,42 @@ export class ChromiumSessionManager {
 
   async logout(sessionId) {
     const client = this.clients.get(sessionId);
+    this.stopHeartbeat(sessionId);
+    this.clearReconnect(sessionId);
+    this.clients.delete(sessionId);
     if (client) {
       try { await client.logout(); } catch (error) {
         logger.warn({ err: error, sessionId }, 'chromium logout failed; clearing runtime');
       }
     }
+    if (client) { try { await client.destroy(); } catch {} }
     await this.disconnectRuntime(sessionId);
+    if (!/^[0-9a-f-]{36}$/i.test(sessionId)) throw new Error('Invalid session id');
+    const root = resolve(this.authRoot);
+    const target = resolve(root, 'session-' + sessionId);
+    const inside = relative(root, target);
+    if (!inside || inside.startsWith('..') || isAbsolute(inside)) throw new Error('Invalid auth path');
+    await rm(target, { recursive: true, force: true });
     await this.store.setStatus(sessionId, 'logged_out', { clearQr: true });
     await this.store.event(sessionId, 'session.logged_out', { engine: 'chromium' });
   }
 
+  startQrExpiry(sessionId) {
+    if (this.qrTimers.has(sessionId)) return;
+    const timer = setTimeout(async () => {
+      try {
+        await this.disconnectRuntime(sessionId);
+        await this.store.setStatus(sessionId, 'logged_out', {clearQr:false});
+        await this.store.event(sessionId, 'session.qr_expired', {});
+      } catch (error) { logger.error({err:error,sessionId}, 'QR expiry failed'); }
+    }, 60000);
+    timer.unref();
+    this.qrTimers.set(sessionId,timer);
+  }
+
   async disconnectRuntime(sessionId) {
+    clearTimeout(this.qrTimers.get(sessionId));
+    this.qrTimers.delete(sessionId);
     this.stopHeartbeat(sessionId);
     this.clearReconnect(sessionId);
     const client = this.clients.get(sessionId);

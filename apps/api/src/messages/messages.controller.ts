@@ -13,7 +13,7 @@ import {
 } from './action.dto';
 import { MessagesService } from './messages.service';
 
-@Controller('v1/sessions/:sessionId/messages')
+@Controller(['whatsapp-sessions/:sessionId/messages', 'v1/sessions/:sessionId/messages'])
 @UseGuards(ApiAccessGuard, PermissionGuard)
 export class MessagesController {
   constructor(private readonly messages: MessagesService) {}

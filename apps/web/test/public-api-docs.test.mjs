@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('public website links to RelayWA documentation and uses real API route shape', async () => {
-  const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /href="\/docs"/);
-  assert.match(source, /\/api\/v1\/sessions\/\{sessionId\}\/messages\/text/);
-  assert.match(source, /201 Created/);
+  const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
+  assert.match(source, /href="\/api-docs"/);
+  assert.match(source, /\/api\/v1\/sessions\/\{id\}\/messages\/text/);
+  assert.match(source, /PRODUCT PREVIEW/);
   assert.doesNotMatch(source, /POST \/v1\/messages/);
 });
 
 test('public docs cover authentication sessions messages webhooks and safety', async () => {
   const source = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /https:\/\/api\.relaywa\.com\/api/);
+  assert.match(source, /NEXT_PUBLIC_API_BASE_URL/);
   assert.match(source, /rw_live_/);
   assert.match(source, /rw_session_/);
   assert.match(source, /sessions\.read/);

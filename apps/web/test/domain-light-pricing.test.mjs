@@ -2,22 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('public site presents the five RelayWA pricing tiers', async () => {
-  const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  for (const name of ['Trial','Basic','Pro','Plus','Business']) assert.match(source, new RegExp("name:'" + name + "'"));
-  assert.match(source, /monthly:3\.99/);
-  assert.match(source, /monthly:8\.99/);
-  assert.match(source, /monthly:16\.99/);
-  assert.match(source, /monthly:24\.99/);
+test('public pricing is loaded from the backend catalog', async () => {
+  const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
+  assert.match(source, /public\/plans/);
+  assert.match(source, /PlanCards/);
   assert.match(source, /Save 15%/);
   assert.match(source, /50 messages per day/);
 });
 
 test('tenant and platform authentication have separate entry points', async () => {
-  const tenant = await readFile(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+  const tenant = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
   const platform = await readFile(new URL('../app/platform/login/page.tsx', import.meta.url), 'utf8');
   const admin = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
-  assert.match(tenant, /Tenant workspace/);
+  assert.match(tenant, /manage your sessions/);
   assert.doesNotMatch(tenant, /platform\.relaywa\.com/);
   assert.match(platform, /Platform administrator/);
   assert.match(platform, /isPlatformAdmin/);

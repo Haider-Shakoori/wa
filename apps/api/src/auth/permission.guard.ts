@@ -41,6 +41,12 @@ export class PermissionGuard implements CanActivate {
         if (routeSessionId !== apiAuth.sessionId) {
           throw new ForbiddenException('Session token is not valid for this session');
         }
+      } else if (request.params?.sessionId) {
+        const session = await this.db.query(
+          'SELECT id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL',
+          [request.params.sessionId, apiAuth.org],
+        );
+        if (!session.rowCount) throw new ForbiddenException('Session is not available to this account');
       }
       return true;
     }

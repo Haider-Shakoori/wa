@@ -1,0 +1,20 @@
+'use client';
+import {FormEvent,useState,useRef,useEffect} from 'react';
+import PhoneInput,{isValidPhoneNumber,getCountryCallingCode,type Country} from 'react-phone-number-input';
+import flags from 'react-phone-number-input/flags';
+import {FeatherIcon} from './feather-icon';
+import {api} from '../lib/api';
+function SearchableCountrySelect({value,onChange,options,disabled}:{value?:Country;onChange:(value?:Country)=>void;options:{value?:Country;label:string;divider?:boolean}[];disabled?:boolean}){
+ const [open,setOpen]=useState(false);const [search,setSearch]=useState('');const root=useRef<HTMLDivElement>(null);const input=useRef<HTMLInputElement>(null);
+ useEffect(()=>{if(open)input.current?.focus();},[open]);
+ const Flag=value?flags[value]:undefined;
+ return <div ref={root} className="rw-country-picker" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false);}} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setOpen(false);root.current?.closest('.PhoneInput')?.querySelector<HTMLInputElement>('input[type="tel"]')?.focus();}}}>
+ <button type="button" tabIndex={-1} disabled={disabled} aria-label="Select country" aria-expanded={open} onClick={()=>{setSearch('');setOpen(!open);}}>{Flag?<Flag title={options.find(o=>o.value===value)?.label||value||''}/>:<span>🌐</span>}<span>⌄</span></button>
+ {open&&<div className="rw-country-menu"><input ref={input} type="search" aria-label="Search countries" placeholder="Search country or calling code…" value={search} onChange={e=>setSearch(e.target.value)}/><div className="rw-country-options">{options.filter(o=>!o.divider&&o.value&&(o.label+' '+o.value+' +'+getCountryCallingCode(o.value)).toLowerCase().includes(search.toLowerCase())).map(o=><button type="button" key={o.value} aria-pressed={o.value===value} onClick={()=>{onChange(o.value);setOpen(false);}}>{o.label}<span>+{getCountryCallingCode(o.value!)}</span></button>)}</div></div>}
+ </div>;
+}
+export default function NewSessionForm({token,onCreated,onCancel,embedded=false}:{embedded?:boolean;token:string;onCreated:(id:string)=>void;onCancel:()=>void}){
+ const [name,setName]=useState('');const [phone,setPhone]=useState<string>();const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+ async function submit(e:FormEvent){e.preventDefault();if(phone&&!isValidPhoneNumber(phone)){setError('Enter a valid number for the selected country.');return;}setBusy(true);setError('');try{const result=await api<{id:string}>('/whatsapp-sessions',token,{method:'POST',body:JSON.stringify({name:name.trim(),...(phone?{phoneHint:phone}:{})})});onCreated(result.id);}catch(e){setError(e instanceof Error?e.message:'Unable to create session.');setBusy(false);}}
+ return <form className="rw-card rw-form rw-new-session" onSubmit={submit}>{!embedded&&<h2 className="rw-icon-heading"><FeatherIcon name="smartphone" size={18}/> Connect a new WhatsApp number</h2>}<p>Name your session, then scan the QR code with WhatsApp’s Linked devices.</p>{error&&<div className="rw-alert" role="alert">{error}</div>}<label>Session name<input autoFocus required minLength={2} maxLength={120} value={name} disabled={busy} onChange={e=>setName(e.target.value)} placeholder="Customer support"/></label><label>Phone number (optional)<PhoneInput flags={flags} international defaultCountry="AF" countryCallingCodeEditable={false} value={phone} onChange={setPhone} disabled={busy} countrySelectComponent={SearchableCountrySelect} numberInputProps={{onKeyDown:(e:React.KeyboardEvent<HTMLInputElement>)=>{if(e.altKey&&e.key==='ArrowDown'){e.preventDefault();e.currentTarget.closest('.PhoneInput')?.querySelector<HTMLButtonElement>('.rw-country-picker>button')?.click();}}}} placeholder="Phone number"/></label><small>Select your country. The connected number will be confirmed after you scan the QR.</small><div className="rw-button-row"><button className="rw-button" disabled={busy}><FeatherIcon name={busy?"refresh":"qr"} size={15}/>{busy?'Creating…':'Create & connect'}</button><button type="button" className="rw-button secondary" disabled={busy} onClick={onCancel}>Cancel</button></div></form>;
+}

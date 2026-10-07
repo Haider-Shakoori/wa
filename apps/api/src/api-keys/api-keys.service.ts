@@ -1,3 +1,4 @@
+import { encryptWebhookSecret, decryptWebhookSecret } from '../webhooks/webhook-crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
@@ -14,7 +15,7 @@ export class ApiKeysService {
   async list(organizationId: string) {
     const result = await this.db.query(
       `SELECT id, organization_id, session_id, name, key_prefix, token_type,
-              scopes, enabled, last_used_at, expires_at, revoked_at, created_at
+              scopes, enabled, last_used_at, expires_at, revoked_at, created_at, (token_encrypted IS NOT NULL) AS viewable
        FROM api_keys
        WHERE organization_id = $1
        ORDER BY created_at DESC`,
@@ -54,8 +55,8 @@ export class ApiKeysService {
     const result = await this.db.query(
       `INSERT INTO api_keys
         (id, organization_id, created_by_user_id, session_id, name,
-         key_prefix, key_hash, token_type, scopes, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         key_prefix, key_hash, token_type, scopes, expires_at, token_encrypted)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING id, organization_id, session_id, name, key_prefix,
                  token_type, scopes, enabled, expires_at, created_at`,
       [
@@ -69,10 +70,20 @@ export class ApiKeysService {
         tokenType,
         [...new Set(input.scopes)],
         input.expiresAt ?? null,
+        tokenType === 'session' ? encryptWebhookSecret(token) : null,
       ],
     );
 
     return { ...result.rows[0], token };
+  }
+
+  async reveal(organizationId: string, keyId: string) {
+    const result = await this.db.query<{token_encrypted: string}>(
+      `SELECT token_encrypted FROM api_keys WHERE id=$1 AND organization_id=$2
+       AND session_id IS NOT NULL AND enabled AND revoked_at IS NULL
+       AND (expires_at IS NULL OR expires_at > now())`, [keyId, organizationId]);
+    if (!result.rows[0]?.token_encrypted) throw new NotFoundException('This key cannot be viewed. Create a new session key.');
+    return {token: decryptWebhookSecret(result.rows[0].token_encrypted)};
   }
 
   async revoke(organizationId: string, keyId: string) {

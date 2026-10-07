@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
 
-@Controller('v1/platform')
+@Controller(['platform', 'v1/platform'])
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class PlatformAdminController {
   constructor(private readonly platform: PlatformAdminService) {}

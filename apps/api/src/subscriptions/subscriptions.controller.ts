@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../auth/permissions';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { SubscriptionsService } from './subscriptions.service';
 
-@Controller('v1/billing')
+@Controller(['billing', 'v1/billing'])
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class SubscriptionsController {
   constructor(private readonly subscriptions: SubscriptionsService) {}
