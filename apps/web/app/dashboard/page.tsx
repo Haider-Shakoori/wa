@@ -40,8 +40,20 @@ export default function DashboardPage() {
   const [connectionNotice,setConnectionNotice] = useState<{sessionId:string;phone?:string|null;name?:string|null}|null>(null);
 
   useEffect(()=>{
-    setToken(localStorage.getItem('relaywa_access_token') ?? '');
-  },[]);
+    const current=localStorage.getItem('relaywa_access_token') ?? '';
+    if (!current) {
+      router.replace('/login');
+      return;
+    }
+    setToken(current);
+  },[router]);
+
+  function accountLogout() {
+    localStorage.removeItem('relaywa_access_token');
+    setToken('');
+    router.replace('/login');
+    router.refresh();
+  }
 
   async function refresh(currentToken = token) {
     if (!currentToken) return;
@@ -193,7 +205,7 @@ export default function DashboardPage() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">rW</div><div><strong>relayWA</strong><span>by BusinessOS</span></div></div>
       <nav>{nav.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="status-pill"><span className="live-dot"/>Platform operational</div><button className="ghost-button" onClick={()=>void refresh()}>Refresh data</button></div>
+      <div className="sidebar-bottom"><div className="status-pill"><span className="live-dot"/>Platform operational</div><button className="ghost-button" onClick={()=>void refresh()}>Refresh data</button><button className="danger-button account-logout" onClick={accountLogout}>Sign out</button></div>
     </aside>
 
     <main className="content">
