@@ -7,6 +7,7 @@ import './branding.css';
 import './marketing.css';
 import './code-showcase.css';
 import './workspace-compact.css';
+import './platform-tenant.css';
 import NavigationProgress from '../components/navigation-progress';
 import { siteUrl, siteDescription } from '../lib/seo';
 
