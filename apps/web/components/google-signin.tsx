@@ -9,7 +9,7 @@ type AuthProviders = {
   google?: { enabled?: boolean; clientId?: string };
 };
 
-export function GoogleSignIn({ destination }: { destination?: string } = {}) {
+export function GoogleSignIn({ destination, preservePlan = false }: { destination?: string; preservePlan?: boolean } = {}) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement|null>(null);
   const [error,setError] = useState('');
@@ -52,7 +52,12 @@ export function GoogleSignIn({ destination }: { destination?: string } = {}) {
               body:JSON.stringify({credential:response.credential}),
             });
             localStorage.setItem('relaywa_access_token',result.accessToken);
-            router.push(destination ?? (result.onboardingStep==='complete'?'/dashboard':'/onboarding'));
+            const params = new URLSearchParams(window.location.search);
+            const plan = preservePlan ? params.get('plan') : null;
+            const next = plan
+              ? '/subscription?plan=' + encodeURIComponent(plan) + '&interval=' + encodeURIComponent(params.get('interval') || 'monthly')
+              : destination ?? result.nextPath ?? (result.onboardingStep==='complete'?'/dashboard':'/onboarding');
+            router.push(next);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Google sign-in failed');
           }
@@ -86,13 +91,12 @@ export function GoogleSignIn({ destination }: { destination?: string } = {}) {
     script.addEventListener('load',initialize,{once:true});
     document.head.appendChild(script);
     return ()=>script.removeEventListener('load',initialize);
-  },[clientId,enabled,loaded,router,destination]);
+  },[clientId,enabled,loaded,router,destination,preservePlan]);
 
   if (!loaded || !enabled || !clientId) return null;
 
   return <div className="google-signin-wrap">
     <div ref={ref}/>
     {error && <div className="alert">{error}</div>}
-    <div className="auth-divider"><span>or continue with email</span></div>
   </div>;
 }
