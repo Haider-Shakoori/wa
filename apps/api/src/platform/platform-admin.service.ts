@@ -234,23 +234,47 @@ export class PlatformAdminService {
     const result = await this.db.query(
       `SELECT provider, enabled, public_config, updated_at
        FROM auth_provider_settings
+       WHERE provider IN ('google','github')
        ORDER BY provider`,
     );
+    const rows = new Map(result.rows.map((row:any) => [row.provider, row]));
 
-    const google = result.rows.find((row:any) => row.provider === 'google');
-    if (!google) {
-      return [{
+    const google = rows.get('google') as any;
+    const googleClientId = String(
+      google?.public_config?.clientId ??
+      process.env.GOOGLE_CLIENT_ID ??
+      '',
+    ).trim();
+
+    const github = rows.get('github') as any;
+    const githubClientId = String(
+      github?.public_config?.clientId ??
+      process.env.GITHUB_CLIENT_ID ??
+      '',
+    ).trim();
+    const githubSecretConfigured = Boolean(String(process.env.GITHUB_CLIENT_SECRET ?? '').trim());
+
+    return [
+      {
         provider: 'google',
-        enabled: Boolean(process.env.GOOGLE_CLIENT_ID),
+        enabled: google ? Boolean(google.enabled) : Boolean(googleClientId),
         public_config: {
-          clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-          source: process.env.GOOGLE_CLIENT_ID ? 'environment' : 'platform',
+          clientId: googleClientId,
+          source: google ? 'platform' : googleClientId ? 'environment' : 'platform',
         },
-        updated_at: null,
-      }];
-    }
-
-    return result.rows;
+        updated_at: google?.updated_at ?? null,
+      },
+      {
+        provider: 'github',
+        enabled: github ? Boolean(github.enabled) : Boolean(githubClientId && githubSecretConfigured),
+        public_config: {
+          clientId: githubClientId,
+          source: github ? 'platform' : githubClientId ? 'environment' : 'platform',
+          secretConfigured: githubSecretConfigured,
+        },
+        updated_at: github?.updated_at ?? null,
+      },
+    ];
   }
 
   async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }) {
@@ -286,6 +310,51 @@ export class PlatformAdminService {
       [enabled, JSON.stringify({ clientId, source: 'platform' })],
     );
     return result.rows[0];
+  }
+
+  async updateGithubAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+    const current = await this.db.query<any>(
+      `SELECT enabled, public_config
+       FROM auth_provider_settings
+       WHERE provider = 'github'
+       LIMIT 1`,
+    );
+
+    const existingClientId = String(
+      current.rows[0]?.public_config?.clientId ??
+      process.env.GITHUB_CLIENT_ID ??
+      '',
+    ).trim();
+    const clientId = input.clientId === undefined ? existingClientId : input.clientId.trim();
+    const enabled = input.enabled === undefined
+      ? Boolean(current.rows[0]?.enabled ?? (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET))
+      : input.enabled;
+    const secretConfigured = Boolean(String(process.env.GITHUB_CLIENT_SECRET ?? '').trim());
+
+    if (enabled && !clientId) {
+      throw new BadRequestException('GitHub Client ID is required before enabling GitHub sign-in');
+    }
+    if (enabled && !secretConfigured) {
+      throw new BadRequestException('GITHUB_CLIENT_SECRET must be configured in the production environment before enabling GitHub sign-in');
+    }
+
+    const result = await this.db.query(
+      `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
+       VALUES ('github', $1, $2::jsonb, now())
+       ON CONFLICT (provider)
+       DO UPDATE SET enabled = EXCLUDED.enabled,
+                     public_config = EXCLUDED.public_config,
+                     updated_at = now()
+       RETURNING provider, enabled, public_config, updated_at`,
+      [enabled, JSON.stringify({ clientId, source: 'platform', secretConfigured })],
+    );
+    return {
+      ...result.rows[0],
+      public_config: {
+        ...(result.rows[0] as any).public_config,
+        secretConfigured,
+      },
+    };
   }
 
   async messagingEngineSettings() {
