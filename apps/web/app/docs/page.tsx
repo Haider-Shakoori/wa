@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 const API_BASE = 'https://api.relaywa.com/api';
 
-const navGroups = [
+const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
   {
     label:'Getting started',
     items:[
@@ -40,7 +40,7 @@ const navGroups = [
       ['production','Production checklist'],
     ],
   },
-] as const;
+];
 
 const docsIndex = navGroups.flatMap((group)=>group.items.map(([id,title])=>({
   id,title,group:group.label,
