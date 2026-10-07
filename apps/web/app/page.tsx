@@ -107,8 +107,8 @@ Authorization: Bearer rw_live_••••••
           </div>
 
           <div className="hero-event-stream">
-            <div><span className="event-icon delivered">✓</span><p><strong>message.delivered</strong><small>WhatsApp delivery confirmed</small></p><time>now</time></div>
-            <div><span className="event-icon webhook">↗</span><p><strong>webhook.delivered</strong><small>200 OK · 184ms</small></p><time>1s</time></div>
+            <div><span className="event-icon delivered">✓</span><p><strong>message.sent</strong><small>Provider message ID stored</small></p><time>now</time></div>
+            <div><span className="event-icon webhook">↗</span><p><strong>session.connected</strong><small>Linked session healthy</small></p><time>1s</time></div>
             <div><span className="event-icon inbound">↓</span><p><strong>message.received</strong><small>Inbound event captured</small></p><time>4s</time></div>
           </div>
         </div>
