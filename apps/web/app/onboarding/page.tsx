@@ -323,8 +323,8 @@ export default function OnboardingPage() {
       </section>}
 
       {state.step==='test' && <section className="onboarding-panel narrow">
-        <div className="onboarding-title"><p className="eyebrow">Live test</p><h2>Send your first WhatsApp message.</h2><p>Use international format without a leading local zero.</p></div>
-        <form className="onboarding-form" onSubmit={sendTest}><label>Recipient number<input value={recipient} onChange={(e)=>setRecipient(e.target.value)} placeholder="93744119422" required minLength={7}/></label><label>Message<textarea value={message} onChange={(e)=>setMessage(e.target.value)} required/></label><button className="primary-button" disabled={busy}>Send test & continue</button></form>
+        <div className="onboarding-title"><p className="eyebrow">Live test</p><h2>Send your first WhatsApp message.</h2><p>Use E.164 international format with country code, digits only.</p></div>
+        <form className="onboarding-form" onSubmit={sendTest}><label>Recipient number<input value={recipient} onChange={(e)=>setRecipient(e.target.value)} placeholder="e.g. 12025550123" required minLength={7}/></label><label>Message<textarea value={message} onChange={(e)=>setMessage(e.target.value)} required/></label><button className="primary-button" disabled={busy}>Send test & continue</button></form>
       </section>}
 
       {state.step==='webhook' && <section className="onboarding-panel narrow">

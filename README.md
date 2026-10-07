@@ -1,6 +1,6 @@
-# BusinessOS WA
+# RelayWA
 
-A self-hosted WhatsApp session and messaging gateway built around a WaSender-style session/API model.
+A self-hosted, developer-focused WhatsApp session and messaging API platform with isolated session workers, queues, webhooks and multi-tenant SaaS controls.
 
 ## Batch 1 — Foundation
 

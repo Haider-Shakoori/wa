@@ -10,6 +10,8 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
   assert.match(source, /message\.sent/);
   assert.match(source, /integration-section/);
   assert.doesNotMatch(source, /BusinessOS/i);
+  assert.doesNotMatch(source, /93744119422/);
+  assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
 });
 
 test('tenant workspace and login use standalone RelayWA branding', async () => {
@@ -31,4 +33,44 @@ test('platform remains a separate control plane while sharing the unified visual
   assert.match(css, /\.platform-shell/);
   assert.match(css, /\.auth-v2-shell/);
   assert.match(css, /\.hero-product/);
+});
+
+
+test('onboarding uses neutral international E.164 recipient guidance', async () => {
+  const source = await readFile(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /E\.164 international format/);
+  assert.doesNotMatch(source, /93744119422/);
+  assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
+});
+
+
+test('public docs and tenant developer guide avoid region-specific sample identities', async () => {
+  const docs = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
+  const guide = await readFile(new URL('../components/developer-guide.tsx', import.meta.url), 'utf8');
+  for (const source of [docs, guide]) {
+    assert.doesNotMatch(source, /93744119422/);
+    assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
+    assert.match(source, /E164_RECIPIENT_NUMBER/);
+  }
+});
+
+
+test('all rendered web surfaces avoid legacy Afghanistan-specific and BusinessOS presentation', async () => {
+  const paths = [
+    '../app/page.tsx',
+    '../app/layout.tsx',
+    '../app/login/page.tsx',
+    '../app/onboarding/page.tsx',
+    '../app/dashboard/page.tsx',
+    '../app/docs/page.tsx',
+    '../app/platform/login/page.tsx',
+    '../app/platform/page.tsx',
+    '../components/customer-operations.tsx',
+    '../components/developer-guide.tsx',
+    '../components/google-signin.tsx',
+  ];
+  for (const path of paths) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /93744119422|Afghanistan|Afghan|Kabul|\bAFN\b|BusinessOS|wasender\.businessos\.af/i);
+  }
 });
