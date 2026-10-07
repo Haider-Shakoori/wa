@@ -171,7 +171,7 @@ export function DeveloperGuide({
         <h4>Endpoint</h4>
         <code>{API_BASE + '/v1/sessions/' + effectiveSessionId + '/messages/text'}</code>
         <h4>Phone format</h4>
-        <p>Use international format without a leading local zero. Example: <code>93744119422</code>.</p>
+        <p>Use E.164 international format with country code, digits only. Replace <code>E164_RECIPIENT_NUMBER</code> with the destination number.</p>
         <h4>Security</h4>
         <p>Keep API keys on your backend. For browser or mobile apps, call your own backend and let your backend call RelayWA.</p>
       </div>
@@ -181,7 +181,7 @@ export function DeveloperGuide({
 
 function buildSnippet(language:string,base:string,sessionId:string,token:string) {
   const endpoint = base + '/v1/sessions/' + sessionId + '/messages/text';
-  const payload = '{"to":"93744119422","text":"Hello from my app","clientMessageId":"order-1001"}';
+  const payload = '{"to":"E164_RECIPIENT_NUMBER","text":"Hello from my app","clientMessageId":"order-1001"}';
 
   if (language === 'Laravel / PHP') {
     return [
@@ -189,7 +189,7 @@ function buildSnippet(language:string,base:string,sessionId:string,token:string)
       "",
       "$response = Http::withToken(env('RELAYWA_API_KEY'))",
       "    ->post('" + endpoint + "', [",
-      "        'to' => '93744119422',",
+      "        'to' => 'E164_RECIPIENT_NUMBER',",
       "        'text' => 'Hello from Laravel',",
       "        'clientMessageId' => 'order-1001',",
       "    ]);",
@@ -210,7 +210,7 @@ function buildSnippet(language:string,base:string,sessionId:string,token:string)
       "    'Content-Type': 'application/json'",
       "  },",
       "  body: JSON.stringify({",
-      "    to: '93744119422',",
+      "    to: 'E164_RECIPIENT_NUMBER',",
       "    text: 'Hello from Node.js',",
       "    clientMessageId: 'order-1001'",
       "  })",
@@ -229,7 +229,7 @@ function buildSnippet(language:string,base:string,sessionId:string,token:string)
       "    '" + endpoint + "',",
       "    headers={'Authorization': 'Bearer ' + os.environ['RELAYWA_API_KEY']},",
       "    json={",
-      "        'to': '93744119422',",
+      "        'to': 'E164_RECIPIENT_NUMBER',",
       "        'text': 'Hello from Python',",
       "        'clientMessageId': 'order-1001',",
       "    },",
@@ -249,7 +249,7 @@ function buildSnippet(language:string,base:string,sessionId:string,token:string)
       "",
       "var response = await client.PostAsJsonAsync(",
       "    \"" + endpoint + "\",",
-      "    new { to = \"93744119422\", text = \"Hello from .NET\", clientMessageId = \"order-1001\" });",
+      "    new { to = \"E164_RECIPIENT_NUMBER\", text = \"Hello from .NET\", clientMessageId = \"order-1001\" });",
       "",
       "response.EnsureSuccessStatusCode();",
     ].join('\n');
