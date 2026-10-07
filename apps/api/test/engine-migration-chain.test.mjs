@@ -8,6 +8,7 @@ test('production migration chain includes engine migrations', async () => {
   assert.match(pkg.scripts.migrate, /020_session_engine_handover\.sql/);
   assert.match(pkg.scripts.migrate, /021_system_alerts\.sql/);
   assert.match(pkg.scripts.migrate, /022_messaging_safety_governor\.sql/);
+  assert.match(pkg.scripts.migrate, /023_subscription_catalog_v2\.sql/);
   assert.ok(
     pkg.scripts.migrate.indexOf('019_messaging_engine_settings.sql')
       < pkg.scripts.migrate.indexOf('020_session_engine_handover.sql'),
@@ -19,5 +20,9 @@ test('production migration chain includes engine migrations', async () => {
   assert.ok(
     pkg.scripts.migrate.indexOf('021_system_alerts.sql')
       < pkg.scripts.migrate.indexOf('022_messaging_safety_governor.sql'),
+  );
+  assert.ok(
+    pkg.scripts.migrate.indexOf('022_messaging_safety_governor.sql')
+      < pkg.scripts.migrate.indexOf('023_subscription_catalog_v2.sql'),
   );
 });
