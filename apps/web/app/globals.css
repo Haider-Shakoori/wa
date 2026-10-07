@@ -783,3 +783,43 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .eyebrow{font-size:11px!important}
 @media(max-width:900px){.platform-shell .platform-hero-v2{padding:25px!important}.platform-shell .platform-metrics{gap:10px!important}.platform-shell .metric-card{padding:16px!important;min-height:125px!important}.platform-shell .metric-card strong{font-size:30px!important}}
 @media(max-width:600px){.platform-shell .platform-topbar-v2 h1{font-size:27px!important}.platform-shell .platform-hero-v2 h2{font-size:30px!important}.platform-shell .platform-hero-v2{padding:20px!important}.platform-shell .platform-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+
+/* Platform alignment with the tenant workspace visual system */
+.platform-shell{--admin-line:#29372e!important;--admin-green:#25d366!important;--admin-green-soft:#15372f!important;background:#0b0f0d!important;color:#f5f7f5!important}
+.platform-shell .sidebar{background:#111613!important;border-right:1px solid #29372e!important;box-shadow:none!important}
+.platform-shell .sidebar .brand strong{color:#f5f7f5!important}
+.platform-shell .sidebar .brand span,.platform-shell .sidebar .platform-nav-label{color:#909c94!important}
+.platform-shell .sidebar .nav-item{color:#bac2bd!important;border-color:transparent!important;background:transparent!important;border-radius:8px!important}
+.platform-shell .sidebar .nav-item.active{background:#25d36612!important;color:#54df87!important;box-shadow:inset 2px 0 #25d366!important;border-color:transparent!important}
+.platform-shell .sidebar .nav-item:hover{background:#ffffff09!important;color:#f5f7f5!important}
+.platform-shell .sidebar .sidebar-bottom{border-color:#29372e!important}
+.platform-shell .sidebar .platform-link,.platform-shell .sidebar .status-pill{color:#bac2bd!important}
+.platform-shell .content.platform-page{background:#0b0f0d!important;color:#f5f7f5!important}
+.platform-shell .platform-topbar-v2{border-bottom:1px solid #29372e!important}
+.platform-shell .platform-topbar-v2 h1,.platform-shell .platform-hero-v2 h2{color:#f5f7f5!important}
+.platform-shell .platform-page-context,.platform-shell .panel-subtitle,.platform-shell .muted{color:#9ba9a0!important}
+.platform-shell .platform-search,.platform-shell .secondary-button,.platform-shell .table-select{background:#111613!important;border-color:#344039!important;color:#f5f7f5!important;box-shadow:none!important}
+.platform-shell .platform-search input,.platform-shell .table-select{color:#f5f7f5!important}
+.platform-shell .api-badge{background:#15372f!important;border-color:#2b5942!important;color:#69e99c!important}
+.platform-shell .platform-hero-v2{background:linear-gradient(120deg,#142720,#121b15)!important;border:1px solid #303b33!important;border-radius:14px!important;box-shadow:none!important}
+.platform-shell .platform-hero-v2 .eyebrow,.platform-shell .eyebrow{color:#25d366!important}
+.platform-shell .platform-hero-v2 .muted{color:#b2c3b8!important}
+.platform-shell .platform-hero-v2 .primary-button,.platform-shell .primary-button{background:#25d366!important;border-color:#25d366!important;color:#082217!important}
+.platform-shell .platform-hero-v2 .secondary-button{background:#111613!important;border-color:#344039!important;color:#f5f7f5!important}
+.platform-shell .platform-hero-v2 .platform-health-card{background:#111613!important;border:1px solid #344039!important;backdrop-filter:none!important;box-shadow:none!important}
+.platform-shell .platform-hero-v2 .platform-health-head strong,.platform-shell .platform-hero-v2 .platform-health-stats b{color:#f5f7f5!important}
+.platform-shell .platform-hero-v2 .platform-health-head small,.platform-shell .platform-hero-v2 .platform-health-stats span{color:#9ba9a0!important}
+.platform-shell .platform-hero-v2 .platform-health-stats span{background:#1a251d!important;border-color:#344039!important}
+.platform-shell .metric-card,.platform-shell .panel,.platform-shell .platform-table,.platform-shell .provider-card,.platform-shell .auth-provider-card{background:#111613!important;border:1px solid #29372e!important;color:#f5f7f5!important;border-radius:12px!important;box-shadow:none!important}
+.platform-shell .metric-card:before{height:2px!important;background:#25d366!important}
+.platform-shell .metric-card p,.platform-shell .metric-card span{color:#9ba9a0!important}
+.platform-shell .metric-card strong,.platform-shell .panel-head h2,.platform-shell .platform-row strong,.platform-shell .session-row strong,.platform-shell .provider-card h3,.platform-shell .auth-provider-card h3{color:#f5f7f5!important}
+.platform-shell .platform-row,.platform-shell .session-row{color:#c9d5cd!important;border-color:#29372e!important}
+.platform-shell .platform-row-head{background:#18221c!important;color:#aebdb2!important}
+.platform-shell .platform-row small,.platform-shell .session-row span{color:#98aa9e!important}
+.platform-shell .settings-help,.platform-shell .queue-group span,.platform-shell .platform-health-stats span{background:#19221b!important;border-color:#344039!important;color:#a7bbae!important}
+.platform-shell .settings-help strong,.platform-shell .diagnostic-row strong,.platform-shell .queue-group>strong{color:#f5f7f5!important}
+.platform-shell .settings-help code{background:#0b0f0d!important;color:#76e89f!important;border-color:#344039!important}
+.platform-shell .state,.platform-shell .count-badge{background:#15372f!important;color:#74e8a0!important}
+.platform-shell .secondary-button:hover,.platform-shell .mini-button:hover{background:#1b281f!important}
+.platform-shell input,.platform-shell select{color-scheme:dark}
