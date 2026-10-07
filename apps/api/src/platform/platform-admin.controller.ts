@@ -44,6 +44,11 @@ export class PlatformAdminController {
     return this.platform.sessionAction(sessionId, 'logout');
   }
 
+  @Post('sessions/:sessionId/messaging/resume')
+  resumeSessionMessaging(@Param('sessionId') sessionId: string) {
+    return this.platform.resumeSessionMessaging(sessionId);
+  }
+
   @Patch('subscriptions/:organizationId')
   updateSubscription(
     @Param('organizationId') organizationId: string,
