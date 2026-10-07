@@ -13,13 +13,14 @@ for (const [name, path] of pages) {
     const source = await readFile(new URL(path, import.meta.url), 'utf8');
     assert.match(source, /localStorage\.removeItem\('relaywa_access_token'\)/);
     assert.match(source, /Sign out/);
-    assert.match(source, /router\.replace\('\/login'\)/);
+    if (name === 'platform') assert.match(source, /router\.replace\('\/platform\/login'\)/);
+    else assert.match(source, /router\.replace\('\/login'\)/);
   });
 }
 
-test('dashboard and platform redirect when no account token exists', async () => {
+test('dashboard and platform redirect to their own login surfaces when no token exists', async () => {
   const dashboard = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
   const platform = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
   assert.match(dashboard, /if \(!current\)[\s\S]*router\.replace\('\/login'\)/);
-  assert.match(platform, /if \(!current\)[\s\S]*router\.replace\('\/login'\)/);
+  assert.match(platform, /if \(!current\)[\s\S]*router\.replace\('\/platform\/login'\)/);
 });
