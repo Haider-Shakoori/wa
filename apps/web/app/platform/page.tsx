@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
+import { PlatformMonitoring } from '../../components/platform-monitoring';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Monitoring','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -513,6 +514,8 @@ export default function PlatformPage() {
         {!loginEvents.length&&<Empty text="No administrator sign-in events recorded yet."/>}
       </section></>}
 
+      {active === 'Monitoring' && <PlatformMonitoring token={token} role={platformRole}/>}
+
       {active === 'Audit log' && <section className="panel platform-audit-panel">
         <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
         <div className="platform-filter-bar"><input aria-label="Filter by action" placeholder="Filter action" value={auditAction} onChange={e=>setAuditAction(e.target.value)}/><input aria-label="Filter by actor email" placeholder="Filter actor email" value={auditActor} onChange={e=>setAuditActor(e.target.value)}/><button onClick={()=>void searchAudit()}>Search audit</button><span>{auditLogs.length} records</span></div>
@@ -714,6 +717,7 @@ function money(cents:number,currency:string) { try { return new Intl.NumberForma
 function platformSubtitle(section:string) {
   const subtitles:Record<string,string> = {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
+    Monitoring:'Worker leases, session health, webhook failures and actionable alerts.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
     'Audit log':'Recorded administrator actions, change history and accountability.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',

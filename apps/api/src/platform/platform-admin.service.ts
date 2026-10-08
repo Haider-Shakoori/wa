@@ -67,6 +67,80 @@ export class PlatformAdminService {
       alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
   }
 
+  async monitoringOverview() {
+    const [sessions, webhooks, messageFailures, recentAlerts, workers] = await Promise.all([
+      this.db.query(`SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE status='connected')::int AS connected,
+        count(*) FILTER (WHERE status='reconnecting')::int AS reconnecting,
+        count(*) FILTER (WHERE status IN ('logged_out','error','disconnected'))::int AS offline,
+        count(*) FILTER (WHERE worker_id IS NOT NULL AND worker_lease_expires_at < now()
+           AND status IN ('connected','connecting','reconnecting'))::int AS stale_leases
+        FROM whatsapp_sessions WHERE deleted_at IS NULL`),
+      this.db.query(`SELECT count(*) FILTER (WHERE status='failed')::int AS failed,
+        count(*) FILTER (WHERE status='queued')::int AS queued,
+        count(*) FILTER (WHERE status='delivered')::int AS delivered
+        FROM webhook_deliveries WHERE created_at >= now()-interval '24 hours'`),
+      this.db.query(`SELECT count(*)::int AS count FROM whatsapp_messages
+        WHERE direction='outbound' AND status='failed'
+        AND created_at>=now()-interval '24 hours'`),
+      this.db.query(`SELECT count(*)::int AS total,
+        count(*) FILTER (WHERE acknowledged_at IS NULL)::int AS unacknowledged,
+        count(*) FILTER (WHERE acknowledged_at IS NULL AND severity='critical')::int AS critical
+        FROM system_alerts WHERE created_at>=now()-interval '30 days'`),
+      this.workers(),
+    ]);
+    return { generatedAt:new Date().toISOString(),
+      sessions:sessions.rows[0], webhooks24h:webhooks.rows[0],
+      failedMessages24h:messageFailures.rows[0]?.count??0,
+      alerts30d:recentAlerts.rows[0],
+      workers:workers.map((worker:any)=>({
+        ...worker, leaseActive:Boolean(worker.lease_expires_at &&
+          new Date(worker.lease_expires_at).getTime()>Date.now()),
+      })) };
+  }
+
+  async monitoringAlerts(severity = '', acknowledgement = '') {
+    if (severity && !['critical','warning','info'].includes(severity)) {
+      throw new BadRequestException('Invalid alert severity');
+    }
+    if (acknowledgement && !['open','acknowledged'].includes(acknowledgement)) {
+      throw new BadRequestException('Invalid alert acknowledgement filter');
+    }
+    const result=await this.db.query(`SELECT a.id,a.event_type,a.severity,a.subject,a.summary,
+      a.organization_id,a.session_id,a.resource_type,a.resource_id,a.status,a.created_at,
+      a.sent_at,a.acknowledged_at,u.email AS acknowledged_by_email
+      FROM system_alerts a
+      LEFT JOIN users u ON u.id=a.acknowledged_by
+      WHERE ($1='' OR a.severity=$1)
+        AND ($2='' OR ($2='open' AND a.acknowledged_at IS NULL)
+          OR ($2='acknowledged' AND a.acknowledged_at IS NOT NULL))
+      ORDER BY a.created_at DESC LIMIT 150`,[severity,acknowledgement]);
+    return result.rows;
+  }
+
+  async setAlertAcknowledgement(alertId:string, acknowledged:boolean, actorUserId:string) {
+    return this.db.transaction(async client=>{
+      const result=await client.query<{id:string;acknowledged_at:Date|null}>(
+        'SELECT id,acknowledged_at FROM system_alerts WHERE id=$1 FOR UPDATE',[alertId]);
+      const alert=result.rows[0];
+      if(!alert)throw new NotFoundException('Alert not found');
+      if(Boolean(alert.acknowledged_at)===acknowledged) {
+        return {id:alertId,acknowledged,changed:false};
+      }
+      await client.query(`UPDATE system_alerts
+        SET acknowledged_at=CASE WHEN $2 THEN now() ELSE NULL END,
+            acknowledged_by=CASE WHEN $2 THEN $3::uuid ELSE NULL END,
+            updated_at=now() WHERE id=$1`,[alertId,acknowledged,actorUserId]);
+      await this.recordAudit(client,actorUserId,
+        acknowledged?'monitoring.alert.acknowledged':'monitoring.alert.reopened',
+        'system_alert',alertId,
+        {acknowledged:Boolean(alert.acknowledged_at)},
+        {acknowledged});
+      return {id:alertId,acknowledged,changed:true};
+    });
+  }
+
   async auditLogs(action = '', actor = '') {
     const result = await this.db.query(`SELECT a.id, a.action, a.target_type, a.target_id, a.before_state, a.after_state,
       a.created_at, u.email AS actor_email

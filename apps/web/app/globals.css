@@ -990,3 +990,43 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 @media(prefers-reduced-motion:reduce){
   .platform-shell .platform-admin-sidebar{transition:none!important}
 }
+
+/* Phase 7: Monitoring dashboard and alert review */
+.platform-shell .platform-monitoring{display:grid;gap:16px;min-width:0}
+.platform-shell .platform-monitoring-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.platform-shell .platform-monitoring-head h2{font-size:22px;letter-spacing:-.025em}
+.platform-shell .platform-monitoring-head small{display:block;margin-top:10px;color:#90a898}
+.platform-shell .platform-monitoring-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.platform-shell .platform-monitoring-cards>.panel{display:grid;align-content:start;gap:9px;padding:18px!important}
+.platform-shell .platform-monitoring-cards span{color:#b5c8bb;font-size:12px}
+.platform-shell .platform-monitoring-cards strong{font-size:27px;line-height:1.1;color:#effcf1;letter-spacing:-.04em}
+.platform-shell .platform-monitoring-cards small{color:#93ab99;font-size:11px;line-height:1.5}
+.platform-shell .platform-monitoring-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 0;border-bottom:1px solid #2c3f32;min-width:0}
+.platform-shell .platform-monitoring-row:last-child{border-bottom:0}
+.platform-shell .platform-monitoring-row>span:first-child,.platform-shell .platform-monitoring-alert-copy{min-width:0;flex:1}
+.platform-shell .platform-monitoring-row strong{font-size:13px;color:#e2f0e6}
+.platform-shell .platform-monitoring-row small{display:block;font-size:10px;color:#92a99a;margin-top:5px;overflow-wrap:anywhere}
+.platform-shell .platform-monitoring-state{border:1px solid #486d52;border-radius:100px;padding:6px 10px;white-space:nowrap;font-size:11px;color:#bbf3cc}
+.platform-shell .platform-monitoring-state.is-critical{color:#ffb2b2;border-color:#85504b}
+.platform-shell .platform-monitoring-alerts-head{display:flex;align-items:start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:8px}
+.platform-shell .platform-monitoring-alerts-head h3,.platform-shell .platform-monitoring> .panel>h3{color:#e9f4eb;font-size:17px;margin:0 0 8px}
+.platform-shell .platform-monitoring-filters{display:flex;flex-wrap:wrap;gap:10px}
+.platform-shell .platform-monitoring-filters label{display:grid;gap:5px;font-size:11px;color:#aec4b4}
+.platform-shell .platform-monitoring-filters select{min-width:125px;background:#1a2920;color:#eaf5ec;border:1px solid #3c5946;border-radius:9px;padding:9px}
+.platform-shell .platform-monitoring-alert-copy>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.platform-shell .platform-monitoring-alert-copy p{color:#bacdbf;line-height:1.55;font-size:12px;margin:7px 0}
+.platform-shell .platform-alert-severity{font-size:10px;text-transform:uppercase;letter-spacing:.07em;border-radius:6px;padding:5px 7px;border:1px solid #4f6956;color:#c5dccb}
+.platform-shell .platform-alert-severity.critical{border-color:#884b4b;color:#ffc1bd;background:#492b2c}
+.platform-shell .platform-alert-severity.warning{border-color:#806d40;color:#f5d99c;background:#3c3520}
+.platform-shell .platform-alert-severity.info{border-color:#406e71;color:#aee4e4;background:#1d393b}
+@media(max-width:1120px){.platform-shell .platform-monitoring-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:610px){
+ .platform-shell .platform-monitoring-cards{grid-template-columns:1fr 1fr;gap:9px}
+ .platform-shell .platform-monitoring-cards>.panel{padding:13px!important}
+ .platform-shell .platform-monitoring-cards strong{font-size:21px}
+ .platform-shell .platform-monitoring-alert{align-items:flex-start;flex-direction:column}
+ .platform-shell .platform-monitoring-filters{width:100%}
+ .platform-shell .platform-monitoring-filters label{flex:1}
+ .platform-shell .platform-monitoring-filters select{width:100%;min-width:0}
+}
+@media(max-width:375px){.platform-shell .platform-monitoring-cards{grid-template-columns:1fr}}
