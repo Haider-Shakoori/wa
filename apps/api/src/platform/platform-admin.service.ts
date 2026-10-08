@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 import type { PoolClient } from 'pg';
 
@@ -59,12 +59,87 @@ export class PlatformAdminService {
       alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
   }
 
-  async auditLogs() {
+  async auditLogs(action = '', actor = '') {
     const result = await this.db.query(`SELECT a.id, a.action, a.target_type, a.target_id, a.before_state, a.after_state,
       a.created_at, u.email AS actor_email
       FROM platform_admin_audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
-      ORDER BY a.created_at DESC LIMIT 100`);
+      WHERE ($1 = '' OR a.action ILIKE '%' || $1 || '%')
+        AND ($2 = '' OR u.email ILIKE '%' || $2 || '%')
+      ORDER BY a.created_at DESC LIMIT 100`, [action.slice(0,80),actor.slice(0,100)]);
     return result.rows;
+  }
+
+  async loginEvents() {
+    const result = await this.db.query(`SELECT e.id, e.outcome, e.login_method, e.ip_address,
+      e.created_at, u.email FROM platform_login_events e
+      LEFT JOIN users u ON u.id = e.user_id ORDER BY e.created_at DESC LIMIT 100`);
+    return result.rows;
+  }
+
+  async administrators() {
+    const result = await this.db.query(`SELECT id, email, name, platform_role, created_at
+      FROM users WHERE is_platform_admin = true AND disabled_at IS NULL
+      ORDER BY email ASC LIMIT 100`);
+    return result.rows;
+  }
+
+  async updateAdminRole(userId: string, input: UpdatePlatformAdminRoleDto, actorUserId: string) {
+    if (input.reason?.trim().length < 8) throw new BadRequestException('Provide an audit reason');
+    return this.db.transaction(async (client) => {
+      // A table lock prevents concurrent changes removing the last super-admin.
+      await client.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE');
+      const result = await client.query<{id:string; platform_role:string|null}>(
+        'SELECT id, platform_role FROM users WHERE id = $1 AND is_platform_admin = true AND disabled_at IS NULL FOR UPDATE',
+        [userId],
+      );
+      const target = result.rows[0];
+      if (!target) throw new NotFoundException('Platform administrator not found');
+      if (target.id === actorUserId && input.role !== target.platform_role) {
+        throw new ForbiddenException('Cannot change your own platform administrator role');
+      }
+      if (target.platform_role === input.role) return { userId, role: input.role, changed: false };
+      if (target.platform_role === 'super_admin') {
+        const count = await client.query<{total:number}>(`SELECT count(*)::int AS total FROM users
+          WHERE is_platform_admin = true AND disabled_at IS NULL AND platform_role = 'super_admin'`);
+        if ((count.rows[0]?.total ?? 0) <= 1) throw new ForbiddenException('Last super administrator must remain');
+      }
+      await client.query('UPDATE users SET platform_role = $2, updated_at = now() WHERE id = $1', [userId, input.role]);
+      await this.recordAudit(client, actorUserId,'platform.admin.role.updated','platform_admin',userId,
+        {role: target.platform_role},{role: input.role, reason: input.reason.trim()});
+      return { userId, role: input.role, changed: true };
+    });
+  }
+
+  async setTenantSuspension(organizationId: string, input: UpdateTenantSuspensionDto, actorUserId: string) {
+    const reason = input.reason?.trim();
+    if (!reason || reason.length < 8) throw new BadRequestException('Provide a reason of at least eight characters');
+    return this.db.transaction(async (client) => {
+      const result = await client.query<{ id: string; suspended_at: Date|null }>(
+        'SELECT id, suspended_at FROM organizations WHERE id = $1 FOR UPDATE', [organizationId],
+      );
+      const org = result.rows[0];
+      if (!org) throw new NotFoundException('Organization not found');
+      const wasSuspended = Boolean(org.suspended_at);
+      if (wasSuspended === (input.status === 'suspended')) {
+        return { organizationId, status: wasSuspended ? 'suspended' : 'active', changed: false };
+      }
+      if (input.status === 'suspended') {
+        const admins = await client.query(`SELECT 1 FROM organization_memberships m JOIN users u ON u.id = m.user_id
+          WHERE m.organization_id = $1 AND m.status = 'active'
+            AND u.is_platform_admin = true AND u.disabled_at IS NULL LIMIT 1`,[organizationId]);
+        if (admins.rowCount) throw new ForbiddenException('Cannot suspend an organization containing a platform administrator');
+      }
+      const updated = await client.query(`UPDATE organizations
+        SET suspended_at = CASE WHEN $2 = 'suspended' THEN now() ELSE NULL END,
+            suspension_reason = CASE WHEN $2 = 'suspended' THEN $3 ELSE NULL END,
+            suspended_by = CASE WHEN $2 = 'suspended' THEN $4::uuid ELSE NULL END,
+            updated_at = now()
+        WHERE id = $1 RETURNING suspended_at`,[organizationId,input.status,reason,actorUserId]);
+      await this.recordAudit(client,actorUserId,input.status === 'suspended'?'tenant.suspended':'tenant.reactivated',
+        'tenant',organizationId,{status:wasSuspended?'suspended':'active'},
+        {status:input.status,reason});
+      return { organizationId, status: input.status, changed: true, suspendedAt:updated.rows[0].suspended_at };
+    });
   }
 
   async updateTenantMemberStatus(
@@ -166,7 +241,7 @@ export class PlatformAdminService {
 
   async tenants() {
     const result = await this.db.query(
-      `SELECT o.id, o.name, o.slug, o.created_at,
+      `SELECT o.id, o.name, o.slug, o.created_at, o.suspended_at, o.suspension_reason,
               s.plan_code, s.status AS subscription_status, s.current_period_end,
               count(DISTINCT ws.id)::int AS sessions,
               count(DISTINCT m.id)::int AS members
