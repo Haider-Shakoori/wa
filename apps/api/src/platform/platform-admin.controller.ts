@@ -95,8 +95,8 @@ export class PlatformAdminController {
   messagingSafetySettings() { return this.platform.messagingSafetySettings(); }
 
   @Patch('settings/messaging-safety')
-  updateMessagingSafety(@Body() body: UpdateMessagingSafetyDto) {
-    return this.platform.updateMessagingSafety(body);
+  updateMessagingSafety(@Body() body: UpdateMessagingSafetyDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateMessagingSafety(body, request.auth.sub);
   }
 
   @Get('workers')
