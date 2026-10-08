@@ -1,10 +1,12 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { isIP } from 'node:net';
 
 export type WebsiteView = {
   visitorKey: string;
   path: string;
   countryCode: string;
+  clientIp?: string | null;
   trafficType: 'human' | 'bot' | 'suspected_bot';
   botFamily?: string | null;
   deviceType: 'desktop' | 'mobile' | 'tablet' | 'other';
@@ -18,10 +20,17 @@ export class WebsiteAnalyticsService {
   async collect(view: WebsiteView) {
     // Keyed daily visitor hash is generated in the website server;
     // raw IP addresses, browser fingerprints and query strings never reach storage.
+    let country=view.countryCode;
+    if (country==='ZZ' && view.clientIp && isIP(view.clientIp)) {
+      const lookup=await this.db.query<{country_code:string}>(`SELECT country_code
+        FROM website_geoip_ranges WHERE range_start <= $1::inet AND range_end >= $1::inet
+        ORDER BY range_start DESC LIMIT 1`,[view.clientIp]);
+      country=lookup.rows[0]?.country_code?.trim()??'ZZ';
+    }
     await this.db.query(`INSERT INTO website_pageviews
       (visitor_key,path,country_code,traffic_type,bot_family,device_type,referrer_host)
       VALUES ($1,$2,$3,$4,$5,$6,$7)`, [
-        view.visitorKey, view.path, view.countryCode,
+        view.visitorKey, view.path, country,
         view.trafficType, view.botFamily ?? null,
         view.deviceType, view.referrerHost ?? null,
       ]);
@@ -79,7 +88,7 @@ export class WebsiteAnalyticsService {
       generatedAt: new Date().toISOString(),
       summary: summary.rows[0], trend:trend.rows, countries:countries.rows,
       bots:bots.rows, pages:pages.rows, sources:sources.rows, devices:devices.rows,
-      note:'First-party server page requests; visitors are approximate daily unique hashes. Bots are user-agent based, not independently verified. Country is Unknown unless a trusted CDN country header is configured.',
+      note:'First-party server page requests; visitors are approximate daily unique hashes. Bots are user-agent based, not independently verified. Country is derived from the local offline IP country dataset or a configured trusted CDN header; Unknown indicates missing or unresolvable location.',
     };
   }
 }
