@@ -29,9 +29,11 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
   const [visible,setVisible]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [sessionExpired,setSessionExpired]=useState(false);
 
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
+    setSessionExpired(params.get('expired')==='1');
     const githubError=params.get('github_error');
     const githubCode=params.get('github_code');
 
@@ -113,6 +115,7 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
         <h1>{register?'Start building with RelayWA':'Welcome back.'}</h1>
         <p>{register?'Your 7-day trial starts here. No payment card required.':'Sign in to manage your sessions and integrations.'}</p>
 
+        {sessionExpired&&!error&&<div className="rw-alert" role="status">Your login session expired. Please sign in again.</div>}
         {error&&<div className="rw-alert" role="alert">{error}</div>}
 
         <div className="social-auth-stack">
