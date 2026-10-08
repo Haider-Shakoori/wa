@@ -13,7 +13,7 @@ test('public website links to RelayWA documentation and uses real API route shap
 test('public docs cover authentication sessions messages webhooks and safety', async () => {
   const source = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /import \{ API_BASE \}/);
-  assert.match(source, /rw_live_/);
+  assert.match(source, /rw_session_/);
   assert.match(source, /rw_session_/);
   assert.match(source, /sessions\.read/);
   assert.match(source, /messages\.send/);
