@@ -361,7 +361,7 @@ export class AuthService {
       organizationId: membership.organization_id,
       onboardingStep,
       isPlatformAdmin,
-      nextPath: isPlatformAdmin ? '/platform' : onboardingStep === 'complete' ? '/dashboard' : '/onboarding',
+      nextPath: isPlatformAdmin ? '/platform' : loginMethod === 'register' && onboardingStep !== 'complete' ? '/onboarding' : '/dashboard',
     };
   }
 
