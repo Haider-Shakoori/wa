@@ -113,24 +113,30 @@ export class PlatformAdminService {
     return result.rows;
   }
 
-  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout') {
-    const session = await this.db.query<{ organization_id: string }>(
-      `SELECT organization_id
-       FROM whatsapp_sessions
-       WHERE id = $1 AND deleted_at IS NULL
-       LIMIT 1`,
-      [sessionId],
-    );
-    if (!session.rows[0]) throw new NotFoundException('Session not found');
+  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout', actorUserId: string) {
+    return this.db.transaction(async (client) => {
+      const session = await client.query<{ organization_id: string }>(
+        `SELECT organization_id FROM whatsapp_sessions WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+        [sessionId],
+      );
+      if (!session.rows[0]) throw new NotFoundException('Session not found');
 
-    const commandId = randomUUID();
-    await this.db.query(
-      `INSERT INTO whatsapp_session_commands
-        (id, organization_id, session_id, command, status)
-       VALUES ($1, $2, $3, $4, 'queued')`,
-      [commandId, session.rows[0].organization_id, sessionId, action],
-    );
-    return { commandId, sessionId, action, status: 'queued' };
+      const commandId = randomUUID();
+      await client.query(
+        `INSERT INTO whatsapp_session_commands
+          (id, organization_id, session_id, command, status)
+         VALUES ($1, $2, $3, $4, 'queued')`,
+        [commandId, session.rows[0].organization_id, sessionId, action],
+      );
+      await client.query(
+        `INSERT INTO platform_admin_audit_logs
+          (id, actor_user_id, action, target_type, target_id, after_state)
+         VALUES ($1, $2, $3, 'whatsapp_session', $4, $5::jsonb)`,
+        [randomUUID(), actorUserId, 'session.' + action + '.queued', sessionId,
+          JSON.stringify({ commandId, organizationId: session.rows[0].organization_id })],
+      );
+      return { commandId, sessionId, action, status: 'queued' };
+    });
   }
 
   async updateSessionEngine(sessionId: string, input: { engine: 'baileys' | 'chromium' }) {
