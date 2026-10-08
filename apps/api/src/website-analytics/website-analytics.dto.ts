@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsIP, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class RecordWebsiteViewDto {
   @Matches(/^[a-f0-9]{64}$/)
@@ -9,6 +9,9 @@ export class RecordWebsiteViewDto {
 
   @Matches(/^[A-Z]{2}$/)
   countryCode!: string;
+
+  @IsOptional() @IsIP()
+  clientIp?: string | null;
 
   @IsIn(['human','bot','suspected_bot'])
   trafficType!: 'human' | 'bot' | 'suspected_bot';
