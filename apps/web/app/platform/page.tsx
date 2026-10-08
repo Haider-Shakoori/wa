@@ -33,6 +33,8 @@ export default function PlatformPage() {
   const [paymentFilter,setPaymentFilter] = useState<'all'|'pending'|'failed'>('all');
   const [tenantFilter,setTenantFilter] = useState<'all'|'active'|'trialing'|'attention'>('all');
   const [selectedTenantId,setSelectedTenantId] = useState<string|null>(null);
+  const [tenantMembers,setTenantMembers] = useState<any[]>([]);
+  const [membersLoading,setMembersLoading] = useState(false);
   const [subscriptionFilter,setSubscriptionFilter] = useState<'all'|'active'|'trialing'|'attention'>('all');
   const [lastUpdated,setLastUpdated] = useState<Date|null>(null);
   const [refreshing,setRefreshing] = useState(false);
@@ -295,6 +297,17 @@ export default function PlatformPage() {
   const pendingManual = payments.filter((p)=>p.provider === 'manual' && p.status === 'pending').length;
   const healthyWorkers = workers.filter((w)=>new Date(w.lease_expires_at).getTime() > Date.now()).length;
   const normalizedQuery = query.trim().toLowerCase();
+  useEffect(()=>{
+    if (!token || !selectedTenantId) { setTenantMembers([]); setMembersLoading(false); return; }
+    let canceled=false;
+    setTenantMembers([]); setMembersLoading(true);
+    void api<any[]>('/platform/tenants/'+encodeURIComponent(selectedTenantId)+'/members',token)
+      .then((items)=>{ if (!canceled) setTenantMembers(items); })
+      .catch((err)=>{ if (!canceled) setError(err instanceof Error ? err.message : 'Unable to load tenant members'); })
+      .finally(()=>{ if (!canceled) setMembersLoading(false); });
+    return ()=>{ canceled=true; };
+  },[token,selectedTenantId]);
+
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
   const visibleTenants = filteredTenants.filter((item)=>tenantFilter==='all' || (tenantFilter==='active' ? item.subscription_status==='active' : tenantFilter==='trialing' ? item.subscription_status==='trialing' : !['active','trialing'].includes(String(item.subscription_status??''))));
   const selectedTenant = tenants.find((item)=>item.id===selectedTenantId);
@@ -404,6 +417,16 @@ export default function PlatformPage() {
       {active === 'Organizations' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected tenant details">
         <div className="panel-head"><div><p className="eyebrow">Organization profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
         <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.subscription_status??'none'}/></span></div>
+        <h3 className="platform-profile-heading">Tenant members</h3>
+        <p className="platform-member-hint">Memberships are displayed read-only. Changes to access should be made through a verified, auditable workflow.</p>
+        {membersLoading?<Empty text="Loading members…"/>:tenantMembers.length?tenantMembers.map((member)=><div className="platform-detail-row platform-member-row" key={member.membership_id}>
+          <span><strong>{member.name}</strong><small>{member.email} · Added {date(member.created_at)}</small></span>
+          <span className="platform-member-role">{member.role}</span>
+          <Badge value={member.account_disabled?'disabled':member.status}/>
+        </div>):<Empty text="No memberships found for this organization."/>}
+        <h3 className="platform-profile-heading">Recent admin actions</h3>
+        {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
+        {!auditLogs.some((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id))&&<Empty text="No admin actions recorded for this tenant yet."/>}
         <h3 className="platform-profile-heading">Subscriptions</h3>
         {tenantSubscriptions.length?tenantSubscriptions.map((sub)=><div className="platform-detail-row" key={sub.organization_id}><span>{sub.plan_code} · {sub.status}</span><span>Period ends {date(sub.current_period_end)}</span><button className="mini-button" onClick={()=>{setActive('Subscriptions');setQuery(selectedTenant.name);}}>Manage subscription</button></div>):<Empty text="No subscription record found."/>}
         <h3 className="platform-profile-heading">Connected numbers</h3>
