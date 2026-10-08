@@ -12,6 +12,9 @@ export class PlatformAdminController {
   @Get('overview')
   overview() { return this.platform.overview(); }
 
+  @Get('analytics')
+  analytics() { return this.platform.analytics(); }
+
   @Get('tenants')
   tenants() { return this.platform.tenants(); }
 
