@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto } from './platform-admin.dto';
+import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, UpdateAlertAcknowledgementDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -21,6 +21,21 @@ export class PlatformAdminController {
 
   @Get('analytics')
   analytics() { return this.platform.analytics(); }
+
+  @Get('monitoring/overview')
+  monitoringOverview() { return this.platform.monitoringOverview(); }
+
+  @Get('monitoring/alerts')
+  monitoringAlerts(@Query('severity') severity?: string,@Query('acknowledgement') acknowledgement?: string) {
+    return this.platform.monitoringAlerts(severity,acknowledgement);
+  }
+
+  @Patch('monitoring/alerts/:alertId/acknowledgement')
+  @PlatformRoles('super_admin','support_admin')
+  acknowledgeAlert(@Param('alertId',ParseUUIDPipe) alertId:string,
+    @Body() body:UpdateAlertAcknowledgementDto,@Req() request:AuthenticatedRequest) {
+    return this.platform.setAlertAcknowledgement(alertId,body.acknowledged,request.auth.sub);
+  }
 
   @Get('audit-logs')
   auditLogs(@Query('action') action?: string, @Query('actor') actor?: string) {
