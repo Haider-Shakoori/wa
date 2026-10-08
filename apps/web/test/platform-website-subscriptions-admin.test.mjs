@@ -49,5 +49,6 @@ test('administrator role, public plan, and subscription selectors have legible d
  assert.match(styles,/\.platform-shell \.website-plan-form select option/);
  assert.match(styles,/\.platform-shell \.platform-client-subscription-form select option/);
  assert.match(styles,/color-scheme:dark!important/);
- assert.match(styles,/background:#17261d!important;color:#f6fff8!important/);
+ assert.match(styles,/background:#17261d!important/);
+ assert.match(styles,/color:#f6fff8!important/);
 });
