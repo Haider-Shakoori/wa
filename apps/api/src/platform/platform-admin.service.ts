@@ -8,6 +8,14 @@ import type { PoolClient } from 'pg';
 export class PlatformAdminService {
   constructor(private readonly db: DatabaseService) {}
 
+  async whoami(userId: string) {
+    const result = await this.db.query<{id:string; email:string; role:string}>(
+      `SELECT id,email,platform_role AS role FROM users
+       WHERE id=$1 AND is_platform_admin=true AND disabled_at IS NULL LIMIT 1`,[userId]);
+    if (!result.rows[0]) throw new ForbiddenException('Platform administrator access required');
+    return result.rows[0];
+  }
+
   async overview() {
     const [users, organizations, memberships, sessions, messages, payments, webhookFailures] = await Promise.all([
       this.count('SELECT count(*)::text AS count FROM users WHERE disabled_at IS NULL'),
