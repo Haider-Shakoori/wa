@@ -81,6 +81,11 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
   const forwarded=request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '';
   const real=request.headers.get('x-real-ip')?.trim()??'';
   const clientIp=isIP(forwarded)?forwarded:isIP(real)?real:'unavailable';
+  const excludedAddresses=(process.env.WEBSITE_ANALYTICS_EXCLUDE_IPS??'')
+    .split(',').map(ip=>ip.trim()).filter(Boolean);
+  const isExcluded=request.cookies.get('relaywa_analytics_optout')?.value==='1' ||
+    /relaywa-analyticssmoke|relaywa-analyticstest/i.test(ua) ||
+    (clientIp!=='unavailable' && excludedAddresses.includes(clientIp));
   const day=new Date().toISOString().slice(0,10);
   // Per-day keyed digest avoids storing raw IP/UA and deliberately prevents
   // cross-day tracking. The counts are estimates, not verified people.
@@ -95,7 +100,7 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     countryCode:countryFromTrustedHeader(request),
     // Used only for offline country resolution by the internal API; not persisted.
     clientIp:clientIp!=='unavailable'?clientIp:null,
-    trafficType,botFamily,deviceType,
+    trafficType,botFamily,deviceType,isExcluded,
     referrerHost:referrerHost(request),
   };
   const url=(process.env.WEBSITE_ANALYTICS_API_INTERNAL_URL || 'http://api:3001').replace(/\/$/,'')
