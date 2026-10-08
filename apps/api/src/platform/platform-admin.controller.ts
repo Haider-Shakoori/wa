@@ -11,6 +11,11 @@ import { PlatformAdminService } from './platform-admin.service';
 export class PlatformAdminController {
   constructor(private readonly platform: PlatformAdminService) {}
 
+  @Get('whoami')
+  whoami(@Req() request: AuthenticatedRequest) {
+    return this.platform.whoami(request.auth.sub);
+  }
+
   @Get('overview')
   overview() { return this.platform.overview(); }
 
