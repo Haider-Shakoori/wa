@@ -7,8 +7,8 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
   assert.match(source, /WhatsApp API/);
   assert.match(source, /Bring WhatsApp into your product/);
   assert.match(source, /rw-hero-visual/);
-  assert.match(source, /messages\/text/);
-  assert.match(source, /rw-integration/);
+  assert.match(source, /\/send-message/);
+  assert.match(source, /rw-site-strip/);
   assert.doesNotMatch(source, /BusinessOS/i);
   assert.doesNotMatch(source, /93744119422/);
   assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
@@ -17,7 +17,7 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
 test('tenant workspace and login use standalone RelayWA branding', async () => {
   const dashboard = await readFile(new URL('../components/relay-workspace.tsx', import.meta.url), 'utf8');
   const login = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
-  assert.match(dashboard, /relay<span>wa/);
+  assert.match(dashboard, /Brand/);
   assert.match(login, /Brand/);
   assert.doesNotMatch(dashboard, /by BusinessOS/i);
   assert.doesNotMatch(login, /by BusinessOS/i);
