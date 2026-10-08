@@ -1106,3 +1106,11 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .website-traffic-verification b{font-size:23px;color:#eafdef}
 .platform-shell .website-traffic-verification p{grid-column:1/-1;margin:1px 0 0;font-size:11px}
 @media(max-width:600px){.platform-shell .website-traffic-verification{grid-template-columns:1fr;gap:8px}.platform-shell .website-traffic-verification>div{display:flex;justify-content:space-between;align-items:center}}
+
+/* Platform access checks never reveal control-plane chrome to unverified users. */
+.platform-access-gate{display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:24px;background:#090f0b;color:#ebf7ee;text-align:center}
+.platform-access-gate>section{max-width:440px;border:1px solid #365442;border-radius:18px;padding:28px;background:#142019}
+.platform-access-gate h1{font-size:20px;margin:0 0 10px}
+.platform-access-gate p{font-size:14px;line-height:1.6;color:#b2c8b8}
+.platform-access-gate button{cursor:pointer;min-height:44px;padding:9px 15px;margin:8px 5px 0;border-radius:10px;background:#204c34;border:1px solid #4f8461;color:#eefbf0;font-weight:650}
+.platform-access-gate button:focus-visible{outline:2px solid #25d366;outline-offset:2px}
