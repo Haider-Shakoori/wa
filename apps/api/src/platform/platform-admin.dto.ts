@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Matches, Min, MinLength } from 'class-validator';
 
 
 export class UpdateAlertAcknowledgementDto {
@@ -33,19 +33,22 @@ export class UpdateTenantMemberStatusDto {
 }
 
 export class UpdatePlatformSubscriptionDto {
-  @IsOptional()
-  @IsString()
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(64)
   planCode?: string;
 
   @IsOptional()
   @IsIn(['trialing','active','past_due','paused','canceled','expired'])
   status?: 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'expired';
 
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(365)
+  @IsOptional() @IsInt() @Min(1) @Max(730)
   extendDays?: number;
+
+  // Inclusive calendar date in UTC, e.g. "2026-12-31". Mutually exclusive with extendDays.
+  @IsOptional() @Matches(/^\\d{4}-\\d{2}-\\d{2}$/)
+  periodEndDate?: string;
+
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
 }
 
 export class UpdateGoogleAuthProviderDto {
