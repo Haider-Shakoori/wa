@@ -37,6 +37,27 @@ export class PlatformAdminService {
     };
   }
 
+  async analytics() {
+    const [messageTrend, tenantTrend, alertSummary, recentAlerts] = await Promise.all([
+      this.db.query<{ day: string; sent: number; failed: number }>(`SELECT to_char(day::date, 'YYYY-MM-DD') AS day,
+        count(m.id) FILTER (WHERE m.status IN ('sent','delivered','read'))::int AS sent,
+        count(m.id) FILTER (WHERE m.status = 'failed')::int AS failed
+        FROM generate_series(current_date - 13, current_date, interval '1 day') day
+        LEFT JOIN whatsapp_messages m ON m.created_at >= day AND m.created_at < day + interval '1 day' AND m.direction = 'outbound'
+        GROUP BY day ORDER BY day`),
+      this.db.query<{ day: string; organizations: number }>(`SELECT to_char(day::date, 'YYYY-MM-DD') AS day,
+        count(o.id)::int AS organizations FROM generate_series(current_date - 13, current_date, interval '1 day') day
+        LEFT JOIN organizations o ON o.created_at >= day AND o.created_at < day + interval '1 day'
+        GROUP BY day ORDER BY day`),
+      this.db.query<{ severity: string; count: number }>(`SELECT severity, count(*)::int AS count FROM system_alerts
+        WHERE created_at >= now() - interval '14 days' GROUP BY severity`),
+      this.db.query(`SELECT id, severity, event_type, subject, summary, status, created_at
+        FROM system_alerts ORDER BY created_at DESC LIMIT 20`),
+    ]);
+    return { messageTrend: messageTrend.rows, tenantTrend: tenantTrend.rows,
+      alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
+  }
+
   async tenants() {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at,
