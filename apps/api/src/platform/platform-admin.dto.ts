@@ -43,6 +43,39 @@ export class UpdateTenantMemberStatusDto {
   reason!: string;
 }
 
+/** Editable public plan catalog. Code is immutable after creation. */
+export class WebsitePlanDto {
+  @IsString() @Matches(/^[a-z][a-z0-9_-]{1,39}$/)
+  code!: string;
+
+  @IsString() @MinLength(2) @MaxLength(100)
+  name!: string;
+
+  @IsInt() @Min(1) @Max(100000)
+  maxSessions!: number;
+
+  @IsInt() @Min(1) @Max(100000)
+  maxApiKeys!: number;
+
+  @IsOptional() @IsInt() @Min(1) @Max(100000000)
+  dailyMessages?: number | null;
+
+  @IsOptional() @IsInt() @Min(1) @Max(100000000)
+  monthlyMessages?: number | null;
+
+  @IsInt() @Min(0) @Max(100000000)
+  monthlyPriceCents!: number;
+
+  @IsInt() @Min(0) @Max(100000000)
+  annualPriceCents!: number;
+
+  @IsIn(['USD'])
+  currency!: 'USD';
+
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
 export class UpdatePlatformSubscriptionDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(64)
   planCode?: string;
@@ -50,6 +83,9 @@ export class UpdatePlatformSubscriptionDto {
   @IsOptional()
   @IsIn(['trialing','active','past_due','paused','canceled','expired'])
   status?: 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'expired';
+
+  @IsOptional() @IsIn(['monthly','annual'])
+  billingInterval?: 'monthly' | 'annual';
 
   @IsOptional() @IsInt() @Min(1) @Max(730)
   extendDays?: number;
