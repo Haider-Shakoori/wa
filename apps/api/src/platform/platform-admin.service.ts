@@ -58,6 +58,14 @@ export class PlatformAdminService {
       alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
   }
 
+  async auditLogs() {
+    const result = await this.db.query(`SELECT a.id, a.action, a.target_type, a.target_id, a.before_state, a.after_state,
+      a.created_at, u.email AS actor_email
+      FROM platform_admin_audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
+      ORDER BY a.created_at DESC LIMIT 100`);
+    return result.rows;
+  }
+
   async tenants() {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at,
@@ -219,7 +227,7 @@ export class PlatformAdminService {
     return { sessionId, resumed: true };
   }
 
-  async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto) {
+  async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto, actorUserId: string) {
     if (input.planCode) {
       const plan = await this.db.query<{ code: string }>(
         'SELECT code FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1',
@@ -228,7 +236,10 @@ export class PlatformAdminService {
       if (!plan.rows[0]) throw new NotFoundException('Plan not found');
     }
 
-    const result = await this.db.query(
+    return this.db.transaction(async (client) => {
+      const before = await client.query('SELECT plan_code, status, current_period_end, trial_ends_at FROM organization_subscriptions WHERE organization_id = $1 FOR UPDATE', [organizationId]);
+      if (!before.rows[0]) throw new NotFoundException('Subscription not found');
+      const result = await client.query(
       `UPDATE organization_subscriptions
        SET plan_code = COALESCE($2, plan_code),
            status = COALESCE($3, status),
@@ -248,7 +259,11 @@ export class PlatformAdminService {
       [organizationId, input.planCode ?? null, input.status ?? null, input.extendDays ?? null],
     );
     if (!result.rows[0]) throw new NotFoundException('Subscription not found');
+    await client.query(`INSERT INTO platform_admin_audit_logs (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+      VALUES ($1, $2, 'subscription.updated', 'subscription', $3, $4::jsonb, $5::jsonb)`,
+      [randomUUID(), actorUserId, organizationId, JSON.stringify(before.rows[0]), JSON.stringify(result.rows[0])]);
     return result.rows[0];
+    });
   }
 
   async authProviders() {
