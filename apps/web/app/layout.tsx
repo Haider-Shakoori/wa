@@ -8,6 +8,7 @@ import './marketing.css';
 import './code-showcase.css';
 import './workspace-compact.css';
 import NavigationProgress from '../components/navigation-progress';
+import GoogleAnalytics from '../components/google-analytics';
 import SessionExpiryWatcher from '../components/session-expiry-watcher';
 import { siteUrl, siteDescription } from '../lib/seo';
 
@@ -26,7 +27,7 @@ export const viewport: Viewport = { themeColor: '#070909', colorScheme: 'dark' }
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" style={{ backgroundColor: '#070909', colorScheme: 'dark' }}>
-      <body className="relay-dark"><NavigationProgress/><SessionExpiryWatcher/>{children}</body>
+      <body className="relay-dark"><NavigationProgress/><SessionExpiryWatcher/><GoogleAnalytics/>{children}</body>
     </html>
   );
 }
