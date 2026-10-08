@@ -419,14 +419,25 @@ export class PlatformAdminService {
     };
   }
 
-  async updateMessagingEngine(input: { engine: 'baileys' | 'chromium' }) {
-    await this.db.query(
-      `INSERT INTO messaging_engine_settings (id, default_engine, updated_at)
-       VALUES ('global', $1, now())
-       ON CONFLICT (id)
-       DO UPDATE SET default_engine = EXCLUDED.default_engine, updated_at = now()`,
-      [input.engine],
-    );
+  async updateMessagingEngine(input: { engine: 'baileys' | 'chromium' }, actorUserId: string) {
+    await this.db.transaction(async (client) => {
+      const previous = await client.query(
+        `SELECT default_engine FROM messaging_engine_settings WHERE id = 'global' FOR UPDATE`,
+      );
+      await client.query(
+        `INSERT INTO messaging_engine_settings (id, default_engine, updated_at)
+         VALUES ('global', $1, now())
+         ON CONFLICT (id)
+         DO UPDATE SET default_engine = EXCLUDED.default_engine, updated_at = now()`,
+        [input.engine],
+      );
+      await client.query(
+        `INSERT INTO platform_admin_audit_logs
+         (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+         VALUES ($1, $2, 'messaging.default_engine.updated', 'messaging_settings', 'global', $3::jsonb, $4::jsonb)`,
+        [randomUUID(), actorUserId, JSON.stringify(previous.rows[0] ?? null), JSON.stringify({ default_engine: input.engine })],
+      );
+    });
     return this.messagingEngineSettings();
   }
 
