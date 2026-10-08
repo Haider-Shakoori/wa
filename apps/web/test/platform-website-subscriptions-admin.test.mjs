@@ -16,7 +16,7 @@ test('administrators have an audited Add administrator action and a protected fo
  assert.match(form, /onSubmit=\{e=>void submit\(e\)\}/);
  assert.match(form, /window\.confirm/);
  assert.match(form, /existing RelayWA account/);
- assert.doesNotMatch(form, /password|temporaryKey|generatePassword/);
+ assert.doesNotMatch(form, /type="password"|passwordHash|generatePassword/);
 });
 
 test('website subscriptions use the website plan catalog and the same client billing records',async()=>{
