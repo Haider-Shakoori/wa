@@ -90,7 +90,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
         count(*) FILTER (WHERE bot_verification='unverified' AND NOT is_excluded)::int AS unverified_bot_hits,
         count(*) FILTER (WHERE is_excluded)::int AS excluded_hits,
         count(DISTINCT (visit_day, visitor_key)) FILTER (WHERE traffic_type='human' AND NOT is_excluded)::int AS daily_unique_visitors
-        FROM website_pageviews WHERE NOT is_excluded AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)`,[days]),
+        FROM website_pageviews WHERE visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)`,[days]),
       this.db.query(`SELECT to_char(d.day::date,'YYYY-MM-DD') AS day,
         count(v.id) FILTER (WHERE v.traffic_type='human')::int AS human,
         count(v.id) FILTER (WHERE v.traffic_type='bot')::int AS bots,
@@ -105,7 +105,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
         count(*) FILTER (WHERE traffic_type='bot')::int AS bots,
         count(*) FILTER (WHERE traffic_type='suspected_bot')::int AS suspected,
         count(DISTINCT (visit_day,visitor_key)) FILTER (WHERE traffic_type='human')::int AS daily_unique_visitors
-        FROM website_pageviews WHERE visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
+        FROM website_pageviews WHERE NOT is_excluded AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
         GROUP BY country_code ORDER BY count(*) DESC LIMIT 50`,[days]),
       this.db.query(`SELECT bot_family, count(*)::int AS hits,
         count(DISTINCT country_code)::int AS countries
@@ -120,7 +120,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
       this.db.query(`SELECT path,
         count(*) FILTER (WHERE traffic_type='human')::int AS human,
         count(*) FILTER (WHERE traffic_type<>'human')::int AS automated
-        FROM website_pageviews WHERE visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
+        FROM website_pageviews WHERE NOT is_excluded AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
         GROUP BY path ORDER BY count(*) DESC LIMIT 25`,[days]),
       this.db.query(`SELECT coalesce(referrer_host,'Direct / unknown') AS source,
         count(*)::int AS hits FROM website_pageviews
