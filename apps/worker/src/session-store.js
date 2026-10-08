@@ -224,7 +224,13 @@ export class SessionStore {
     return Number(result.rows[0]?.reconnect_attempts ?? 0);
   }
 
-  async heartbeat(sessionId) {
+  async heartbeatWorker() {
+    await this.pool.query(`INSERT INTO relaywa_worker_heartbeats
+      (worker_id,first_seen_at,last_seen_at) VALUES ($1,now(),now())
+      ON CONFLICT(worker_id) DO UPDATE SET last_seen_at=now()`,[this.workerId]);
+  }
+
+    async heartbeat(sessionId) {
     await this.pool.query(
       `UPDATE whatsapp_sessions
        SET worker_lease_expires_at = $1, last_heartbeat_at = now(), updated_at = now()
@@ -478,7 +484,14 @@ export class SessionStore {
     }
   }
 
-  async scanOperationalHealth() {
+    async scanOperationalHealth() {
+    // Auto-resolve lease incidents only after the specific session has a
+    // refreshed, non-expired worker lease. Historical alerts remain stored.
+    await this.pool.query(`UPDATE system_alerts a SET resolved_at=now(),updated_at=now()
+      FROM whatsapp_sessions s WHERE a.event_type='worker.session_lease_expired'
+        AND a.resolved_at IS NULL AND a.session_id=s.id
+        AND s.deleted_at IS NULL AND s.worker_id IS NOT NULL
+        AND s.worker_lease_expires_at>now()`);
     // A live worker can detect peers with expired session leases. External uptime
     // monitoring is still required when the entire worker fleet is down.
     const staleSessions = await this.pool.query(`SELECT s.id, s.organization_id,
