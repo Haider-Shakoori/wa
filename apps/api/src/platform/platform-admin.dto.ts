@@ -1,6 +1,18 @@
 import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Matches, Min, MinLength } from 'class-validator';
 
 
+export class UpdateAlertResolutionDto {
+  @IsBoolean()
+  resolved!: boolean;
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
+export class ArchiveDiagnosticDto {
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
 export class UpdateAlertAcknowledgementDto {
   @IsBoolean()
   acknowledged!: boolean;
