@@ -163,6 +163,27 @@ export class PlatformAdminService {
     });
   }
 
+  async setAlertResolution(alertId:string,resolved:boolean,reason:string,actorUserId:string) {
+    if (!reason?.trim() || reason.trim().length<8) {
+      throw new BadRequestException('Enter a reason of at least eight characters');
+    }
+    return this.db.transaction(async client=>{
+      const result=await client.query<{id:string;resolved_at:Date|null}>(`SELECT id,resolved_at
+        FROM system_alerts WHERE id=$1 FOR UPDATE`,[alertId]);
+      const alert=result.rows[0];
+      if(!alert)throw new NotFoundException('Incident not found');
+      if(Boolean(alert.resolved_at)===resolved) return {id:alertId,resolved,changed:false};
+      await client.query(`UPDATE system_alerts
+        SET resolved_at=CASE WHEN $2 THEN now() ELSE NULL END,updated_at=now() WHERE id=$1`,
+        [alertId,resolved]);
+      await this.recordAudit(client,actorUserId,
+        resolved?'monitoring.alert.resolved':'monitoring.alert.reopened',
+        'system_alert',alertId,{resolved:Boolean(alert.resolved_at)},
+        {resolved,reason:reason.trim()});
+      return {id:alertId,resolved,changed:true};
+    });
+  }
+
   async auditLogs(action = '', actor = '') {
     const result = await this.db.query(`SELECT a.id, a.action, a.target_type, a.target_id, a.before_state, a.after_state,
       a.created_at, u.email AS actor_email
