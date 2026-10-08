@@ -11,6 +11,7 @@ export function requiresLogin(pathname: string) {
   if (pathname === '/platform/login' || pathname === '/platform/mfa') return false;
   return pathname === '/platform' || pathname.startsWith('/platform/') ||
     pathname === '/dashboard' || pathname.startsWith('/dashboard/') ||
+    pathname === '/onboarding' || pathname.startsWith('/onboarding/') ||
     pathname === '/whatsapp' || pathname.startsWith('/whatsapp/') ||
     pathname === '/subscription' || pathname.startsWith('/subscription/') ||
     pathname === '/settings' || pathname.startsWith('/settings/');
