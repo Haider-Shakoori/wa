@@ -758,6 +758,7 @@ export class SessionStore {
     const candidates = await this.pool.query(
       `SELECT e.id AS session_event_id, e.organization_id, w.id AS endpoint_id
        FROM whatsapp_session_events e
+       JOIN organizations o ON o.id = e.organization_id AND o.suspended_at IS NULL
        JOIN webhook_endpoints w
          ON w.organization_id = e.organization_id
         AND w.enabled = true
@@ -793,6 +794,7 @@ export class SessionStore {
                 e.session_id, e.event_type, e.payload,
                 e.created_at AS event_created_at
          FROM webhook_deliveries d
+         JOIN organizations o ON o.id = d.organization_id AND o.suspended_at IS NULL
          JOIN webhook_endpoints w ON w.id = d.endpoint_id AND w.enabled = true
          JOIN whatsapp_session_events e ON e.id = d.session_event_id
          WHERE d.status = 'queued'
