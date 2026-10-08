@@ -89,6 +89,8 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     visitorKey,
     path:request.nextUrl.pathname.slice(0,240),
     countryCode:countryFromTrustedHeader(request),
+    // Used only for offline country resolution by the internal API; not persisted.
+    clientIp:clientIp!=='unavailable'?clientIp:null,
     trafficType,botFamily,deviceType,
     referrerHost:referrerHost(request),
   };
