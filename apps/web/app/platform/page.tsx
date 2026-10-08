@@ -33,6 +33,8 @@ export default function PlatformPage() {
   const [paymentFilter,setPaymentFilter] = useState<'all'|'pending'|'failed'>('all');
   const [tenantFilter,setTenantFilter] = useState<'all'|'active'|'trialing'|'attention'>('all');
   const [selectedTenantId,setSelectedTenantId] = useState<string|null>(null);
+  const [tenantMembers,setTenantMembers] = useState<any[]>([]);
+  const [membersLoading,setMembersLoading] = useState(false);
   const [subscriptionFilter,setSubscriptionFilter] = useState<'all'|'active'|'trialing'|'attention'>('all');
   const [lastUpdated,setLastUpdated] = useState<Date|null>(null);
   const [refreshing,setRefreshing] = useState(false);
@@ -295,6 +297,17 @@ export default function PlatformPage() {
   const pendingManual = payments.filter((p)=>p.provider === 'manual' && p.status === 'pending').length;
   const healthyWorkers = workers.filter((w)=>new Date(w.lease_expires_at).getTime() > Date.now()).length;
   const normalizedQuery = query.trim().toLowerCase();
+  useEffect(()=>{
+    if (!token || !selectedTenantId) { setTenantMembers([]); setMembersLoading(false); return; }
+    let canceled=false;
+    setTenantMembers([]); setMembersLoading(true);
+    void api<any[]>('/platform/tenants/'+encodeURIComponent(selectedTenantId)+'/members',token)
+      .then((items)=>{ if (!canceled) setTenantMembers(items); })
+      .catch((err)=>{ if (!canceled) setError(err instanceof Error ? err.message : 'Unable to load tenant members'); })
+      .finally(()=>{ if (!canceled) setMembersLoading(false); });
+    return ()=>{ canceled=true; };
+  },[token,selectedTenantId]);
+
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
   const visibleTenants = filteredTenants.filter((item)=>tenantFilter==='all' || (tenantFilter==='active' ? item.subscription_status==='active' : tenantFilter==='trialing' ? item.subscription_status==='trialing' : !['active','trialing'].includes(String(item.subscription_status??''))));
   const selectedTenant = tenants.find((item)=>item.id===selectedTenantId);
@@ -404,6 +417,16 @@ export default function PlatformPage() {
       {active === 'Organizations' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected tenant details">
         <div className="panel-head"><div><p className="eyebrow">Organization profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
         <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.subscription_status??'none'}/></span></div>
+        <h3 className="platform-profile-heading">Tenant members</h3>
+        <p className="platform-member-hint">Memberships are displayed read-only. Changes to access should be made through a verified, auditable workflow.</p>
+        {membersLoading?<Empty text="Loading members…"/>:tenantMembers.length?tenantMembers.map((member)=><div className="platform-detail-row platform-member-row" key={member.membership_id}>
+          <span><strong>{member.name}</strong><small>{member.email} · Added {date(member.created_at)}</small></span>
+          <span className="platform-member-role">{member.role}</span>
+          <Badge value={member.account_disabled?'disabled':member.status}/>
+        </div>):<Empty text="No memberships found for this organization."/>}
+        <h3 className="platform-profile-heading">Recent admin actions</h3>
+        {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
+        {!auditLogs.some((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id))&&<Empty text="No admin actions recorded for this tenant yet."/>}
         <h3 className="platform-profile-heading">Subscriptions</h3>
         {tenantSubscriptions.length?tenantSubscriptions.map((sub)=><div className="platform-detail-row" key={sub.organization_id}><span>{sub.plan_code} · {sub.status}</span><span>Period ends {date(sub.current_period_end)}</span><button className="mini-button" onClick={()=>{setActive('Subscriptions');setQuery(selectedTenant.name);}}>Manage subscription</button></div>):<Empty text="No subscription record found."/>}
         <h3 className="platform-profile-heading">Connected numbers</h3>
@@ -412,7 +435,7 @@ export default function PlatformPage() {
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
         <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
-        {filteredSessions.map((s)=>{ const paused=false; return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
+        {filteredSessions.map((s)=>{ const paused=Boolean(s.messaging_paused_until && new Date(s.messaging_paused_until).getTime()>Date.now()); return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
       </TableSection>}
 
       {active === 'Messaging' && <>
@@ -437,6 +460,24 @@ export default function PlatformPage() {
           <p>Changing the platform default affects new sessions only. For an existing connected session, a per-session engine choice is saved as the next engine while the current authenticated engine keeps running. RelayWA never logs out a working session or forces a QR scan just because this setting changes.</p>
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
+      </section>
+      <section className="panel platform-safety-panel">
+        <PanelHeading eyebrow="Sending protection" title="Safety Governor" subtitle="Control outgoing message pacing and automatic safety pauses for the shared worker fleet."/>
+        <label className="platform-safety-toggle"><input type="checkbox" checked={Boolean(messagingSafety.enabled)} onChange={e=>setMessagingSafety((v:any)=>({...v,enabled:e.target.checked}))}/> Enable outbound safety controls</label>
+        <div className="platform-safety-grid">
+          {([
+            ['minDelayMs','Minimum delay between messages','milliseconds',1000,60000],
+            ['maxDelayMs','Maximum delay between messages','milliseconds',1000,120000],
+            ['messagesPerMinute','Messages per minute','messages',1,120],
+            ['messagesPerHour','Messages per hour','messages',1,5000],
+            ['burstLimit','Burst limit','messages',1,50],
+            ['duplicateWindowSeconds','Duplicate suppression window','seconds',0,3600],
+            ['failurePauseThreshold','Auto-pause after final failures','failures',2,20],
+            ['autoPauseSeconds','Auto-pause duration','seconds',60,86400],
+          ] as const).map(([field,label,unit,min,max])=><label key={field}>{label}<span className="platform-safety-input"><input type="number" min={min} max={max} step="1" value={messagingSafety[field] ?? min} onChange={e=>setSafetyNumber(field,e.target.value)} /><small>{unit}</small></span></label>)}
+        </div>
+        <p className="muted">These limits reduce burst risk but cannot guarantee that WhatsApp will not restrict an account. Existing sessions are not logged out when limits change.</p>
+        <button className="primary-button" onClick={()=>void saveMessagingSafety()}>Save Safety Governor settings</button>
       </section>
       <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}

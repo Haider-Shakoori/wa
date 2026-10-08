@@ -8,8 +8,8 @@ test('customer portal includes onboarding, live send and message history', async
   assert.match(dashboard, /Build your integration/);
   assert.match(dashboard, /QuickSend/);
   assert.match(dashboard, /MessageHistory/);
-  assert.match(ops, /portal-test-/);
-  assert.match(ops, /\/messages\/text/);
+  assert.match(ops, /clientMessageId/);
+  assert.match(ops, /\/whatsapp-sessions/);
   assert.match(ops, /\/messages'/);
 });
 

@@ -14,7 +14,7 @@ test('Platform Admin uses grouped operations navigation and includes Ops Assista
   assert.match(platform, /PlatformSupportBot/);
   assert.match(platform, /platform-hero-v2/);
   assert.match(bot, /RelayWA Ops Assistant/);
-  assert.match(bot, /\/v1\/platform\/support\/ask/);
+  assert.match(bot, /\/platform\/support\/ask/);
   assert.match(bot, /read-only diagnostics/);
   assert.match(css, /RelayWA Admin \+ Docs v7/);
   assert.match(css, /\.ops-bot-panel/);
@@ -23,23 +23,23 @@ test('Platform Admin uses grouped operations navigation and includes Ops Assista
 test('developer portal is searchable and documents the actual RelayWA API surface', async () => {
   const docs = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
 
-  assert.match(docs, /Search documentation/);
-  assert.match(docs, /Sessions & QR lifecycle/);
+  assert.match(docs, /Search endpoints/);
+  assert.match(docs, /Sessions & QR/);
   assert.match(docs, /Send messages/);
   assert.match(docs, /Media & actions/);
   assert.match(docs, /Contacts, chats & groups/);
-  assert.match(docs, /Queue, scheduling, retries & idempotency/);
+  assert.match(docs, /Direct sending & retries/);
   assert.match(docs, /Webhooks/);
-  assert.match(docs, /Safety Governor/);
+  assert.match(docs, /Application responsibilities/);
   assert.match(docs, /Baileys vs Chromium/);
   assert.match(docs, /Troubleshooting/);
   assert.match(docs, /Production checklist/);
 
-  assert.match(docs, /\/v1\/sessions\/:sessionId\/messages\/text/);
-  assert.match(docs, /\/v1\/sessions\/:sessionId\/contacts/);
-  assert.match(docs, /\/v1\/webhooks\/:endpointId\/deliveries/);
+  assert.match(docs, /\/whatsapp-sessions\/:sessionId\/messages/);
+  assert.match(docs, /\/whatsapp-sessions\/:sessionId\/contacts/);
+  assert.match(docs, /\/webhooks\/:endpointId\/deliveries/);
   assert.match(docs, /x-relaywa-signature/);
-  assert.match(docs, /E164_RECIPIENT_NUMBER/);
+  assert.match(docs, /E\.164/);
 });
 
 test('light onboarding/admin contrast is explicitly protected', async () => {

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
+import type { PoolClient } from 'pg';
 
 @Injectable()
 export class PlatformAdminService {
@@ -66,6 +67,35 @@ export class PlatformAdminService {
     return result.rows;
   }
 
+  async tenantMembers(organizationId: string) {
+    const organization = await this.db.query('SELECT id FROM organizations WHERE id = $1 LIMIT 1', [organizationId]);
+    if (!organization.rows[0]) throw new NotFoundException('Organization not found');
+    const result = await this.db.query(
+      `SELECT m.id AS membership_id, m.user_id, u.name, u.email, m.role, m.status,
+              m.created_at, m.updated_at, (u.disabled_at IS NOT NULL) AS account_disabled
+       FROM organization_memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.organization_id = $1
+       ORDER BY m.created_at ASC LIMIT 200`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  private async recordAudit(
+    client: PoolClient, actorUserId: string, action: string,
+    targetType: string, targetId: string, before: unknown, after: unknown,
+  ) {
+    await client.query(
+      `INSERT INTO platform_admin_audit_logs
+       (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)`,
+      [randomUUID(), actorUserId, action, targetType, targetId,
+       before === undefined ? null : JSON.stringify(before),
+       after === undefined ? null : JSON.stringify(after)],
+    );
+  }
+
   async tenants() {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at,
@@ -113,24 +143,26 @@ export class PlatformAdminService {
     return result.rows;
   }
 
-  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout') {
-    const session = await this.db.query<{ organization_id: string }>(
-      `SELECT organization_id
-       FROM whatsapp_sessions
-       WHERE id = $1 AND deleted_at IS NULL
-       LIMIT 1`,
-      [sessionId],
-    );
-    if (!session.rows[0]) throw new NotFoundException('Session not found');
-
-    const commandId = randomUUID();
-    await this.db.query(
-      `INSERT INTO whatsapp_session_commands
-        (id, organization_id, session_id, command, status)
-       VALUES ($1, $2, $3, $4, 'queued')`,
-      [commandId, session.rows[0].organization_id, sessionId, action],
-    );
-    return { commandId, sessionId, action, status: 'queued' };
+  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout', actorUserId: string) {
+    return this.db.transaction(async (client) => {
+      const session = await client.query<{ organization_id: string; status: string }>(
+        `SELECT organization_id, status FROM whatsapp_sessions
+         WHERE id = $1 AND deleted_at IS NULL LIMIT 1`, [sessionId],
+      );
+      if (!session.rows[0]) throw new NotFoundException('Session not found');
+      const commandId = randomUUID();
+      await client.query(
+        `INSERT INTO whatsapp_session_commands
+          (id, organization_id, session_id, command, status)
+         VALUES ($1, $2, $3, $4, 'queued')`,
+        [commandId, session.rows[0].organization_id, sessionId, action],
+      );
+      await this.recordAudit(client, actorUserId, 'session.command.' + action,
+        'session', sessionId,
+        { sessionStatus: session.rows[0].status },
+        { commandId, command: action, status: 'queued' });
+      return { commandId, sessionId, action, status: 'queued' };
+    });
   }
 
   async updateSessionEngine(sessionId: string, input: { engine: 'baileys' | 'chromium' }) {
@@ -313,7 +345,7 @@ export class PlatformAdminService {
     ];
   }
 
-  async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+  async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }, actorUserId: string) {
     const current = await this.db.query<any>(
       `SELECT enabled, public_config
        FROM auth_provider_settings
@@ -335,7 +367,8 @@ export class PlatformAdminService {
       throw new NotFoundException('Google Client ID is required before enabling Google sign-in');
     }
 
-    const result = await this.db.query(
+    return this.db.transaction(async (client) => {
+      const result = await client.query(
       `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
        VALUES ('google', $1, $2::jsonb, now())
        ON CONFLICT (provider)
@@ -345,10 +378,14 @@ export class PlatformAdminService {
        RETURNING provider, enabled, public_config, updated_at`,
       [enabled, JSON.stringify({ clientId, source: 'platform' })],
     );
-    return result.rows[0];
+      await this.recordAudit(client, actorUserId, 'auth.provider.updated', 'auth_provider', 'google',
+        { enabled: Boolean(current.rows[0]?.enabled), clientId: existingClientId },
+        { enabled, clientId });
+      return result.rows[0];
+    });
   }
 
-  async updateGithubAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+  async updateGithubAuthProvider(input: { enabled?: boolean; clientId?: string }, actorUserId: string) {
     const current = await this.db.query<any>(
       `SELECT enabled, public_config
        FROM auth_provider_settings
@@ -374,7 +411,8 @@ export class PlatformAdminService {
       throw new BadRequestException('GITHUB_CLIENT_SECRET must be configured in the production environment before enabling GitHub sign-in');
     }
 
-    const result = await this.db.query(
+    return this.db.transaction(async (client) => {
+      const result = await client.query(
       `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
        VALUES ('github', $1, $2::jsonb, now())
        ON CONFLICT (provider)
@@ -384,13 +422,17 @@ export class PlatformAdminService {
        RETURNING provider, enabled, public_config, updated_at`,
       [enabled, JSON.stringify({ clientId, source: 'platform', secretConfigured })],
     );
-    return {
+      await this.recordAudit(client, actorUserId, 'auth.provider.updated', 'auth_provider', 'github',
+        { enabled: Boolean(current.rows[0]?.enabled), clientId: existingClientId },
+        { enabled, clientId, secretConfigured });
+      return {
       ...result.rows[0],
       public_config: {
         ...(result.rows[0] as any).public_config,
         secretConfigured,
       },
-    };
+      };
+    });
   }
 
   async messagingEngineSettings() {
@@ -413,14 +455,21 @@ export class PlatformAdminService {
     };
   }
 
-  async updateMessagingEngine(input: { engine: 'baileys' | 'chromium' }) {
-    await this.db.query(
+  async updateMessagingEngine(input: { engine: 'baileys' | 'chromium' }, actorUserId: string) {
+    await this.db.transaction(async (client) => {
+      const before = await client.query(`SELECT default_engine FROM messaging_engine_settings WHERE id = 'global' FOR UPDATE`);
+      await client.query(
       `INSERT INTO messaging_engine_settings (id, default_engine, updated_at)
        VALUES ('global', $1, now())
        ON CONFLICT (id)
        DO UPDATE SET default_engine = EXCLUDED.default_engine, updated_at = now()`,
       [input.engine],
     );
+      await this.recordAudit(client, actorUserId, 'messaging.engine.updated',
+        'global_settings', 'messaging_engine',
+        { defaultEngine: before.rows[0]?.default_engine ?? null },
+        { defaultEngine: input.engine });
+    });
     return this.messagingEngineSettings();
   }
 
@@ -458,7 +507,7 @@ export class PlatformAdminService {
     };
   }
 
-  async updateMessagingSafety(input: UpdateMessagingSafetyDto) {
+  async updateMessagingSafety(input: UpdateMessagingSafetyDto, actorUserId: string) {
     const current = await this.messagingSafetySettings();
     const next = {
       enabled: input.enabled ?? current.enabled,
@@ -484,7 +533,11 @@ export class PlatformAdminService {
       throw new BadRequestException('Hourly message limit must be at least the per-minute limit');
     }
 
-    await this.db.query(
+    await this.db.transaction(async (client) => {
+      const locked = await client.query(`SELECT enabled, min_delay_ms, max_delay_ms, messages_per_minute,
+        messages_per_hour, burst_limit, duplicate_window_seconds, failure_pause_threshold, auto_pause_seconds
+        FROM messaging_safety_settings WHERE id = 'global' FOR UPDATE`);
+      await client.query(
       `UPDATE messaging_safety_settings
        SET enabled = $1,
            min_delay_ms = $2,
@@ -520,6 +573,10 @@ export class PlatformAdminService {
       ],
     );
 
+      await this.recordAudit(client, actorUserId, 'messaging.safety.updated',
+        'global_settings', 'messaging_safety',
+        locked.rows[0] ?? null, next);
+    });
     return this.messagingSafetySettings();
   }
 

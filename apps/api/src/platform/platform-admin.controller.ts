@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,6 +22,11 @@ export class PlatformAdminController {
   @Get('tenants')
   tenants() { return this.platform.tenants(); }
 
+  @Get('tenants/:organizationId/members')
+  tenantMembers(@Param('organizationId', ParseUUIDPipe) organizationId: string) {
+    return this.platform.tenantMembers(organizationId);
+  }
+
   @Get('sessions')
   sessions() { return this.platform.sessions(); }
 
@@ -37,18 +42,18 @@ export class PlatformAdminController {
   }
 
   @Post('sessions/:sessionId/connect')
-  connectSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'connect');
+  connectSession(@Param('sessionId', ParseUUIDPipe) sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'connect', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/restart')
-  restartSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'restart');
+  restartSession(@Param('sessionId', ParseUUIDPipe) sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'restart', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/logout')
-  logoutSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'logout');
+  logoutSession(@Param('sessionId', ParseUUIDPipe) sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'logout', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/messaging/resume')
@@ -69,29 +74,29 @@ export class PlatformAdminController {
   authProviders() { return this.platform.authProviders(); }
 
   @Patch('settings/auth-providers/google')
-  updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto) {
-    return this.platform.updateGoogleAuthProvider(body);
+  updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateGoogleAuthProvider(body, request.auth.sub);
   }
 
   @Patch('settings/auth-providers/github')
-  updateGithubAuthProvider(@Body() body: UpdateGithubAuthProviderDto) {
-    return this.platform.updateGithubAuthProvider(body);
+  updateGithubAuthProvider(@Body() body: UpdateGithubAuthProviderDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateGithubAuthProvider(body, request.auth.sub);
   }
 
   @Get('settings/messaging-engine')
   messagingEngineSettings() { return this.platform.messagingEngineSettings(); }
 
   @Patch('settings/messaging-engine')
-  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto) {
-    return this.platform.updateMessagingEngine(body);
+  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateMessagingEngine(body, request.auth.sub);
   }
 
   @Get('settings/messaging-safety')
   messagingSafetySettings() { return this.platform.messagingSafetySettings(); }
 
   @Patch('settings/messaging-safety')
-  updateMessagingSafety(@Body() body: UpdateMessagingSafetyDto) {
-    return this.platform.updateMessagingSafety(body);
+  updateMessagingSafety(@Body() body: UpdateMessagingSafetyDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateMessagingSafety(body, request.auth.sub);
   }
 
   @Get('workers')
