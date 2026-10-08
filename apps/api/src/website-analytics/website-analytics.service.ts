@@ -42,7 +42,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
     // Keyed daily visitor hash is generated in the website server;
     // raw IP addresses, browser fingerprints and query strings never reach storage.
     let country=view.countryCode;
-    if (country==='ZZ' && view.clientIp && isIP(view.clientIp)) {
+    if (!view.isExcluded && country==='ZZ' && view.clientIp && isIP(view.clientIp)) {
       const lookup=await this.db.query<{country_code:string}>(`SELECT country_code
         FROM website_geoip_ranges WHERE range_start <= $1::inet AND range_end >= $1::inet
         ORDER BY range_start DESC LIMIT 1`,[view.clientIp]);
@@ -127,7 +127,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
         WHERE NOT is_excluded AND traffic_type='human' AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
         GROUP BY source ORDER BY hits DESC LIMIT 15`,[days]),
       this.db.query(`SELECT device_type, count(*)::int AS hits FROM website_pageviews
-        WHERE traffic_type='human' AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
+        WHERE NOT is_excluded AND traffic_type='human' AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
         GROUP BY device_type ORDER BY hits DESC`,[days]),
     ]);
     return {
@@ -135,7 +135,7 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
       generatedAt: new Date().toISOString(),
       summary: summary.rows[0], trend:trend.rows, countries:countries.rows,
       bots:bots.rows, botCountries:botCountries.rows, pages:pages.rows, sources:sources.rows, devices:devices.rows,
-      note:'First-party server page requests; visitors are approximate daily unique hashes. Bot identities are user-agent claims; Googlebot/Bingbot/Applebot are separately checked against refreshed official IP ranges (verified/unverified/not checked). Country is derived from the local offline IP country dataset or a configured trusted CDN header; Unknown indicates missing or unresolvable location.',
+      note:'First-party server page requests; visitors are approximate daily unique hashes. Bot identities are user-agent claims. Googlebot, Bingbot and Applebot claims can be checked against official IP ranges (verified, unverified or not checked). Unverified does not necessarily mean spoofed. Country is derived from the local offline IP country dataset or a configured trusted CDN header; Unknown indicates missing or unresolvable location.',
     };
   }
 }
