@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, WebsitePlanDto, UpdateAlertAcknowledgementDto, UpdateAlertResolutionDto, ArchiveDiagnosticDto } from './platform-admin.dto';
+import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdateMessageHistoryStorageDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, WebsitePlanDto, UpdateAlertAcknowledgementDto, UpdateAlertResolutionDto, ArchiveDiagnosticDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
