@@ -84,19 +84,20 @@ export class AuthService {
     return this.issueTokens(created.user, created.membership);
   }
 
-  async login(input: LoginDto) {
+  async login(input: LoginDto, context?: { ip?: string; userAgent?: string }) {
     const email = input.email.trim().toLowerCase();
-    const userResult = await this.db.query<UserRow>(
-      'SELECT id, email, name, password_hash FROM users WHERE email = $1 AND disabled_at IS NULL LIMIT 1',
+    const userResult = await this.db.query<UserRow & {is_platform_admin:boolean}>(
+      'SELECT id, email, name, password_hash, is_platform_admin FROM users WHERE email = $1 AND disabled_at IS NULL LIMIT 1',
       [email],
     );
     const user = userResult.rows[0];
     if (!user || !(await compare(input.password, user.password_hash))) {
+      if (user?.is_platform_admin) await this.recordPlatformLogin(user.id, 'failed', 'password', context);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const membership = await this.membership(user.id);
-    return this.issueTokens(user, membership);
+    return this.issueTokens(user, membership, 'password', context);
   }
 
   async google(input: GoogleAuthDto) {
@@ -107,7 +108,7 @@ export class AuthService {
       email: String(profile.email),
       name: String(profile.name || profile.given_name || String(profile.email).split('@')[0]),
     });
-    return this.issueTokens(account.user, account.membership);
+    return this.issueTokens(account.user, account.membership, 'google');
   }
 
   async githubAuthorizeUrl(returnTo?: string) {
@@ -203,7 +204,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('GitHub account is no longer available');
 
     const membership = await this.membership(user.id);
-    return this.issueTokens(user, membership);
+    return this.issueTokens(user, membership, 'github');
   }
 
   private async socialAccount(input: {
@@ -316,7 +317,9 @@ export class AuthService {
 
   private async membership(userId: string) {
     const membershipResult = await this.db.query<MembershipRow>(
-      'SELECT id, organization_id FROM organization_memberships WHERE user_id = $1 AND status = $2 ORDER BY created_at ASC LIMIT 1',
+      `SELECT m.id, m.organization_id FROM organization_memberships m
+       JOIN organizations o ON o.id = m.organization_id AND o.suspended_at IS NULL
+       WHERE m.user_id = $1 AND m.status = $2 ORDER BY m.created_at ASC LIMIT 1`,
       [userId, 'active'],
     );
     const membership = membershipResult.rows[0];
@@ -327,17 +330,21 @@ export class AuthService {
   private async issueTokens(
     user: { id: string; email: string; name: string },
     membership: MembershipRow,
+    loginMethod: 'password' | 'google' | 'github' | 'register' = 'register',
+    context?: { ip?: string; userAgent?: string },
   ) {
     const onboarding = await this.db.query<{ onboarding_step: string }>(
-      'SELECT onboarding_step FROM organizations WHERE id = $1 LIMIT 1',
+      'SELECT onboarding_step FROM organizations WHERE id = $1 AND suspended_at IS NULL LIMIT 1',
       [membership.organization_id],
     );
+    if (!onboarding.rows[0]) throw new UnauthorizedException('Organization access is suspended');
     const onboardingStep = onboarding.rows[0]?.onboarding_step ?? 'complete';
     const platformAdmin = await this.db.query<{ is_platform_admin: boolean }>(
       'SELECT is_platform_admin FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
       [user.id],
     );
     const isPlatformAdmin = Boolean(platformAdmin.rows[0]?.is_platform_admin);
+    if (isPlatformAdmin) await this.recordPlatformLogin(user.id, 'success', loginMethod, context);
 
     const payload: AuthTokenPayload = {
       sub: user.id,
@@ -356,6 +363,17 @@ export class AuthService {
       isPlatformAdmin,
       nextPath: isPlatformAdmin ? '/platform' : onboardingStep === 'complete' ? '/dashboard' : '/onboarding',
     };
+  }
+
+  private async recordPlatformLogin(
+    userId: string, outcome: 'success'|'failed', method: string,
+    context?: { ip?: string; userAgent?: string },
+  ) {
+    await this.db.query(`INSERT INTO platform_login_events
+      (id,user_id,outcome,login_method,ip_address,user_agent)
+      VALUES ($1,$2,$3,$4,$5,$6)`,
+      [randomUUID(),userId,outcome,method,
+        context?.ip?.slice(0,64) ?? null, context?.userAgent?.slice(0,256) ?? null]);
   }
 
   private async verifyGoogleCredential(credential: string) {

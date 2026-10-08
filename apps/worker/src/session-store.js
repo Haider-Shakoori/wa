@@ -85,6 +85,7 @@ export class SessionStore {
       const commandResult = await client.query(
         `SELECT c.id, c.organization_id, c.session_id, c.command
          FROM whatsapp_session_commands c
+         JOIN organizations o ON o.id = c.organization_id AND o.suspended_at IS NULL
          WHERE c.status = 'queued'
          ORDER BY c.created_at ASC
          FOR UPDATE SKIP LOCKED
@@ -634,7 +635,9 @@ export class SessionStore {
   async claimDirectMessage(messageId) {
     const result=await this.pool.query(`UPDATE whatsapp_messages m
       SET status='claimed',worker_id=$1,claimed_at=now(),attempts=attempts+1,updated_at=now()
-      FROM whatsapp_sessions s WHERE m.id=$2 AND m.session_id=s.id
+      FROM whatsapp_sessions s, organizations o
+      WHERE m.id=$2 AND m.session_id=s.id
+      AND o.id=m.organization_id AND o.suspended_at IS NULL
       AND m.direction='outbound' AND m.status='queued'
       AND s.deleted_at IS NULL AND s.status='connected'
       AND s.worker_id=$1 AND s.worker_lease_expires_at>now() RETURNING m.*`,[this.workerId,messageId]);
@@ -755,6 +758,7 @@ export class SessionStore {
     const candidates = await this.pool.query(
       `SELECT e.id AS session_event_id, e.organization_id, w.id AS endpoint_id
        FROM whatsapp_session_events e
+       JOIN organizations o ON o.id = e.organization_id AND o.suspended_at IS NULL
        JOIN webhook_endpoints w
          ON w.organization_id = e.organization_id
         AND w.enabled = true
@@ -790,6 +794,7 @@ export class SessionStore {
                 e.session_id, e.event_type, e.payload,
                 e.created_at AS event_created_at
          FROM webhook_deliveries d
+         JOIN organizations o ON o.id = d.organization_id AND o.suspended_at IS NULL
          JOIN webhook_endpoints w ON w.id = d.endpoint_id AND w.enabled = true
          JOIN whatsapp_session_events e ON e.id = d.session_event_id
          WHERE d.status = 'queued'
