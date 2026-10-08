@@ -69,7 +69,7 @@ export class AuthService {
     };
   }
 
-  async register(input: RegisterDto) {
+  async register(input: RegisterDto,context?: {ip?:string;userAgent?:string}) {
     const email = input.email.trim().toLowerCase();
     const existing = await this.db.query<{ id: string }>('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
     if (existing.rowCount) throw new ConflictException('Email already registered');
@@ -82,7 +82,7 @@ export class AuthService {
       organizationName: input.organizationName?.trim(),
     });
 
-    return this.issueTokens(created.user, created.membership);
+    return this.issueTokens(created.user, created.membership,'register',context);
   }
 
   async login(input: LoginDto, context?: { ip?: string; userAgent?: string }) {
@@ -109,7 +109,7 @@ export class AuthService {
     return this.issueTokens(user, membership, 'password', context);
   }
 
-  async google(input: GoogleAuthDto) {
+  async google(input: GoogleAuthDto,context?: {ip?:string;userAgent?:string}) {
     const profile = await this.verifyGoogleCredential(input.credential);
     const account = await this.socialAccount({
       provider: 'google',
@@ -117,7 +117,7 @@ export class AuthService {
       email: String(profile.email),
       name: String(profile.name || profile.given_name || String(profile.email).split('@')[0]),
     });
-    return this.issueTokens(account.user, account.membership, 'google');
+    return this.issueTokens(account.user, account.membership, 'google',context);
   }
 
   async githubAuthorizeUrl(returnTo?: string) {
@@ -191,7 +191,7 @@ export class AuthService {
     }
   }
 
-  async githubExchange(code: string) {
+  async githubExchange(code: string,context?: {ip?:string;userAgent?:string}) {
     const consumed = await this.db.query<{ user_id: string }>(
       `UPDATE oauth_login_codes
        SET used_at = now()
@@ -213,7 +213,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('GitHub account is no longer available');
 
     const membership = await this.membership(user.id);
-    return this.issueTokens(user, membership, 'github');
+    return this.issueTokens(user, membership, 'github',context);
   }
 
   private async socialAccount(input: {
