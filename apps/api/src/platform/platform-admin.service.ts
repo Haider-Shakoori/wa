@@ -333,6 +333,10 @@ export class PlatformAdminService {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at, o.suspended_at, o.suspension_reason,
               s.plan_code, s.status AS subscription_status, s.current_period_end,
+              CASE WHEN s.status IN ('active','trialing') AND (
+                 s.current_period_end <= now() OR (s.status='trialing' AND
+                 s.trial_ends_at IS NOT NULL AND s.trial_ends_at<=now()))
+                THEN 'expired' ELSE COALESCE(s.status,'none') END AS effective_subscription_status,
               count(DISTINCT ws.id)::int AS sessions,
               count(DISTINCT m.id)::int AS members
        FROM organizations o
@@ -366,7 +370,11 @@ export class PlatformAdminService {
       `SELECT s.organization_id, o.name AS organization_name, s.plan_code,
               s.status, s.current_period_start, s.current_period_end,
               s.trial_ends_at, s.cancel_at_period_end, s.provider,
-              p.max_sessions, p.monthly_messages, p.max_api_keys
+              CASE WHEN s.status IN ('active','trialing') AND (
+                 s.current_period_end <= now() OR (s.status='trialing' AND
+                 s.trial_ends_at IS NOT NULL AND s.trial_ends_at<=now()))
+                THEN 'expired' ELSE s.status END AS effective_status,
+              p.max_sessions, p.daily_messages, p.monthly_messages, p.max_api_keys
        FROM organization_subscriptions s
        JOIN organizations o ON o.id = s.organization_id
        JOIN subscription_plans p ON p.code = s.plan_code
