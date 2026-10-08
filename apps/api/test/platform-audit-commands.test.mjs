@@ -30,3 +30,14 @@ test('default messaging engine changes are audited with the acting administrator
   assert.match(body, /actorUserId/);
   assert.match(controller, /updateMessagingEngine\(body, request\.auth\.sub\)/);
 });
+
+test('messaging safety governor changes and audit record are atomic', async () => {
+  const service = await readFile(new URL('../src/platform/platform-admin.service.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../src/platform/platform-admin.controller.ts', import.meta.url), 'utf8');
+  const block = service.slice(service.indexOf('async updateMessagingSafety('), service.indexOf('async workers()'));
+  assert.match(block, /this\.db\.transaction\(async \(client\)/);
+  assert.match(block, /FOR UPDATE/);
+  assert.match(block, /messaging\.safety\.updated/);
+  assert.match(block, /INSERT INTO platform_admin_audit_logs/);
+  assert.match(controller, /updateMessagingSafety\(body, request\.auth\.sub\)/);
+});
