@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -25,6 +25,16 @@ export class PlatformAdminController {
   @Get('tenants/:organizationId/members')
   tenantMembers(@Param('organizationId', ParseUUIDPipe) organizationId: string) {
     return this.platform.tenantMembers(organizationId);
+  }
+
+  @Patch('tenants/:organizationId/members/:membershipId/status')
+  updateTenantMemberStatus(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('membershipId', ParseUUIDPipe) membershipId: string,
+    @Body() body: UpdateTenantMemberStatusDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.platform.updateTenantMemberStatus(organizationId, membershipId, body, request.auth.sub);
   }
 
   @Get('sessions')
