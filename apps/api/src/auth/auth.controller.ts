@@ -15,8 +15,10 @@ export class AuthController {
   }
 
   @Post('register')
-  register(@Body() body: RegisterDto) {
-    return this.auth.register(body);
+  register(@Body() body: RegisterDto,@Req() request: Request) {
+    return this.auth.register(body,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Post('login')
@@ -28,8 +30,10 @@ export class AuthController {
   }
 
   @Post('google')
-  google(@Body() body: GoogleAuthDto) {
-    return this.auth.google(body);
+  google(@Body() body: GoogleAuthDto,@Req() request: Request) {
+    return this.auth.google(body,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Get('github/start')
@@ -49,8 +53,10 @@ export class AuthController {
   }
 
   @Post('github/exchange')
-  githubExchange(@Body() body: GithubExchangeDto) {
-    return this.auth.githubExchange(body.code);
+  githubExchange(@Body() body: GithubExchangeDto,@Req() request: Request) {
+    return this.auth.githubExchange(body.code,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Post('mfa/verify')
