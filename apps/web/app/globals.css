@@ -1286,3 +1286,48 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
   .platform-shell .website-plan-editor{padding:15px!important}
   .platform-shell .website-plan-actions button{flex:1}
 }
+
+
+/* Privacy controls: SQLite message archive operator settings */
+.platform-shell .sqlite-history-settings{
+  background:#101a14!important;border:1px solid #354b3c!important;color:#edf9f0!important
+}
+.platform-shell .sqlite-history-settings h2,.platform-shell .sqlite-history-status strong{color:#f4fff6!important}
+.platform-shell .sqlite-history-settings .muted,.platform-shell .sqlite-history-status span{color:#b5c8b9!important}
+.platform-shell .sqlite-history-status{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0
+}
+.platform-shell .sqlite-history-status>div{
+  background:#17261d;border:1px solid #354b3c;border-radius:12px;padding:14px;
+  display:grid;gap:8px;min-width:0
+}
+.platform-shell .sqlite-history-status span{font-size:12px}
+.platform-shell .sqlite-history-status strong{font-size:17px;overflow-wrap:anywhere}
+.platform-shell .sqlite-history-form{display:grid;gap:18px;max-width:780px;margin-top:18px}
+.platform-shell .sqlite-history-form label{color:#edf9f0!important;font-weight:650;display:grid;gap:8px}
+.platform-shell .sqlite-history-toggle{
+  display:flex!important;gap:14px;align-items:flex-start;padding:14px;
+  background:#17261d;border:1px solid #49694f;border-radius:12px
+}
+.platform-shell .sqlite-history-toggle input{width:22px;height:22px;accent-color:#39db84;margin-top:1px;flex:0 0 auto}
+.platform-shell .sqlite-history-toggle span{display:grid;gap:5px}
+.platform-shell .sqlite-history-toggle small{font-weight:400;color:#b5c8b9;line-height:1.5}
+.platform-shell .sqlite-history-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.platform-shell .sqlite-history-fields input,.platform-shell .sqlite-history-form textarea{
+  width:100%;min-width:0;color-scheme:dark!important;background:#17261d!important;
+  color:#f6fff8!important;border:1px solid #55745d!important;border-radius:10px;
+  padding:12px;font-size:14px
+}
+.platform-shell .sqlite-history-form .primary-button{justify-self:start}
+.platform-shell .sqlite-history-warning{
+  padding:14px;border-radius:12px;border:1px solid #84683a;
+  background:#302719;color:#f9dbac;line-height:1.65
+}
+.platform-shell .sqlite-history-warning code{display:block;overflow-wrap:anywhere;margin-top:8px}
+.platform-shell .sqlite-history-note{margin-top:14px;line-height:1.7}
+@media(max-width:850px){
+  .platform-shell .sqlite-history-status{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .platform-shell .sqlite-history-fields,.platform-shell .sqlite-history-status{grid-template-columns:1fr}
+}
