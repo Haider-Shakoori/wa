@@ -37,18 +37,18 @@ export class PlatformAdminController {
   }
 
   @Post('sessions/:sessionId/connect')
-  connectSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'connect');
+  connectSession(@Param('sessionId') sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'connect', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/restart')
-  restartSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'restart');
+  restartSession(@Param('sessionId') sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'restart', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/logout')
-  logoutSession(@Param('sessionId') sessionId: string) {
-    return this.platform.sessionAction(sessionId, 'logout');
+  logoutSession(@Param('sessionId') sessionId: string, @Req() request: AuthenticatedRequest) {
+    return this.platform.sessionAction(sessionId, 'logout', request.auth.sub);
   }
 
   @Post('sessions/:sessionId/messaging/resume')
