@@ -28,3 +28,9 @@ test('mobile platform navigation offers separate website analytics, including co
   assert.match(analytics,/Unknown \/ unavailable/);
   assert.match(analytics,/7,30,90/);
 });
+
+test('crawler countries are available as a cross-tabulated report',async()=>{
+ const screen=await read('../components/platform-website-traffic.tsx');
+ assert.match(screen,/Bot activity by country/);
+ assert.match(screen,/botCountries/);
+});
