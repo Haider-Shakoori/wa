@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
+import { PlatformMonitoring } from '../../components/platform-monitoring';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Monitoring','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -512,6 +513,8 @@ export default function PlatformPage() {
         {['super_admin','support_admin'].includes(platformRole)?loginEvents.map((entry)=><div className="platform-detail-row" key={entry.id}><span><strong>{entry.email??'Unknown administrator'}</strong><small>{entry.login_method} · {entry.ip_address??'IP unavailable'} · {date(entry.created_at)}</small></span><Badge value={entry.outcome}/></div>):<Empty text="Security monitoring requires a Super or Support Admin role."/>}
         {!loginEvents.length&&<Empty text="No administrator sign-in events recorded yet."/>}
       </section></>}
+
+      {active === 'Monitoring' && <PlatformMonitoring token={token} role={platformRole}/>}
 
       {active === 'Audit log' && <section className="panel platform-audit-panel">
         <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
