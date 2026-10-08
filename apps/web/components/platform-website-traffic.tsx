@@ -9,6 +9,7 @@ type TrafficReport={
   trend:Array<{day:string;human:number;bots:number;suspected:number;unique_visitors:number}>;
   countries:Array<{country_code:string;human:number;bots:number;suspected:number;daily_unique_visitors:number}>;
   bots:Array<{bot_family:string;hits:number;countries:number}>;
+  botCountries:Array<{bot_family:string;country_code:string;hits:number}>;
   pages:Array<{path:string;human:number;automated:number}>;
   sources:Array<{source:string;hits:number}>;
   devices:Array<{device_type:string;hits:number}>;
@@ -110,6 +111,20 @@ export function PlatformWebsiteTraffic({token}:{token:string}){
           <b>{number(bot.hits)}</b>
         </div>)}
         {report&&!report.bots.length&&<p className="muted">No declared crawler or automation hits recorded.</p>}
+      </div>
+    </div>
+    <div className="panel website-traffic-panel">
+      <h3>Bot activity by country</h3>
+      <p className="muted">Each row identifies the declared crawler family and its observed IP-origin country. User-agent claims are not verified.</p>
+      <div className="website-traffic-table" role="table" aria-label="Bot families grouped by country">
+        <div className="website-traffic-table-head" role="row">
+          <span>Bot family / Country</span><span></span><span>Hits</span>
+        </div>
+        {(report?.botCountries??[]).map((item,index)=><div className="website-traffic-table-row" key={item.bot_family+item.country_code+index}>
+          <div><strong>{item.bot_family}</strong><small>{countryName(item.country_code)} ({item.country_code})</small></div>
+          <span></span><span>{number(item.hits)}</span>
+        </div>)}
+        {report&&!report.botCountries.length&&<p className="muted">No automated page visits recorded yet.</p>}
       </div>
     </div>
     <div className="website-traffic-grid">
