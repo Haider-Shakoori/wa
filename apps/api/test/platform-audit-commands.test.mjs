@@ -41,3 +41,18 @@ test('messaging safety governor changes and audit record are atomic', async () =
   assert.match(block, /INSERT INTO platform_admin_audit_logs/);
   assert.match(controller, /updateMessagingSafety\(body, request\.auth\.sub\)/);
 });
+
+test('OAuth configuration records only public settings with administrator identity', async () => {
+  const service = await readFile(new URL('../src/platform/platform-admin.service.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../src/platform/platform-admin.controller.ts', import.meta.url), 'utf8');
+  for (const provider of ['Google', 'Github']) {
+    const from = service.indexOf('async update' + provider + 'AuthProvider(');
+    const to = service.indexOf('\n  async ', from + 6);
+    const block = service.slice(from, to);
+    assert.match(block, /this\.db\.transaction/);
+    assert.match(block, /authentication\.provider\.updated/);
+    assert.match(block, /actorUserId/);
+    assert.match(block, /enabled, public_config/);
+    assert.match(controller, new RegExp('update' + provider + 'AuthProvider\\(body, request\\.auth\\.sub\\)'));
+  }
+});
