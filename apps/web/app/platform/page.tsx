@@ -9,11 +9,13 @@ import { PlatformMonitoring } from '../../components/platform-monitoring';
 import { PlatformWebsiteTraffic } from '../../components/platform-website-traffic';
 import { PlatformClientSubscriptionEditor, type ClientPlan } from '../../components/platform-client-subscription-editor';
 import { PlatformGoogleAnalytics } from '../../components/platform-google-analytics';
+import { PlatformAddAdministrator } from '../../components/platform-add-administrator';
+import { PlatformWebsiteSubscriptions } from '../../components/platform-website-subscriptions';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Clients','Sessions','Messaging'] },
-  { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
+  { label:'Commercial', items:['Website subscriptions','Subscriptions','Payments','Providers'] },
   { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
@@ -49,6 +51,7 @@ export default function PlatformPage() {
   const [auditLogs,setAuditLogs] = useState<any[]>([]);
   const [platformRole,setPlatformRole] = useState('read_only');
   const [administrators,setAdministrators] = useState<any[]>([]);
+  const [addingAdministrator,setAddingAdministrator] = useState(false);
   const [loginEvents,setLoginEvents] = useState<any[]>([]);
   const [auditAction,setAuditAction] = useState('');
   const [auditActor,setAuditActor] = useState('');
@@ -423,6 +426,13 @@ export default function PlatformPage() {
     finally {setTenantBusy(false);}
   }
 
+  async function administratorCreated() {
+    setAdministrators(await api<any[]>('/platform/administrators',token));
+    setAuditLogs(await api<any[]>('/platform/audit-logs',token));
+    setNotice('Administrator access granted. The user must sign in again with their existing credentials.');
+    setError('');
+  }
+
   async function changeAdministratorRole(user:any,role:string) {
     if(platformRole!=='super_admin')return;
     const reason=window.prompt('Change '+user.email+' role to '+role+'? Provide an audit reason (8+ characters):');
@@ -551,7 +561,11 @@ export default function PlatformPage() {
       </>}
 
       {active === 'Administrators' && <section className="panel platform-detail-panel">
-        <div className="panel-head"><div><p className="eyebrow">Platform security</p><h2>Administrator roles</h2><p className="muted">Super Admin, Billing Admin, Support Admin and Read-only. Role changes are audited.</p></div></div>
+        <div className="panel-head"><div><p className="eyebrow">Platform security</p><h2>Administrator roles</h2><p className="muted">Super Admin, Billing Admin, Support Admin and Read-only. Role grants and changes are audited.</p></div>
+          {platformRole==='super_admin'&&<button type="button" className="primary-button" onClick={()=>setAddingAdministrator(value=>!value)} aria-expanded={addingAdministrator}>{addingAdministrator?'Close form':'+ Add administrator'}</button>}
+        </div>
+        {platformRole==='super_admin'&&addingAdministrator&&<PlatformAddAdministrator token={token}
+          onCreated={administratorCreated} onCancel={()=>setAddingAdministrator(false)}/>}
         {platformRole==='super_admin'?administrators.map((admin)=><div className="platform-detail-row" key={admin.id}><span><strong>{admin.name}</strong><small>{admin.email}</small></span>
           <select className="table-select" aria-label={'Administrator role for '+admin.email} value={admin.platform_role??'read_only'} onChange={e=>void changeAdministratorRole(admin,e.target.value)}><option value="super_admin">Super Admin</option><option value="billing_admin">Billing Admin</option><option value="support_admin">Support Admin</option><option value="read_only">Read-only</option></select></div>):<Empty text="Super Admin access is required to manage platform roles."/>}
       </section>}
@@ -667,6 +681,17 @@ export default function PlatformPage() {
         <button className="primary-button" onClick={()=>void saveMessagingSafety()}>Save Safety Governor settings</button>
       </section>
       <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
+      </>}
+
+      {active === 'Website subscriptions' && <>
+        <PlatformWebsiteSubscriptions
+          plans={subscriptionPlans} subscriptions={subscriptions} payments={payments}
+          clientCount={tenants.length} onPayments={()=>setActive('Payments')}
+          onManage={id=>setEditingClientId(id)}/>
+        {subscriptionClient&&<PlatformClientSubscriptionEditor key={subscriptionClient.id}
+          client={subscriptionClient} subscription={subscriptionRecord} plans={subscriptionPlans} token={token}
+          canEdit={['super_admin','billing_admin'].includes(platformRole)}
+          onClose={()=>setEditingClientId(null)} onUpdated={subscriptionSaved}/>}
       </>}
 
       {active === 'Subscriptions' && <>
@@ -800,6 +825,7 @@ function platformSubtitle(section:string) {
     Clients:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
+    'Website subscriptions':'Customers, pricing, checkout payments and live website subscription records.',
     Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',
     Payments:'Payment activity, manual approvals and provider status.',
     Providers:'Payment provider availability and platform configuration.',
