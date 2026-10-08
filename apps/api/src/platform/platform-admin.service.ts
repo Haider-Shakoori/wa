@@ -90,7 +90,15 @@ export class PlatformAdminService {
         FROM system_alerts WHERE created_at>=now()-interval '30 days'`),
       this.workers(),
     ]);
+    // Do not expose SMTP credentials; only tell operators whether outbound
+    // notification delivery has enough configuration to be attempted.
+    const emailAlertsEnabled=!['0','false','no','off'].includes(
+      String(process.env.ALERT_EMAIL_ENABLED??'true').toLowerCase());
+    const emailAlertsConfigured=Boolean(emailAlertsEnabled && process.env.SMTP_HOST &&
+      (process.env.SMTP_FROM||process.env.SMTP_USER));
+
     return { generatedAt:new Date().toISOString(),
+      notificationDelivery:{ emailConfigured:emailAlertsConfigured },
       sessions:sessions.rows[0], webhooks24h:webhooks.rows[0],
       failedMessages24h:messageFailures.rows[0]?.count??0,
       alerts30d:recentAlerts.rows[0],
