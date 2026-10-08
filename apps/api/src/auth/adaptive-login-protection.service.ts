@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 
@@ -11,9 +11,26 @@ const ACCOUNT_THRESHOLD=8;
 const IP_HARD_LIMIT=60;
 
 @Injectable()
-export class AdaptiveLoginProtectionService {
+export class AdaptiveLoginProtectionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger=new Logger(AdaptiveLoginProtectionService.name);
+  private cleanupTimer:ReturnType<typeof setInterval>|null=null;
   constructor(private readonly db:DatabaseService) {}
+
+  onModuleInit() {
+    // Keep failed-attempt fingerprints short-lived without adding cleanup
+    // work to the public login request path.
+    this.cleanupTimer=setInterval(()=>{
+      void this.db.query(`DELETE FROM auth_login_attempt_windows
+        WHERE last_failed_at<now()-interval '7 days'`)
+        .catch(error=>this.logger.warn('Login counter cleanup unavailable: '+
+          (error instanceof Error?error.name:'error')));
+    },6*60*60*1000);
+    this.cleanupTimer.unref();
+  }
+
+  onModuleDestroy() {
+    if(this.cleanupTimer)clearInterval(this.cleanupTimer);
+  }
 
   private get keysConfigured() {
     return Boolean(process.env.TURNSTILE_SITE_KEY?.trim() &&
