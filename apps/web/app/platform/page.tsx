@@ -168,14 +168,12 @@ export default function PlatformPage() {
         api('/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
-      void (async()=>{
-        if(platformRole==='super_admin') {
-          void api<any[]>('/platform/administrators',current).then(setAdministrators).catch(()=>setAdministrators([]));
-        } else setAdministrators([]);
-        if(identity.role==='super_admin'||identity.role==='support_admin') {
-          void api<any[]>('/platform/security/login-events',current).then(setLoginEvents).catch(()=>setLoginEvents([]));
-        } else setLoginEvents([]);
-      })();
+      if(platformRole==='super_admin') {
+        void api<any[]>('/platform/administrators',current).then(setAdministrators).catch(()=>setAdministrators([]));
+      } else setAdministrators([]);
+      if(platformRole==='super_admin'||platformRole==='support_admin') {
+        void api<any[]>('/platform/security/login-events',current).then(setLoginEvents).catch(()=>setLoginEvents([]));
+      } else setLoginEvents([]);
       void api('/platform/analytics',current).then(setAnalytics).catch(()=>setAnalytics(null));
       void api<any[]>('/platform/audit-logs',current).then(setAuditLogs).catch(()=>setAuditLogs([]));
       setTenants(t as any[]);
