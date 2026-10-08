@@ -64,6 +64,8 @@ export default function PlatformPage() {
   const [workers,setWorkers] = useState<any[]>([]);
   const [queues,setQueues] = useState<any>(null);
   const [errors,setErrors] = useState<any>(null);
+  const [diagnosticView,setDiagnosticView]=useState<'active'|'archived'>('active');
+  const [archiveBusy,setArchiveBusy]=useState<string|null>(null);
   const [payments,setPayments] = useState<any[]>([]);
   const [providers,setProviders] = useState<any[]>([]);
   const [error,setError] = useState('');
@@ -168,7 +170,7 @@ export default function PlatformPage() {
         api('/platform/subscription-plans',current),
         api('/platform/workers',current),
         api('/platform/queues',current),
-        api('/platform/errors',current),
+        api('/platform/errors?view='+diagnosticView,current),
         api('/platform/payments',current),
         api('/billing/providers',current),
         api('/platform/settings/auth-providers',current),
@@ -208,6 +210,29 @@ export default function PlatformPage() {
     } finally {
       setRefreshing(false);
     }
+  }
+
+  useEffect(()=>{
+    if(!token || active!=='Diagnostics')return;
+    void api('/platform/errors?view='+diagnosticView,token).then(setErrors)
+      .catch(err=>setError(err instanceof Error?err.message:'Could not load diagnostics'));
+  },[token,active,diagnosticView]);
+
+  async function archiveDiagnostic(resource:'session'|'message'|'webhook',id:string) {
+    if(archiveBusy)return;
+    const reason=window.prompt('Archive this diagnostic only after investigating it. What was fixed or verified? (8+ characters)');
+    if(reason===null)return;
+    if(reason.trim().length<8){setError('Please give an archive reason of at least 8 characters.');return;}
+    if(!window.confirm('Archive this diagnostic? The original error record remains available in history.'))return;
+    setArchiveBusy(id);setError('');
+    try {
+      await api('/platform/diagnostics/'+resource+'/'+encodeURIComponent(id)+'/archive',token,
+        {method:'PATCH',body:JSON.stringify({reason:reason.trim()})});
+      setErrors(await api('/platform/errors?view='+diagnosticView,token));
+      setNotice('Diagnostic archived with audit history. New failures will reopen the issue.');
+      await refresh();
+    }catch(err){setError(err instanceof Error?err.message:'Could not archive diagnostic');}
+    finally{setArchiveBusy(null);}
   }
 
   useEffect(()=>{ if(platformAccess==='allowed')void refresh(); },[token,platformAccess]);
@@ -369,9 +394,11 @@ export default function PlatformPage() {
   }
 
   const connected = overview?.sessions?.connected ?? 0;
-  const failedMessages = overview?.messages?.failed ?? 0;
+  const failedMessages = Number(overview?.activeFailedMessages ?? overview?.messages?.failed ?? 0);
   const pendingManual = payments.filter((p)=>p.provider === 'manual' && p.status === 'pending').length;
-  const healthyWorkers = workers.filter((w)=>new Date(w.lease_expires_at).getTime() > Date.now()).length;
+  const healthyWorkers = workers.filter((w)=>w.health_state==='online').length;
+  const offlineWorkers = workers.filter((w)=>w.health_state==='offline').length;
+  const unknownWorkers = workers.filter((w)=>w.health_state==='unknown').length;
   const normalizedQuery = query.trim().toLowerCase();
   useEffect(()=>{
     if (!token || !selectedTenantId) { setTenantMembers([]); setMembersLoading(false); return; }
@@ -469,8 +496,8 @@ export default function PlatformPage() {
   const visibleSubscriptions = filteredSubscriptions.filter((item)=>subscriptionFilter==='all' || (subscriptionFilter==='active' ? item.effective_status==='active' : subscriptionFilter==='trialing' ? item.effective_status==='trialing' : !['active','trialing'].includes(String(item.effective_status??''))));
   const filteredPayments = payments.filter((item)=> (paymentFilter==='all' || item.status===paymentFilter) && (!normalizedQuery || [item.organization_name,item.provider,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))));
   const disconnected = sessions.filter((s)=>s.status!=='connected').length;
-  const webhookFailures = Number(overview?.failedWebhooks ?? 0);
-  const attentionCount = Number(pendingManual>0) + Number(failedMessages>0) + Number(webhookFailures>0) + Number(disconnected>0);
+  const webhookFailures = Number(overview?.activeFailedWebhooks ?? overview?.failedWebhooks ?? 0);
+  const attentionCount = Number(pendingManual>0) + Number(failedMessages>0) + Number(webhookFailures>0) + Number(disconnected>0) + Number(offlineWorkers>0);
   const connectionRate = sessions.length ? Math.round(connected / sessions.length * 100) : 100;
 
   if(platformAccess!=='allowed'){
@@ -542,7 +569,7 @@ export default function PlatformPage() {
             </div>
           </div>
           <div className="platform-health-card">
-            <div className="platform-health-head"><span className={healthyWorkers?'health-orb healthy':'health-orb warning'}/><div><strong>{healthyWorkers ? 'Core services healthy' : 'Infrastructure needs attention'}</strong><small>Live operational snapshot</small></div></div>
+            <div className="platform-health-head"><span className={offlineWorkers?'health-orb warning':healthyWorkers?'health-orb healthy':'health-orb warning'}/><div><strong>{offlineWorkers?'Infrastructure needs attention':healthyWorkers?'Worker heartbeat healthy':unknownWorkers?'Worker health awaiting verification':'No worker heartbeat observed'}</strong><small>Process heartbeat (not WhatsApp lease status) · latest platform snapshot</small></div></div>
             <div className="platform-health-stats"><span><b>{healthyWorkers}</b>workers</span><span><b>{connected}</b>connected</span><span><b>{failedMessages}</b>failed</span></div>
           </div>
         </section>
@@ -730,7 +757,7 @@ export default function PlatformPage() {
       </TableSection>}
 
       {active === 'Infrastructure' && <section className="two-column">
-        <Panel title="Worker leases">{workers.map((w)=><div className="session-row" key={w.worker_id}><div className="session-avatar small">WK</div><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned</span></div><Badge value={new Date(w.lease_expires_at).getTime()>Date.now()?'healthy':'expired'}/></div>)}{!workers.length && <Empty text="No workers found."/>}</Panel>
+        <Panel title="Worker process and session leases">{workers.map((w)=><div className="session-row" key={w.worker_id}><div className="session-avatar small">WK</div><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned · {w.stale_session_leases??0} stale session leases</span><small>Process heartbeat: {date(w.last_seen_at)}</small></div><Badge value={w.health_state==='online'?'online':w.health_state==='offline'?'offline':'unknown'}/></div>)}{!workers.length && <Empty text="No worker heartbeat observed yet. Verify the worker service and deployment."/>}</Panel>
         <Panel title="Queue state"><QueueSummary queues={queues}/></Panel>
       </section>}
 
@@ -786,7 +813,18 @@ export default function PlatformPage() {
         </div>
       </section>}
 
-      {active === 'Diagnostics' && <section className="diagnostics-grid"><Diagnostic title="Session errors" rows={errors?.sessions ?? []}/><Diagnostic title="Message errors" rows={errors?.messages ?? []}/><Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []}/></section>}
+      {active === 'Diagnostics' && <>
+        <section className="panel">
+          <div className="panel-head"><div><p className="eyebrow">Operational diagnostics</p><h2>{diagnosticView==='active'?'Active problems':'Resolved and archived history'}</h2><p className="muted">Issues automatically leave the active view when the underlying status recovers. Archiving a reviewed failure never deletes the original record or audit history.</p></div>
+            <div className="platform-filter-bar"><button type="button" className={diagnosticView==='active'?'selected':''} onClick={()=>setDiagnosticView('active')}>Active</button><button type="button" className={diagnosticView==='archived'?'selected':''} onClick={()=>setDiagnosticView('archived')}>Resolved / Archived</button></div>
+          </div>
+        </section>
+        <section className="diagnostics-grid">
+          <Diagnostic title="Session errors" rows={errors?.sessions ?? []} resource="session" archived={diagnosticView==='archived'} canArchive={['super_admin','support_admin'].includes(platformRole)} busy={archiveBusy} onArchive={archiveDiagnostic}/>
+          <Diagnostic title="Message errors" rows={errors?.messages ?? []} resource="message" archived={diagnosticView==='archived'} canArchive={['super_admin','support_admin'].includes(platformRole)} busy={archiveBusy} onArchive={archiveDiagnostic}/>
+          <Diagnostic title="Webhook errors" rows={errors?.webhooks ?? []} resource="webhook" archived={diagnosticView==='archived'} canArchive={['super_admin','support_admin'].includes(platformRole)} busy={archiveBusy} onArchive={archiveDiagnostic}/>
+        </section>
+      </>}
       <PlatformSupportBot token={token} onNavigate={(section)=>setActive(section)}/>
     </main>
   </div>;
@@ -805,7 +843,9 @@ function QueueSummary({queues}:{queues:any}) {
   return <div className="queue-summary">{groups.map(([label,rows]:any)=><div className="queue-group" key={label}><strong>{label}</strong><div>{(rows??[]).map((r:any)=><span key={r.status}><b>{r.count}</b>{r.status}</span>)}</div></div>)}</div>;
 }
 
-function Diagnostic({title,rows}:{title:string;rows:any[]}) { return <section className="panel"><div className="panel-head"><h2>{title}</h2><span className="count-badge">{rows.length}</span></div>{rows.length?rows.slice(0,30).map((r,i)=><div className="diagnostic-row" key={r.id??i}><strong>{r.name ?? r.status ?? 'Error'}</strong><span>{r.last_connection_error ?? r.last_error ?? 'Unknown error'}</span><small>{date(r.updated_at)}</small></div>):<Empty text="No recent errors."/>}</section>; }
+function Diagnostic({title,rows,resource,archived,canArchive,busy,onArchive}:{title:string;rows:any[];resource:'session'|'message'|'webhook';archived:boolean;canArchive:boolean;busy:string|null;onArchive:(resource:'session'|'message'|'webhook',id:string)=>Promise<void>}) {
+  return <section className="panel"><div className="panel-head"><h2>{title}</h2><span className="count-badge">{rows.length}</span></div>{rows.length?rows.slice(0,30).map((r,i)=><div className="diagnostic-row" key={r.id??i}><strong>{r.name??r.status??'Error'}</strong><span>{r.last_connection_error??r.last_error??'Unknown error'}</span><small>{date(r.updated_at)} · {archived?(r.recovered?'Recovered':'Archived by administrator'):'Requires review'}</small>{canArchive&&!archived&&<button className="mini-button" type="button" disabled={Boolean(busy)} onClick={()=>void onArchive(resource,r.id)}>{busy===r.id?'Saving…':'Archive after review'}</button>}</div>):<Empty text={archived?'No archived errors.':'No active errors.'}/>}</section>;
+}
 function Empty({text}:{text:string}) { return <div className="empty">{text}</div>; }
 function date(value?:string|null) { if (!value) return '—'; return new Date(value).toLocaleString(); }
 function money(cents:number,currency:string) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:currency||'USD'}).format((Number(cents)||0)/100); } catch { return String((Number(cents)||0)/100) + ' ' + (currency||''); } }
