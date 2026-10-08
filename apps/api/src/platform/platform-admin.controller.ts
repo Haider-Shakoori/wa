@@ -191,6 +191,20 @@ export class PlatformAdminController {
     return this.platform.updateGithubAuthProvider(body, request.auth.sub);
   }
 
+  @Get('settings/message-history')
+  messageHistoryStorage() {
+    return this.platform.messageHistoryStorageSettings();
+  }
+
+  @Patch('settings/message-history')
+  @PlatformRoles('super_admin')
+  updateMessageHistoryStorage(
+    @Body() body:UpdateMessageHistoryStorageDto,
+    @Req() request:AuthenticatedRequest,
+  ) {
+    return this.platform.updateMessageHistoryStorage(body,request.auth.sub);
+  }
+
   @Get('settings/messaging-engine')
   messagingEngineSettings() { return this.platform.messagingEngineSettings(); }
 
