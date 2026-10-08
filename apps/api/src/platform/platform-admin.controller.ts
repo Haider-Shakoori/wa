@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformAdminService } from './platform-admin.service';
@@ -14,6 +15,9 @@ export class PlatformAdminController {
 
   @Get('analytics')
   analytics() { return this.platform.analytics(); }
+
+  @Get('audit-logs')
+  auditLogs() { return this.platform.auditLogs(); }
 
   @Get('tenants')
   tenants() { return this.platform.tenants(); }
@@ -56,8 +60,9 @@ export class PlatformAdminController {
   updateSubscription(
     @Param('organizationId') organizationId: string,
     @Body() body: UpdatePlatformSubscriptionDto,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.platform.updateSubscription(organizationId, body);
+    return this.platform.updateSubscription(organizationId, body, request.auth.sub);
   }
 
   @Get('settings/auth-providers')
