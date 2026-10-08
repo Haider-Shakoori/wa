@@ -31,6 +31,9 @@ test('report offers country breakdowns, bots, visitor trends and bounded windows
   assert.match(service,/count\(DISTINCT \(visit_day, visitor_key\)\)/);
   assert.match(service,/GROUP BY country_code/);
   assert.match(service,/GROUP BY bot_family/);
+  assert.match(service,/botCountries:botCountries.rows/);
+  assert.match(service,/DELETE FROM website_pageviews/);
+  assert.match(service,/setInterval/);
   assert.match(service,/GROUP BY path/);
   assert.match(service,/GROUP BY source/);
 });
