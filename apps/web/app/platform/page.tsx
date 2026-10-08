@@ -717,6 +717,7 @@ function money(cents:number,currency:string) { try { return new Intl.NumberForma
 function platformSubtitle(section:string) {
   const subtitles:Record<string,string> = {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
+    Monitoring:'Worker leases, session health, webhook failures and actionable alerts.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
     'Audit log':'Recorded administrator actions, change history and accountability.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',
