@@ -40,3 +40,16 @@ export class GithubExchangeDto {
   @MinLength(20)
   code!: string;
 }
+
+export class MfaVerifyDto {
+  @IsString() @MinLength(8) @MaxLength(128)
+  ticket!: string;
+
+  @IsString() @MinLength(6) @MaxLength(32)
+  code!: string;
+}
+
+export class MfaCodeDto {
+  @IsString() @MinLength(6) @MaxLength(6)
+  code!: string;
+}
