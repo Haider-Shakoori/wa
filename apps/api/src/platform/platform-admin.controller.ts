@@ -82,8 +82,8 @@ export class PlatformAdminController {
   messagingEngineSettings() { return this.platform.messagingEngineSettings(); }
 
   @Patch('settings/messaging-engine')
-  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto) {
-    return this.platform.updateMessagingEngine(body);
+  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateMessagingEngine(body, request.auth.sub);
   }
 
   @Get('settings/messaging-safety')
