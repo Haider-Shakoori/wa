@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
@@ -17,6 +17,27 @@ export default function PlatformPage() {
   const router=useRouter();
   const [token,setToken] = useState('');
   const [active,setActive] = useState('Overview');
+  const [mobileNavOpen,setMobileNavOpen] = useState(false);
+  const mobileNavToggleRef=useRef<HTMLButtonElement>(null);
+  const mobileNavCloseRef=useRef<HTMLButtonElement>(null);
+
+  useEffect(()=>{
+    if (!mobileNavOpen) return;
+    const onKeyDown=(event:KeyboardEvent)=>{
+      if (event.key==='Escape') {
+        setMobileNavOpen(false);
+        mobileNavToggleRef.current?.focus();
+      }
+    };
+    const oldOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    window.addEventListener('keydown',onKeyDown);
+    mobileNavCloseRef.current?.focus();
+    return ()=>{
+      document.body.style.overflow=oldOverflow;
+      window.removeEventListener('keydown',onKeyDown);
+    };
+  },[mobileNavOpen]);
   const [overview,setOverview] = useState<any>(null);
   const [analytics,setAnalytics] = useState<any>(null);
   const [auditLogs,setAuditLogs] = useState<any[]>([]);
@@ -406,12 +427,20 @@ export default function PlatformPage() {
   const connectionRate = sessions.length ? Math.round(connected / sessions.length * 100) : 100;
 
   return <div className="app-shell platform-shell">
-    <aside className="sidebar">
+    {mobileNavOpen&&<button type="button" className="platform-mobile-menu-backdrop"
+      aria-label="Close platform navigation" onClick={()=>setMobileNavOpen(false)}/>}
+    <aside id="platform-admin-navigation" className={'sidebar platform-admin-sidebar'+(mobileNavOpen?' platform-admin-sidebar-open':'')}
+      aria-label="Platform navigation">
+      <div className="platform-mobile-sidebar-header">
+        <strong>Navigation</strong>
+        <button ref={mobileNavCloseRef} type="button" className="platform-mobile-menu-close"
+          aria-label="Close navigation" onClick={()=>setMobileNavOpen(false)}>×</button>
+      </div>
       <div className="brand"><Brand/></div>
       <nav className="platform-nav-groups">
         {navigationGroups.map((group)=><div className="platform-nav-group" key={group.label}>
           <span className="platform-nav-label">{group.label}</span>
-          {group.items.map((item)=><button key={item} className={active===item?'nav-item active':'nav-item'} onClick={()=>setActive(item)}><span className="nav-dot"/>{item}</button>)}
+          {group.items.map((item)=><button key={item} type="button" aria-current={active===item?'page':undefined} className={active===item?'nav-item active':'nav-item'} onClick={()=>{setActive(item);setMobileNavOpen(false);}}><span className="nav-dot"/>{item}</button>)}
         </div>)}
       </nav>
       <div className="sidebar-bottom">
@@ -423,6 +452,11 @@ export default function PlatformPage() {
 
     <main className="content platform-page">
       <header className="topbar platform-topbar-v2">
+        <button ref={mobileNavToggleRef} type="button" className="platform-mobile-menu-toggle"
+          aria-label="Open platform navigation" aria-expanded={mobileNavOpen}
+          aria-controls="platform-admin-navigation" onClick={()=>setMobileNavOpen(true)}>
+          <span aria-hidden="true">☰</span><span>Menu</span>
+        </button>
         <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1><p className="platform-page-context">{platformSubtitle(active)}</p></div>
         <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'Refreshing…':'↻ Refresh'}</button></div>
       </header>
