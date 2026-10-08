@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 
 type MonitoringOverview = {
   generatedAt: string;
+  notificationDelivery: { emailConfigured:boolean };
   sessions: { total:number; connected:number; reconnecting:number; offline:number; stale_leases:number };
   webhooks24h: { failed:number; queued:number; delivered:number };
   failedMessages24h: number;
@@ -68,6 +69,9 @@ export function PlatformMonitoring({token,role}:{token:string;role:string}) {
         <h2>Monitoring & incident alerts</h2>
         <p className="muted">Live platform signals, refreshed every minute. Acknowledging an alert does not cancel its notification delivery.</p>
         {overview&&<small>Last updated {new Date(overview.generatedAt).toLocaleTimeString()}</small>}
+        {overview&&<small className={overview.notificationDelivery.emailConfigured?'platform-email-status-ready':'platform-email-status-missing'}>
+          Email alert delivery: {overview.notificationDelivery.emailConfigured?'Configured':'Not configured — alerts are still recorded here'}
+        </small>}
       </div>
       <button className="secondary-button" disabled={loading} onClick={()=>void reload()}>
         {loading?'Loading…':'↻ Refresh'}
