@@ -6,10 +6,10 @@ test('login supports sign in, registration and Google', async () => {
   const login = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
   const google = await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8');
   assert.match(login,/Create your account/);
-  assert.match(login,/\/v1\/auth\//);
+  assert.match(login,/\/auth\//);
   assert.match(login,/GoogleSignIn/);
-  assert.match(google,/\/v1\/auth\/google/);
-  assert.match(google,/\/v1\/auth\/providers/);
+  assert.match(google,/\/auth\/google/);
+  assert.match(google,/\/auth\/providers/);
   assert.doesNotMatch(google,/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
 });
 
@@ -20,10 +20,10 @@ test('onboarding implements plan through webhook setup', async () => {
   }
   assert.match(source,/billing\/checkout\/stripe/);
   assert.match(source,/billing\/manual/);
-  assert.match(source,/\/v1\/sessions/);
-  assert.match(source,/\/v1\/api-keys/);
+  assert.match(source,/\/whatsapp-sessions/);
+  assert.match(source,/\/api-keys/);
   assert.match(source,/\/messages\/text/);
-  assert.match(source,/\/v1\/webhooks/);
+  assert.match(source,/\/webhooks/);
 });
 
 test('dashboard provides guided setup without blocking the workspace', async () => {

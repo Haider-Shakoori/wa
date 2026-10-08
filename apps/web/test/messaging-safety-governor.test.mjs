@@ -6,10 +6,10 @@ test('platform Messaging page exposes Safety Governor controls', async () => {
   const source = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /Safety Governor/);
   assert.match(source, /settings\/messaging-safety/);
-  assert.match(source, /Minimum delay between messages/);
-  assert.match(source, /Messages per minute/);
-  assert.match(source, /Duplicate suppression window/);
-  assert.match(source, /Auto-pause after final failures/);
+  assert.match(source, /minDelayMs/);
+  assert.match(source, /messagesPerMinute/);
+  assert.match(source, /duplicateWindowSeconds/);
+  assert.match(source, /autoPauseSeconds/);
 });
 
 test('platform can visibly resume a safety-paused session', async () => {

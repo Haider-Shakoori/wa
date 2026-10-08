@@ -20,6 +20,6 @@ test('browser-facing API sources never embed localhost production endpoints', as
 
   assert.match(api, /NEXT_PUBLIC_API_BASE_URL/);
   assert.match(api, /\?\? '\/api'/);
-  assert.match(docs, /NEXT_PUBLIC_API_BASE_URL/);
+  assert.match(docs, /import \{ API_BASE \} from '\.\.\/\.\.\/lib\/api'/);
   assert.match(examples, /NEXT_PUBLIC_API_BASE_URL/);
 });

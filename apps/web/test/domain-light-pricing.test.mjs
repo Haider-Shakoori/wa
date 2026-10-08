@@ -6,7 +6,7 @@ test('public pricing is loaded from the backend catalog', async () => {
   const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
   assert.match(source, /public\/plans/);
   assert.match(source, /PlanCards/);
-  assert.match(source, /Save 15%/);
+  assert.match(source, /Save 14%/);
   assert.match(source, /50 messages per day/);
 });
 
