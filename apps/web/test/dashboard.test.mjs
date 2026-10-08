@@ -7,7 +7,7 @@ test('dashboard contains core relayWA customer areas', async () => {
   for (const label of ['QuickSend','MessageHistory','/api-keys','API documentation','Webhooks','Subscription']) {
     assert.match(source, new RegExp(label));
   }
-  assert.match(source, /Connect \/ show QR/);
+  assert.match(source, /lifecycle\('connect'\)/);
   assert.match(source, /billing\/subscription/);
   assert.match(source, /QuickSend/);
 });
