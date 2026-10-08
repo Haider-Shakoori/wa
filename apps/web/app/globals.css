@@ -1093,3 +1093,16 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
  .platform-shell .website-traffic-controls{width:100%}
  .platform-shell .website-traffic-controls button{flex:1}
 }
+
+/* Website analytics: lightweight verification and local-browser exclusion controls */
+.platform-shell .website-traffic-preferences{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:17px 20px!important}
+.platform-shell .website-traffic-preferences>div{flex:1 1 180px}
+.platform-shell .website-traffic-preferences strong{color:#e2f5e7;font-size:13px}
+.platform-shell .website-traffic-preferences p{font-size:11px;line-height:1.5;margin:7px 0 0}
+.platform-shell .website-traffic-preferences button[aria-pressed="true"]{border-color:#2dbe69;color:#bdf9d2}
+.platform-shell .website-traffic-verification{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:19px!important}
+.platform-shell .website-traffic-verification>div{background:#17241c;border:1px solid #304939;border-radius:10px;padding:12px;display:grid;gap:8px}
+.platform-shell .website-traffic-verification strong{font-size:11px;color:#afc8b7}
+.platform-shell .website-traffic-verification b{font-size:23px;color:#eafdef}
+.platform-shell .website-traffic-verification p{grid-column:1/-1;margin:1px 0 0;font-size:11px}
+@media(max-width:600px){.platform-shell .website-traffic-verification{grid-template-columns:1fr;gap:8px}.platform-shell .website-traffic-verification>div{display:flex;justify-content:space-between;align-items:center}}
