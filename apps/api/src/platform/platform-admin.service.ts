@@ -475,7 +475,7 @@ export class PlatformAdminService {
     };
   }
 
-  async updateMessagingSafety(input: UpdateMessagingSafetyDto) {
+  async updateMessagingSafety(input: UpdateMessagingSafetyDto, actorUserId: string) {
     const current = await this.messagingSafetySettings();
     const next = {
       enabled: input.enabled ?? current.enabled,
@@ -501,7 +501,9 @@ export class PlatformAdminService {
       throw new BadRequestException('Hourly message limit must be at least the per-minute limit');
     }
 
-    await this.db.query(
+    await this.db.transaction(async (client) => {
+      const before = await client.query('SELECT * FROM messaging_safety_settings WHERE id = $1 FOR UPDATE', ['global']);
+      const changed = await client.query(
       `UPDATE messaging_safety_settings
        SET enabled = $1,
            min_delay_ms = $2,
@@ -518,7 +520,7 @@ export class PlatformAdminService {
            failure_window_seconds = $13,
            auto_pause_seconds = $14,
            updated_at = now()
-       WHERE id = 'global'`,
+       WHERE id = 'global' RETURNING *`,
       [
         next.enabled,
         next.minDelayMs,
@@ -535,7 +537,13 @@ export class PlatformAdminService {
         next.failureWindowSeconds,
         next.autoPauseSeconds,
       ],
-    );
+      );
+      if (!changed.rows[0]) throw new NotFoundException('Messaging safety settings not found');
+      await client.query(`INSERT INTO platform_admin_audit_logs
+        (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+        VALUES ($1,$2,'messaging.safety.updated','messaging_settings','global',$3::jsonb,$4::jsonb)`,
+        [randomUUID(), actorUserId, JSON.stringify(before.rows[0] ?? null), JSON.stringify(changed.rows[0])]);
+    });
 
     return this.messagingSafetySettings();
   }
