@@ -1153,3 +1153,50 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
  .platform-shell .platform-subscription-selector>label{flex-basis:100%}
  .platform-shell .platform-subscription-actions>button{flex:1}
 }
+
+
+/* Platform administrators and RelayWA.com subscription workspace */
+.platform-shell .platform-admin-create{margin:0 0 22px;padding:20px;border:1px solid rgba(37,185,126,.36);border-radius:16px;background:rgba(32,117,86,.07)}
+.platform-shell .platform-admin-create>div:first-child strong{font-size:17px}
+.platform-shell .platform-admin-create>div:first-child p{margin:7px 0 17px}
+.platform-shell .platform-admin-create form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.platform-shell .platform-admin-create label{display:grid;gap:7px;min-width:0;font-size:13px;font-weight:700}
+.platform-shell .platform-admin-create input,.platform-shell .platform-admin-create select,.platform-shell .platform-admin-create textarea,
+.platform-shell .website-subscription-controls input,.platform-shell .website-subscription-controls select{width:100%;min-width:0;padding:12px;border-radius:11px;border:1px solid var(--rw-line,#304b45);background:var(--rw-surface,#15241f);color:var(--rw-text,#f2f7f5)}
+.platform-shell .platform-admin-create-reason,.platform-shell .platform-admin-create form>p,.platform-shell .platform-admin-create form>.alert,.platform-shell .platform-admin-create-actions{grid-column:1/-1}
+.platform-shell .platform-admin-create-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.platform-shell .website-subscriptions{display:grid;gap:16px}
+.platform-shell .website-subscriptions-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.platform-shell .website-subscriptions-head h2{margin:8px 0;font-size:25px}
+.platform-shell .website-subscriptions-head p{max-width:720px;margin:8px 0}
+.platform-shell .website-subscription-links{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.platform-shell .website-subscription-links a{text-decoration:none}
+.platform-shell .website-subscription-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.platform-shell .website-subscription-stats>div{display:grid;gap:10px}
+.platform-shell .website-subscription-stats span{font-size:12px;color:var(--rw-muted,#82978f)}
+.platform-shell .website-subscription-stats strong{font-size:29px;font-weight:800}
+.platform-shell .website-subscription-stats small{color:var(--rw-muted,#82978f)}
+.platform-shell .website-subscription-panel .panel-head{flex-wrap:wrap}
+.platform-shell .website-subscription-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.platform-shell .website-subscription-plans article{display:grid;align-content:start;gap:10px;border:1px solid var(--rw-line,#304b45);background:var(--rw-surface-soft,#10241b);border-radius:14px;padding:18px;min-width:0}
+.platform-shell .website-subscription-plans h3{margin:0;font-size:18px}
+.platform-shell .website-subscription-plans strong{font-size:23px}
+.platform-shell .website-subscription-plans strong small{font-size:12px;font-weight:500;color:var(--rw-muted,#82978f)}
+.platform-shell .website-subscription-plans p,.platform-shell .website-subscription-plans>article>small{font-size:12px;margin:0;line-height:1.6;color:var(--rw-muted,#82978f)}
+.platform-shell .website-subscription-panel>p.muted{font-size:12px;margin:16px 0 0}
+.platform-shell .website-subscription-switch{display:flex;gap:6px;padding:4px;border:1px solid var(--rw-line,#304b45);border-radius:11px}
+.platform-shell .website-subscription-switch button{border:0;border-radius:8px;padding:9px 13px;background:transparent;color:inherit}
+.platform-shell .website-subscription-switch button.selected{background:var(--rw-green-soft,#204c3b);color:var(--rw-green-strong,#34d399)}
+.platform-shell .website-subscription-controls{display:flex;gap:10px;margin-bottom:16px}
+.platform-shell .website-subscription-controls input{flex:1}
+.platform-shell .website-subscription-controls select{max-width:230px}
+.platform-shell .website-subscription-table-wrap{width:100%;overflow-x:auto}
+.platform-shell .website-subscription-table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap;font-size:13px}
+.platform-shell .website-subscription-table th,.platform-shell .website-subscription-table td{padding:14px 12px;border-bottom:1px solid var(--rw-line,#304b45)}
+.platform-shell .website-subscription-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--rw-muted,#82978f)}
+.platform-shell .website-subscription-table td strong{white-space:normal;overflow-wrap:anywhere}
+.platform-shell .website-subscription-status{display:inline-flex;border-radius:999px;padding:5px 9px;font-weight:700;background:rgba(147,163,158,.16);text-transform:capitalize}
+.platform-shell .website-subscription-status.active,.platform-shell .website-subscription-status.trialing{color:var(--rw-green-strong,#34d399);background:rgba(33,184,127,.12)}
+.platform-shell .website-subscription-status.expired,.platform-shell .website-subscription-status.past_due{color:#e39b4d;background:rgba(231,156,54,.12)}
+@media(max-width:980px){.platform-shell .website-subscription-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.platform-shell .platform-admin-create form{grid-template-columns:1fr}.platform-shell .website-subscription-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-shell .website-subscriptions-head{flex-direction:column}.platform-shell .website-subscription-controls{flex-direction:column}.platform-shell .website-subscription-controls select{max-width:none}.platform-shell .website-subscription-plans{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}}

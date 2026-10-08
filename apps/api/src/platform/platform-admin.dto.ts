@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Matches, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Matches, Min, MinLength } from 'class-validator';
 
 
 export class UpdateAlertAcknowledgementDto {
@@ -11,6 +11,17 @@ export class UpdateTenantSuspensionDto {
   status!: 'active' | 'suspended';
 
   @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
+export class AddPlatformAdministratorDto {
+  @IsEmail() @MaxLength(254)
+  email!: string;
+
+  @IsIn(['super_admin','billing_admin','support_admin','read_only'])
+  role!: 'super_admin' | 'billing_admin' | 'support_admin' | 'read_only';
+
+  @IsString() @MinLength(8) @MaxLength(240)
   reason!: string;
 }
 

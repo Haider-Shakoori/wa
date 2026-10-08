@@ -1,6 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 import type { PoolClient } from 'pg';
 
@@ -171,6 +171,37 @@ export class PlatformAdminService {
       FROM users WHERE is_platform_admin = true AND disabled_at IS NULL
       ORDER BY email ASC LIMIT 100`);
     return result.rows;
+  }
+
+  async addAdministrator(input: AddPlatformAdministratorDto, actorUserId: string) {
+    const email = input.email.trim().toLowerCase();
+    const reason = input.reason.trim();
+    if (!email || reason.length < 8) throw new BadRequestException('A valid email and audit reason are required');
+    return this.db.transaction(async client => {
+      // Only an existing, enabled account with an active membership can be promoted.
+      // No administrator passwords or new tenant workspaces are created here.
+      const result = await client.query<{
+        id: string; name: string; email: string; is_platform_admin: boolean; platform_role: string | null;
+      }>(`SELECT id,name,email,is_platform_admin,platform_role
+          FROM users WHERE lower(email)= $1 AND disabled_at IS NULL FOR UPDATE`, [email]);
+      const account = result.rows[0];
+      if (!account) throw new NotFoundException('No enabled RelayWA account has that email. Ask the person to register before granting administrator access.');
+      if (account.is_platform_admin) throw new ConflictException('This user is already a platform administrator');
+      const membership = await client.query(`SELECT 1 FROM organization_memberships m
+        JOIN organizations o ON o.id=m.organization_id
+        WHERE m.user_id=$1 AND m.status='active' AND o.suspended_at IS NULL LIMIT 1`, [account.id]);
+      if (!membership.rows[0]) throw new BadRequestException('The user needs an active RelayWA account and workspace membership first');
+      await client.query(`UPDATE users SET is_platform_admin=true,platform_role=$2,updated_at=now(),
+        token_version=token_version+1 WHERE id=$1`, [account.id, input.role]);
+      // Revoke existing customer login sessions so a newly promoted administrator
+      // must explicitly sign in again and pass the platform MFA checks.
+      await client.query(`UPDATE user_login_sessions SET revoked_at=now()
+        WHERE user_id=$1 AND revoked_at IS NULL`,[account.id]);
+      await this.recordAudit(client,actorUserId,'platform.admin.added','platform_admin',account.id,
+        {is_platform_admin:false,role:account.platform_role},
+        {is_platform_admin:true,role:input.role,reason});
+      return {id:account.id,name:account.name,email:account.email,platform_role:input.role};
+    });
   }
 
   async updateAdminRole(userId: string, input: UpdatePlatformAdminRoleDto, actorUserId: string) {
