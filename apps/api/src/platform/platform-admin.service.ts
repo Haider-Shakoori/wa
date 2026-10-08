@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto, WebsitePlanDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 import type { PoolClient } from 'pg';
 
@@ -541,9 +541,58 @@ export class PlatformAdminService {
     return result.rows;
   }
 
+  async createWebsitePlan(input: WebsitePlanDto, actorUserId: string) {
+    if (input.code === 'trial') throw new BadRequestException('Trial is a reserved built-in plan');
+    if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
+      throw new BadRequestException('Paid website plans require positive monthly and annual prices');
+    }
+    return this.db.transaction(async client => {
+      const exists = await client.query('SELECT 1 FROM subscription_plans WHERE code=$1', [input.code]);
+      if (exists.rows[0]) throw new ConflictException('A plan with that code already exists');
+      const result = await client.query(`INSERT INTO subscription_plans
+        (code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+         monthly_price_cents,annual_price_cents,currency,active)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
+        RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+          monthly_price_cents,annual_price_cents,currency,active`,
+        [input.code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
+         input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
+         input.annualPriceCents,input.currency]);
+      await this.recordAudit(client,actorUserId,'website.plan.created','subscription_plan',input.code,
+        null,{...result.rows[0],reason:input.reason.trim()});
+      return result.rows[0];
+    });
+  }
+
+  async updateWebsitePlan(code: string, input: WebsitePlanDto, actorUserId: string) {
+    if (input.code !== code) throw new BadRequestException('Plan code cannot be changed');
+    if (code === 'trial') throw new BadRequestException('The built-in trial plan is managed separately');
+    if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
+      throw new BadRequestException('Paid website plans require positive monthly and annual prices');
+    }
+    return this.db.transaction(async client => {
+      const previous = await client.query(`SELECT code,name,max_sessions,daily_messages,
+        monthly_messages,max_api_keys,monthly_price_cents,annual_price_cents,currency
+        FROM subscription_plans WHERE code=$1 AND active=true FOR UPDATE`,[code]);
+      if (!previous.rows[0]) throw new NotFoundException('Website plan not found');
+      const result = await client.query(`UPDATE subscription_plans
+        SET name=$2,max_sessions=$3,daily_messages=$4,monthly_messages=$5,
+          max_api_keys=$6,monthly_price_cents=$7,annual_price_cents=$8,currency=$9
+        WHERE code=$1
+        RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+          monthly_price_cents,annual_price_cents,currency,active`,
+        [code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
+         input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
+         input.annualPriceCents,input.currency]);
+      await this.recordAudit(client,actorUserId,'website.plan.updated','subscription_plan',code,
+        previous.rows[0],{...result.rows[0],reason:input.reason.trim()});
+      return result.rows[0];
+    });
+  }
+
   async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto, actorUserId: string) {
-    if (input.extendDays !== undefined && input.periodEndDate !== undefined) {
-      throw new BadRequestException('Choose either an expiration date or an extension, not both');
+    if ([input.extendDays, input.periodEndDate, input.billingInterval].filter(v=>v!==undefined).length>1) {
+      throw new BadRequestException('Choose one expiry method: extension, specific date, or billing interval');
     }
     const reason=input.reason?.trim();
     if (!reason || reason.length < 8) throw new BadRequestException('An audit reason of at least eight characters is required');
@@ -574,7 +623,14 @@ export class PlatformAdminService {
       const status=input.status??before?.status??'trialing';
       const now=new Date();
       const previousEnd=before?.current_period_end ? new Date(before.current_period_end) : null;
+      const planChanged=planCode!==before?.plan_code;
       let end=explicitEnd;
+      if (!end && (input.billingInterval || (planChanged && status==='active'))) {
+        if (status==='trialing') throw new BadRequestException('Trial subscriptions use trial validity, not a paid billing interval');
+        const months=input.billingInterval==='annual'?12:1;
+        const period=await client.query<{end:Date}>(`SELECT now() + ($1 * interval '1 month') AS "end"`,[months]);
+        end=new Date(period.rows[0].end);
+      }
       if(!end && input.extendDays!==undefined){
         const baseline=previousEnd && previousEnd.getTime()>now.getTime() ? previousEnd : now;
         end=new Date(baseline.getTime() + input.extendDays*86400000);
@@ -603,8 +659,13 @@ export class PlatformAdminService {
         RETURNING organization_id,plan_code,status,current_period_start,current_period_end,
           trial_ends_at,cancel_at_period_end,provider,updated_at`,
         [organizationId,planCode,status,started,end,trialEnd,cancelAtEnd]);
+      await client.query(`UPDATE organizations
+        SET selected_plan_code=$2,
+          selected_billing_interval=COALESCE($3,selected_billing_interval),
+          updated_at=now()
+        WHERE id=$1`,[organizationId,planCode,input.billingInterval??null]);
       await this.recordAudit(client,actorUserId,'subscription.updated','subscription',organizationId,
-        before,{...updated.rows[0],reason,manualAdjustment:true});
+        before,{...updated.rows[0],reason,manualAdjustment:true,planChanged,billingInterval:input.billingInterval??null});
       return {...updated.rows[0],effectiveActive:isActive && end.getTime()>Date.now()};
     });
   }
