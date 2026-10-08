@@ -9,7 +9,7 @@ import { Brand } from '../../components/relay-workspace';
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Analytics','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Analytics','Audit log','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -18,6 +18,7 @@ export default function PlatformPage() {
   const [active,setActive] = useState('Overview');
   const [overview,setOverview] = useState<any>(null);
   const [analytics,setAnalytics] = useState<any>(null);
+  const [auditLogs,setAuditLogs] = useState<any[]>([]);
   const [tenants,setTenants] = useState<any[]>([]);
   const [sessions,setSessions] = useState<any[]>([]);
   const [subscriptions,setSubscriptions] = useState<any[]>([]);
@@ -96,6 +97,7 @@ export default function PlatformPage() {
       ]);
       setOverview(o);
       void api('/platform/analytics',current).then(setAnalytics).catch(()=>setAnalytics(null));
+      void api<any[]>('/platform/audit-logs',current).then(setAuditLogs).catch(()=>setAuditLogs([]));
       setTenants(t as any[]);
       setSessions(s as any[]);
       setSubscriptions(subs as any[]);
@@ -369,6 +371,15 @@ export default function PlatformPage() {
         </section>
       </>}
 
+      {active === 'Audit log' && <section className="panel platform-audit-panel">
+        <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
+        {auditLogs.map((entry)=><div className="platform-audit-entry" key={entry.id}>
+          <div><strong>{entry.action?.replaceAll('.', ' · ')}</strong><small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small><small>{entry.target_type} · {entry.target_id}</small></div>
+          <details><summary>Change details</summary><pre>{JSON.stringify({before:entry.before_state,after:entry.after_state},null,2)}</pre></details>
+        </div>)}
+        {!auditLogs.length&&<Empty text="No administrator audit entries yet."/>}
+      </section>}
+
       {active === 'Analytics' && <section className="panel platform-analytics-panel">
         <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new organizations, and operational notifications.</p></div></div>
         {analytics ? <>
@@ -530,6 +541,7 @@ function platformSubtitle(section:string) {
   const subtitles:Record<string,string> = {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
+    'Audit log':'Recorded administrator actions, change history and accountability.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
