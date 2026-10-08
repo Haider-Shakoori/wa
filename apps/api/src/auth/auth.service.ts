@@ -5,6 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import type { AuthTokenPayload } from './auth.types';
+import { challengeHash, createMfaSecret, createRecoveryCodes, openMfaSecret, recoveryHash, sealMfaSecret, verifyTotp } from './admin-mfa.crypto';
 
 type UserRow = { id: string; email: string; name: string; password_hash: string };
 type MembershipRow = { id: string; organization_id: string };
@@ -332,37 +333,160 @@ export class AuthService {
     membership: MembershipRow,
     loginMethod: 'password' | 'google' | 'github' | 'register' = 'register',
     context?: { ip?: string; userAgent?: string },
+    mfaVerified = false,
   ) {
     const onboarding = await this.db.query<{ onboarding_step: string }>(
       'SELECT onboarding_step FROM organizations WHERE id = $1 AND suspended_at IS NULL LIMIT 1',
       [membership.organization_id],
     );
     if (!onboarding.rows[0]) throw new UnauthorizedException('Organization access is suspended');
-    const onboardingStep = onboarding.rows[0]?.onboarding_step ?? 'complete';
-    const platformAdmin = await this.db.query<{ is_platform_admin: boolean }>(
-      'SELECT is_platform_admin FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
+    const onboardingStep = onboarding.rows[0].onboarding_step ?? 'complete';
+    const result = await this.db.query<{
+      is_platform_admin: boolean; mfa_enabled_at: Date | null; token_version: number;
+    }>(
+      'SELECT is_platform_admin, mfa_enabled_at, token_version FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
       [user.id],
     );
-    const isPlatformAdmin = Boolean(platformAdmin.rows[0]?.is_platform_admin);
-    if (isPlatformAdmin) await this.recordPlatformLogin(user.id, 'success', loginMethod, context);
+    const account = result.rows[0];
+    if (!account) throw new UnauthorizedException('User account unavailable');
+    const isPlatformAdmin = Boolean(account.is_platform_admin);
 
+    if (isPlatformAdmin && account.mfa_enabled_at && !mfaVerified) {
+      const challengeToken = randomBytes(32).toString('base64url');
+      await this.db.query(`INSERT INTO platform_mfa_challenges
+        (id, user_id, membership_id, token_hash, login_method, ip_address, user_agent, expires_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,now()+interval '5 minutes')`,
+        [randomUUID(),user.id,membership.id,challengeHash(challengeToken),loginMethod,
+         context?.ip?.slice(0,64)??null,context?.userAgent?.slice(0,256)??null]);
+      return { mfaRequired: true, mfaTicket: challengeToken, isPlatformAdmin: true,
+        nextPath: '/platform/mfa' };
+    }
+
+    const sessionId = randomUUID();
+    const expiresIn = Number(process.env.JWT_EXPIRES_SECONDS ?? 3600);
+    await this.db.query(`INSERT INTO user_login_sessions
+      (id,user_id,organization_id,login_method,ip_address,user_agent,expires_at)
+      VALUES ($1,$2,$3,$4,$5,$6,now()+($7::int*interval '1 second'))`,
+      [sessionId,user.id,membership.organization_id,loginMethod,
+       context?.ip?.slice(0,64)??null,context?.userAgent?.slice(0,256)??null,expiresIn]);
     const payload: AuthTokenPayload = {
       sub: user.id,
       email: user.email,
       org: membership.organization_id,
       membership: membership.id,
+      sid: sessionId,
+      ver: account.token_version,
     };
-
+    if (isPlatformAdmin) await this.recordPlatformLogin(user.id, 'success', loginMethod, context);
     return {
       accessToken: this.jwt.sign(payload),
       tokenType: 'Bearer',
-      expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
+      expiresIn,
       user: { id: user.id, email: user.email, name: user.name, isPlatformAdmin },
       organizationId: membership.organization_id,
       onboardingStep,
       isPlatformAdmin,
       nextPath: isPlatformAdmin ? '/platform' : loginMethod === 'register' && onboardingStep !== 'complete' ? '/onboarding' : '/dashboard',
     };
+  }
+
+  async mfaStatus(userId: string) {
+    const result = await this.db.query<{ mfa_enabled_at: Date|null }>(
+      'SELECT mfa_enabled_at FROM users WHERE id=$1 AND is_platform_admin=true AND disabled_at IS NULL',[userId]);
+    if (!result.rows[0]) throw new UnauthorizedException('Administrator required');
+    return { enabled: Boolean(result.rows[0].mfa_enabled_at) };
+  }
+
+  async beginMfaSetup(userId: string) {
+    const current = await this.mfaStatus(userId);
+    if (current.enabled) throw new ConflictException('Authenticator MFA is already enabled');
+    const secret = createMfaSecret();
+    await this.db.query(`UPDATE users SET mfa_pending_ciphertext=$2 WHERE id=$1 AND mfa_enabled_at IS NULL`,
+      [userId,sealMfaSecret(secret)]);
+    const email = await this.db.query<{email:string}>('SELECT email FROM users WHERE id=$1',[userId]);
+    const issuer='RelayWA';
+    const label=encodeURIComponent(issuer+':'+email.rows[0].email);
+    return { secret, otpauthUrl:'otpauth://totp/'+label+'?secret='+secret+'&issuer='+encodeURIComponent(issuer)+'&algorithm=SHA1&digits=6&period=30' };
+  }
+
+  async confirmMfaSetup(userId: string, code: string) {
+    return this.db.transaction(async(client)=>{
+      const result=await client.query<{ mfa_pending_ciphertext:string|null; mfa_enabled_at:Date|null }>(
+        'SELECT mfa_pending_ciphertext,mfa_enabled_at FROM users WHERE id=$1 AND is_platform_admin=true FOR UPDATE',[userId]);
+      const account=result.rows[0];
+      if(!account||account.mfa_enabled_at||!account.mfa_pending_ciphertext) {
+        throw new ConflictException('No pending authenticator enrollment');
+      }
+      if(!verifyTotp(openMfaSecret(account.mfa_pending_ciphertext),code)) {
+        throw new UnauthorizedException('Invalid authenticator code');
+      }
+      const recoveryCodes=createRecoveryCodes();
+      await client.query(`UPDATE users SET mfa_secret_ciphertext=mfa_pending_ciphertext,
+        mfa_pending_ciphertext=NULL,mfa_enabled_at=now(),mfa_recovery_hashes=$2::jsonb,
+        token_version=token_version+1 WHERE id=$1`,
+        [userId,JSON.stringify(recoveryCodes.map(recoveryHash))]);
+      await client.query('UPDATE user_login_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[userId]);
+      return { enabled:true, recoveryCodes, requiresNewLogin:true };
+    });
+  }
+
+  async verifyMfaChallenge(ticket: string, code: string) {
+    const verdict = await this.db.transaction(async(client)=>{
+      const challenges=await client.query<{
+        id:string; user_id:string; membership_id:string; login_method:'password'|'google'|'github';
+        ip_address:string|null;user_agent:string|null;expires_at:Date;attempts:number;used_at:Date|null;
+      }>(`SELECT * FROM platform_mfa_challenges WHERE token_hash=$1 FOR UPDATE`,[challengeHash(ticket)]);
+      const challenge=challenges.rows[0];
+      if(!challenge||challenge.used_at||new Date(challenge.expires_at).getTime()<=Date.now()||challenge.attempts>=5){
+        return {ok:false as const};
+      }
+      const users=await client.query<{
+        id:string; email:string;name:string;mfa_secret_ciphertext:string|null;
+        mfa_recovery_hashes:string[]|null;
+      }>(`SELECT id,email,name,mfa_secret_ciphertext,mfa_recovery_hashes
+         FROM users WHERE id=$1 AND is_platform_admin=true AND disabled_at IS NULL FOR UPDATE`,[challenge.user_id]);
+      const user=users.rows[0];
+      if(!user?.mfa_secret_ciphertext) return {ok:false as const};
+      const matchesTotp=verifyTotp(openMfaSecret(user.mfa_secret_ciphertext),code);
+      const hashed=recoveryHash(code);
+      const backupHashes=Array.isArray(user.mfa_recovery_hashes)?user.mfa_recovery_hashes:[];
+      const isRecovery=backupHashes.includes(hashed);
+      await client.query('UPDATE platform_mfa_challenges SET attempts=attempts+1 WHERE id=$1',[challenge.id]);
+      if(!matchesTotp&&!isRecovery) return {ok:false as const};
+      if(isRecovery){
+        await client.query('UPDATE users SET mfa_recovery_hashes=$2::jsonb WHERE id=$1',
+          [user.id,JSON.stringify(backupHashes.filter(v=>v!==hashed))]);
+      }
+      await client.query('UPDATE platform_mfa_challenges SET used_at=now() WHERE id=$1',[challenge.id]);
+      const membership=await client.query<MembershipRow>(`SELECT m.id,m.organization_id FROM organization_memberships m
+        JOIN organizations o ON o.id=m.organization_id AND o.suspended_at IS NULL
+        WHERE m.id=$1 AND m.user_id=$2 AND m.status='active' LIMIT 1`,[challenge.membership_id,user.id]);
+      if(!membership.rows[0]) return {ok:false as const};
+      return {ok:true as const,user,membership:membership.rows[0],method:challenge.login_method,
+        context:{ip:challenge.ip_address??undefined,userAgent:challenge.user_agent??undefined}};
+    });
+    if(!verdict.ok) throw new UnauthorizedException('Invalid or expired MFA verification');
+    return this.issueTokens(verdict.user,verdict.membership,verdict.method,verdict.context,true);
+  }
+
+  async userSessions(userId:string) {
+    const result=await this.db.query(`SELECT id,login_method,ip_address,user_agent,created_at,
+      expires_at,revoked_at FROM user_login_sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 40`,[userId]);
+    return result.rows;
+  }
+
+  async revokeSession(userId:string, sessionId:string){
+    const result=await this.db.query(`UPDATE user_login_sessions SET revoked_at=now()
+      WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL RETURNING id`,[sessionId,userId]);
+    return { revoked:result.rowCount>0 };
+  }
+
+  async revokeAllSessions(userId:string){
+    await this.db.transaction(async(client)=>{
+      await client.query('UPDATE users SET token_version=token_version+1 WHERE id=$1',[userId]);
+      await client.query('UPDATE user_login_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[userId]);
+    });
+    return {revoked:true,requiresNewLogin:true};
   }
 
   private async recordPlatformLogin(
