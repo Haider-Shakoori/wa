@@ -17,7 +17,7 @@ test('public docs cover authentication sessions messages webhooks and safety', a
   assert.match(source, /rw_session_/);
   assert.match(source, /sessions\.read/);
   assert.match(source, /messages\.send/);
-  assert.match(source, /messages\/image/);
+  assert.match(source, /\/send-image/);
   assert.match(source, /16 MB/);
   assert.match(source, /100 MB/);
   assert.match(source, /x-relaywa-signature/);
