@@ -9,7 +9,7 @@ import { Brand } from '../../components/relay-workspace';
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Analytics','Audit log','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -19,6 +19,12 @@ export default function PlatformPage() {
   const [overview,setOverview] = useState<any>(null);
   const [analytics,setAnalytics] = useState<any>(null);
   const [auditLogs,setAuditLogs] = useState<any[]>([]);
+  const [platformRole,setPlatformRole] = useState('read_only');
+  const [administrators,setAdministrators] = useState<any[]>([]);
+  const [loginEvents,setLoginEvents] = useState<any[]>([]);
+  const [auditAction,setAuditAction] = useState('');
+  const [auditActor,setAuditActor] = useState('');
+  const [tenantBusy,setTenantBusy] = useState(false);
   const [tenants,setTenants] = useState<any[]>([]);
   const [sessions,setSessions] = useState<any[]>([]);
   const [subscriptions,setSubscriptions] = useState<any[]>([]);
@@ -99,6 +105,15 @@ export default function PlatformPage() {
         api('/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
+      void api<{role:string}>('/platform/whoami',current).then(async(identity)=>{
+        setPlatformRole(identity.role);
+        if(identity.role==='super_admin') {
+          void api<any[]>('/platform/administrators',current).then(setAdministrators).catch(()=>setAdministrators([]));
+        } else setAdministrators([]);
+        if(identity.role==='super_admin'||identity.role==='support_admin') {
+          void api<any[]>('/platform/security/login-events',current).then(setLoginEvents).catch(()=>setLoginEvents([]));
+        } else setLoginEvents([]);
+      }).catch(()=>setPlatformRole('read_only'));
       void api('/platform/analytics',current).then(setAnalytics).catch(()=>setAnalytics(null));
       void api<any[]>('/platform/audit-logs',current).then(setAuditLogs).catch(()=>setAuditLogs([]));
       setTenants(t as any[]);
@@ -332,6 +347,47 @@ export default function PlatformPage() {
     } finally {
       setMemberActionBusy(null);
     }
+  }
+
+  async function changeTenantSuspension(tenant:any,status:'active'|'suspended') {
+    if (platformRole!=='super_admin' || tenantBusy) return;
+    const reason=window.prompt((status==='suspended'?'Suspend':'Reactivate')+' '+tenant.name+'? Provide an audit reason (8+ characters):');
+    if(reason===null) return;
+    if(reason.trim().length<8){setError('An audit reason must contain at least 8 characters.');return;}
+    if(!window.confirm('Confirm '+status+' for '+tenant.name+'? Suspension blocks dashboard and API access and freezes new message dispatch; existing linked WhatsApp sessions are preserved.'))return;
+    setTenantBusy(true);setError('');setNotice('');
+    try {
+      await api('/platform/tenants/'+encodeURIComponent(tenant.id)+'/suspension',token,{
+        method:'PATCH',body:JSON.stringify({status,reason:reason.trim()}),
+      });
+      setNotice(tenant.name+' is now '+status+'. Existing WhatsApp session data has been preserved.');
+      await refresh();
+    } catch(err) {setError(err instanceof Error?err.message:'Unable to update tenant suspension');}
+    finally {setTenantBusy(false);}
+  }
+
+  async function changeAdministratorRole(user:any,role:string) {
+    if(platformRole!=='super_admin')return;
+    const reason=window.prompt('Change '+user.email+' role to '+role+'? Provide an audit reason (8+ characters):');
+    if(reason===null)return;
+    if(reason.trim().length<8){setError('An audit reason must contain at least 8 characters.');return;}
+    if(!window.confirm('Confirm administrator role change for '+user.email+'?'))return;
+    setError('');setNotice('');
+    try{
+      await api('/platform/administrators/'+encodeURIComponent(user.id)+'/role',token,{
+        method:'PATCH',body:JSON.stringify({role,reason:reason.trim()}),
+      });
+      setAdministrators(await api<any[]>('/platform/administrators',token));
+      setNotice('Administrator role updated.');
+      setAuditLogs(await api<any[]>('/platform/audit-logs',token));
+    }catch(err){setError(err instanceof Error?err.message:'Role change failed');}
+  }
+
+  async function searchAudit() {
+    try {
+      const params=new URLSearchParams({action:auditAction.trim(),actor:auditActor.trim()});
+      setAuditLogs(await api<any[]>('/platform/audit-logs?'+params.toString(),token));
+    } catch(err){setError(err instanceof Error?err.message:'Audit search failed');}
   }
 
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
