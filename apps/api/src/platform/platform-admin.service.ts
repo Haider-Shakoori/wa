@@ -319,7 +319,7 @@ export class PlatformAdminService {
     ];
   }
 
-  async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+  async updateGoogleAuthProvider(input: { enabled?: boolean; clientId?: string }, actorUserId: string) {
     const current = await this.db.query<any>(
       `SELECT enabled, public_config
        FROM auth_provider_settings
@@ -341,7 +341,9 @@ export class PlatformAdminService {
       throw new NotFoundException('Google Client ID is required before enabling Google sign-in');
     }
 
-    const result = await this.db.query(
+    const result = await this.db.transaction(async (client) => {
+      const previous = await client.query(`SELECT enabled, public_config FROM auth_provider_settings WHERE provider = 'google' FOR UPDATE`);
+      const updated = await client.query(
       `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
        VALUES ('google', $1, $2::jsonb, now())
        ON CONFLICT (provider)
@@ -350,11 +352,17 @@ export class PlatformAdminService {
                      updated_at = now()
        RETURNING provider, enabled, public_config, updated_at`,
       [enabled, JSON.stringify({ clientId, source: 'platform' })],
-    );
+      );
+      await client.query(`INSERT INTO platform_admin_audit_logs
+        (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+        VALUES ($1, $2, 'authentication.provider.updated', 'auth_provider', $3, $4::jsonb, $5::jsonb)`,
+        [randomUUID(), actorUserId, 'google', JSON.stringify(previous.rows[0] ?? null), JSON.stringify(updated.rows[0])]);
+      return updated;
+    });
     return result.rows[0];
   }
 
-  async updateGithubAuthProvider(input: { enabled?: boolean; clientId?: string }) {
+  async updateGithubAuthProvider(input: { enabled?: boolean; clientId?: string }, actorUserId: string) {
     const current = await this.db.query<any>(
       `SELECT enabled, public_config
        FROM auth_provider_settings
@@ -380,7 +388,9 @@ export class PlatformAdminService {
       throw new BadRequestException('GITHUB_CLIENT_SECRET must be configured in the production environment before enabling GitHub sign-in');
     }
 
-    const result = await this.db.query(
+    const result = await this.db.transaction(async (client) => {
+      const previous = await client.query(`SELECT enabled, public_config FROM auth_provider_settings WHERE provider = 'github' FOR UPDATE`);
+      const updated = await client.query(
       `INSERT INTO auth_provider_settings (provider, enabled, public_config, updated_at)
        VALUES ('github', $1, $2::jsonb, now())
        ON CONFLICT (provider)
@@ -389,7 +399,13 @@ export class PlatformAdminService {
                      updated_at = now()
        RETURNING provider, enabled, public_config, updated_at`,
       [enabled, JSON.stringify({ clientId, source: 'platform', secretConfigured })],
-    );
+      );
+      await client.query(`INSERT INTO platform_admin_audit_logs
+        (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+        VALUES ($1, $2, 'authentication.provider.updated', 'auth_provider', $3, $4::jsonb, $5::jsonb)`,
+        [randomUUID(), actorUserId, 'github', JSON.stringify(previous.rows[0] ?? null), JSON.stringify(updated.rows[0])]);
+      return updated;
+    });
     return {
       ...result.rows[0],
       public_config: {
