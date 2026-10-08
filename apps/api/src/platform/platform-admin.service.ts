@@ -955,17 +955,30 @@ export class PlatformAdminService {
   }
 
   async workers() {
-    const result = await this.db.query(
-      `SELECT worker_id,
-              count(*)::int AS owned_sessions,
-              max(worker_lease_expires_at) AS lease_expires_at,
-              count(*) FILTER (WHERE status = 'connected')::int AS connected_sessions,
-              count(*) FILTER (WHERE status = 'reconnecting')::int AS reconnecting_sessions
-       FROM whatsapp_sessions
-       WHERE worker_id IS NOT NULL AND deleted_at IS NULL
-       GROUP BY worker_id
-       ORDER BY worker_id`,
-    );
+    // Process liveness must be read from the process heartbeat, not the
+    // WhatsApp session-ownership lease. A worker may run with no sessions.
+    const result = await this.db.query(`WITH sessions_by_worker AS (
+      SELECT worker_id,count(*)::int AS owned_sessions,
+        count(*) FILTER (WHERE status='connected')::int AS connected_sessions,
+        count(*) FILTER (WHERE status='reconnecting')::int AS reconnecting_sessions,
+        count(*) FILTER (WHERE worker_lease_expires_at<=now())::int AS stale_session_leases,
+        max(worker_lease_expires_at) AS lease_expires_at
+      FROM whatsapp_sessions WHERE worker_id IS NOT NULL AND deleted_at IS NULL
+      GROUP BY worker_id
+    )
+    SELECT COALESCE(h.worker_id,s.worker_id) AS worker_id,
+      COALESCE(s.owned_sessions,0)::int AS owned_sessions,
+      COALESCE(s.connected_sessions,0)::int AS connected_sessions,
+      COALESCE(s.reconnecting_sessions,0)::int AS reconnecting_sessions,
+      COALESCE(s.stale_session_leases,0)::int AS stale_session_leases,
+      s.lease_expires_at,h.last_seen_at,
+      CASE WHEN h.last_seen_at IS NULL THEN 'unknown'
+        WHEN h.last_seen_at>now()-interval '90 seconds' THEN 'online'
+        ELSE 'offline' END AS health_state
+    FROM relaywa_worker_heartbeats h
+    FULL OUTER JOIN sessions_by_worker s USING(worker_id)
+    WHERE h.last_seen_at IS NULL OR h.last_seen_at>now()-interval '7 days'
+    ORDER BY worker_id`);
     return result.rows;
   }
 
@@ -1002,28 +1015,65 @@ export class PlatformAdminService {
     return result.rows;
   }
 
-  async recentErrors() {
-    const [sessions, messages, webhooks] = await Promise.all([
-      this.db.query(
-        `SELECT id, organization_id, name, status, last_connection_error, updated_at
-         FROM whatsapp_sessions
-         WHERE last_connection_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
-      this.db.query(
-        `SELECT id, organization_id, session_id, status, last_error, updated_at
-         FROM whatsapp_messages
-         WHERE last_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
-      this.db.query(
-        `SELECT id, organization_id, endpoint_id, status, last_error, updated_at
-         FROM webhook_deliveries
-         WHERE last_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
+  async recentErrors(view:'active'|'archived'='active') {
+    // A previously failed record remains an audit fact but ceases to be an
+    // active diagnostic once its current status is healthy. An explicit
+    // archive can also mark an investigated failure as handled; any later
+    // row update automatically reopens the diagnostic.
+    const archived=view==='archived';
+    const query=async (table:string,resource:string,condition:string,columns:string)=>
+      this.db.query(`SELECT t.${columns},a.archived_at,
+          (NOT (${condition})) AS recovered
+        FROM ${table} t
+        LEFT JOIN platform_diagnostic_archives a
+          ON a.resource_type='${resource}' AND a.resource_id=t.id
+        WHERE t.last_error IS NOT NULL
+          AND (${archived?'NOT':' '}(${condition})
+            ${archived?'OR':'AND'} ${archived?'':'NOT'}(a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))
+        ORDER BY t.updated_at DESC LIMIT 50`);
+    const sessionsQuery=this.db.query(`SELECT t.id,t.organization_id,t.name,t.status,
+      t.last_connection_error,t.updated_at,a.archived_at,
+      (t.status='connected') AS recovered
+      FROM whatsapp_sessions t
+      LEFT JOIN platform_diagnostic_archives a
+        ON a.resource_type='session' AND a.resource_id=t.id
+      WHERE t.last_connection_error IS NOT NULL
+        AND ${archived?
+          "(t.status='connected' OR (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))":
+          "(t.status<>'connected' AND NOT (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))"}
+      ORDER BY t.updated_at DESC LIMIT 50`);
+    const [sessions,messages,webhooks]=await Promise.all([
+      sessionsQuery,
+      query('whatsapp_messages','message',"t.status IN ('failed','queued','claimed')",
+        'id,t.organization_id,t.session_id,t.status,t.last_error,t.updated_at'),
+      query('webhook_deliveries','webhook',"t.status IN ('failed','queued','claimed')",
+        'id,t.organization_id,t.endpoint_id,t.status,t.last_error,t.updated_at'),
     ]);
-    return { sessions: sessions.rows, messages: messages.rows, webhooks: webhooks.rows };
+    return {sessions:sessions.rows,messages:messages.rows,webhooks:webhooks.rows};
+  }
+
+  async archiveDiagnostic(
+    resource:'session'|'message'|'webhook',id:string,reason:string,actorUserId:string,
+  ) {
+    if(!reason?.trim()||reason.trim().length<8) {
+      throw new BadRequestException('Give an audit reason of at least eight characters');
+    }
+    const table=resource==='session'?'whatsapp_sessions':
+      resource==='message'?'whatsapp_messages':'webhook_deliveries';
+    return this.db.transaction(async client=>{
+      const item=await client.query(`SELECT id,status,updated_at FROM ${table}
+        WHERE id=$1 FOR UPDATE`,[id]);
+      if(!item.rows[0]) throw new NotFoundException('Diagnostic record not found');
+      await client.query(`INSERT INTO platform_diagnostic_archives
+        (resource_type,resource_id,archived_at,archived_by,reason)
+        VALUES ($1,$2,now(),$3,$4)
+        ON CONFLICT(resource_type,resource_id) DO UPDATE SET
+          archived_at=now(),archived_by=excluded.archived_by,reason=excluded.reason`,
+        [resource,id,actorUserId,reason.trim()]);
+      await this.recordAudit(client,actorUserId,'diagnostic.archived',resource,id,
+        {status:item.rows[0].status},{archived:true,reason:reason.trim()});
+      return {resource,id,archived:true};
+    });
   }
 
   async supportAnswer(rawMessage: string) {
