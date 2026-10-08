@@ -858,3 +858,15 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-detail-row{display:flex;align-items:center;gap:12px;justify-content:space-between;border-bottom:1px solid #304034;padding:13px 0;color:#cbd7cd;font-size:13px}
 .platform-shell .platform-detail-row>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
 @media(max-width:650px){.platform-shell .platform-profile-stats{grid-template-columns:1fr}.platform-shell .platform-detail-row{flex-wrap:wrap}}
+
+/* Phase 3 analytics */
+.platform-shell .platform-analytics-panel{padding:24px!important}
+.platform-shell .platform-analytics-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}
+.platform-shell .platform-analytics-columns>div{min-width:0;padding:20px;background:#17221b;border:1px solid #304438;border-radius:12px}
+.platform-shell .platform-analytics-panel h3{font-size:16px;color:#f4f8f4;margin:16px 0}
+.platform-shell .platform-spark-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));align-items:end;gap:7px;height:170px}
+.platform-shell .platform-spark-bars>div{display:flex;flex-direction:column;align-items:center;justify-content:end;gap:7px;height:100%;min-width:0}
+.platform-shell .platform-spark-bars>div>span{display:block;width:100%;min-height:4px;background:linear-gradient(#25d366,#167b50);border-radius:5px 5px 2px 2px}
+.platform-shell .platform-spark-bars small{font-size:9px;color:#91a798;writing-mode:vertical-rl}
+.platform-shell .platform-analytics-panel .platform-detail-row small{display:block;color:#91a798;margin-top:5px}
+@media(max-width:800px){.platform-shell .platform-analytics-columns{grid-template-columns:1fr}.platform-shell .platform-analytics-panel{padding:15px!important}}
