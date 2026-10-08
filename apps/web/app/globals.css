@@ -881,3 +881,11 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-audit-entry summary{cursor:pointer}
 .platform-shell .platform-audit-entry pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#0b100d;padding:12px;border:1px solid #2d4033;border-radius:8px;color:#dbe8de}
 @media(max-width:650px){.platform-shell .platform-audit-entry{display:block}.platform-shell .platform-audit-entry details{max-width:100%;margin-top:12px}}
+
+/* Phase 4 + 6: tenant member inspection and scoped audit activity */
+.platform-shell .platform-member-hint{font-size:12px;color:#92a999;line-height:1.6;margin:-2px 0 10px}
+.platform-shell .platform-member-row{flex-wrap:wrap;gap:14px}
+.platform-shell .platform-member-row strong{display:block;font-size:13px;color:#e5f2e9}
+.platform-shell .platform-member-row small{display:block;font-size:11px;color:#94ad9c;margin-top:5px}
+.platform-shell .platform-member-role{font-size:11px;letter-spacing:.02em;padding:5px 9px;background:#1c3425;color:#93e1aa;border:1px solid #376349;border-radius:8px;text-transform:capitalize}
+.platform-shell .platform-member-row .state{white-space:nowrap}
