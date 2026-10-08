@@ -870,3 +870,14 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-spark-bars small{font-size:9px;color:#91a798;writing-mode:vertical-rl}
 .platform-shell .platform-analytics-panel .platform-detail-row small{display:block;color:#91a798;margin-top:5px}
 @media(max-width:800px){.platform-shell .platform-analytics-columns{grid-template-columns:1fr}.platform-shell .platform-analytics-panel{padding:15px!important}}
+
+/* Platform audit history */
+.platform-shell .platform-audit-panel{padding:22px!important}
+.platform-shell .platform-audit-entry{display:flex;align-items:start;justify-content:space-between;gap:20px;padding:15px 0;border-top:1px solid #2d4033;color:#edf6ef}
+.platform-shell .platform-audit-entry>div{display:grid;gap:5px;min-width:0}
+.platform-shell .platform-audit-entry strong{font-size:13px}
+.platform-shell .platform-audit-entry small{font-size:11px;color:#98b09e;overflow-wrap:anywhere}
+.platform-shell .platform-audit-entry details{max-width:55%;font-size:12px;color:#9ae4b3}
+.platform-shell .platform-audit-entry summary{cursor:pointer}
+.platform-shell .platform-audit-entry pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#0b100d;padding:12px;border:1px solid #2d4033;border-radius:8px;color:#dbe8de}
+@media(max-width:650px){.platform-shell .platform-audit-entry{display:block}.platform-shell .platform-audit-entry details{max-width:100%;margin-top:12px}}
