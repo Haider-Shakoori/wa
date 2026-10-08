@@ -542,6 +542,7 @@ export class PlatformAdminService {
   }
 
   async createWebsitePlan(input: WebsitePlanDto, actorUserId: string) {
+    if (input.reason.trim().length<8) throw new BadRequestException('Provide an audit reason of at least eight characters');
     if (input.code === 'trial') throw new BadRequestException('Trial is a reserved built-in plan');
     if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
       throw new BadRequestException('Paid website plans require positive monthly and annual prices');
@@ -565,6 +566,7 @@ export class PlatformAdminService {
   }
 
   async updateWebsitePlan(code: string, input: WebsitePlanDto, actorUserId: string) {
+    if (input.reason.trim().length<8) throw new BadRequestException('Provide an audit reason of at least eight characters');
     if (input.code !== code) throw new BadRequestException('Plan code cannot be changed');
     if (code === 'trial') throw new BadRequestException('The built-in trial plan is managed separately');
     if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
