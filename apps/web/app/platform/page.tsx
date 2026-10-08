@@ -537,7 +537,7 @@ export default function PlatformPage() {
           </div>
         </section>
         <section className="platform-metrics">
-          <Metric label="Organizations" value={overview?.organizations ?? 0} detail="Customer tenants"/>
+          <Metric label="Clients" value={overview?.organizations ?? 0} detail="Customer clients"/>
           <Metric label="Connected sessions" value={connected} detail={sessions.length + ' total sessions'}/>
           <Metric label="Users" value={overview?.users ?? 0} detail="Platform accounts"/>
           <Metric label="Pending manual payments" value={pendingManual} detail="Needs review"/>
@@ -545,7 +545,7 @@ export default function PlatformPage() {
           <Metric label="Failed webhooks" value={overview?.failedWebhooks ?? 0} detail="Delivery failures"/>
         </section>
         <section className="two-column">
-          <Panel title="Recent organizations">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No organizations yet."/>}</Panel>
+          <Panel title="Recent clients">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No clients yet."/>}</Panel>
           <Panel title="WhatsApp health">{sessions.slice(0,6).map((s)=><SessionRow key={s.id} session={s}/>)}{!sessions.length && <Empty text="No sessions yet."/>}</Panel>
         </section>
       </>}
@@ -577,11 +577,11 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Analytics' && <section className="panel platform-analytics-panel">
-        <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new organizations, and operational notifications.</p></div></div>
+        <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new clients, and operational notifications.</p></div></div>
         {analytics ? <>
           <div className="platform-analytics-columns">
             <div><h3>Outbound messaging</h3><div className="platform-spark-bars" aria-label="Successful outbound messages per day">{(analytics.messageTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.sent+' sent, '+day.failed+' failed'}><span style={{height:Math.max(4,Number(day.sent)/Math.max(1,...analytics.messageTrend.map((x:any)=>Number(x.sent)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
-            <div><h3>New organizations</h3><div className="platform-spark-bars" aria-label="New organizations per day">{(analytics.tenantTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.organizations+' organizations'}><span style={{height:Math.max(4,Number(day.organizations)/Math.max(1,...analytics.tenantTrend.map((x:any)=>Number(x.organizations)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
+            <div><h3>New clients</h3><div className="platform-spark-bars" aria-label="New clients per day">{(analytics.tenantTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.organizations+' clients'}><span style={{height:Math.max(4,Number(day.organizations)/Math.max(1,...analytics.tenantTrend.map((x:any)=>Number(x.organizations)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
           </div>
           <h3>Recent system alerts</h3>
           <div className="platform-filter-bar">{(analytics.alertSummary??[]).map((a:any)=><span key={a.severity}>{a.severity}: {a.count}</span>)}</div>
@@ -599,7 +599,7 @@ export default function PlatformPage() {
 
       {active === 'Clients' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected client details">
         <div className="panel-head"><div><p className="eyebrow">Client profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
-        <div className="platform-tenant-security"><div><strong>Tenant access</strong><p>{selectedTenant.suspended_at?'Suspended since '+date(selectedTenant.suspended_at)+' · '+(selectedTenant.suspension_reason??'No reason'):'Active — dashboards, API keys and outbound dispatch available'}</p></div><Badge value={selectedTenant.suspended_at?'suspended':'active'}/>{platformRole==='super_admin'&&<button className={selectedTenant.suspended_at?'mini-button':'mini-button danger-mini'} disabled={tenantBusy} onClick={()=>void changeTenantSuspension(selectedTenant,selectedTenant.suspended_at?'active':'suspended')}>{tenantBusy?'Saving…':selectedTenant.suspended_at?'Reactivate tenant':'Suspend tenant'}</button>}</div>
+        <div className="platform-tenant-security"><div><strong>Client access</strong><p>{selectedTenant.suspended_at?'Suspended since '+date(selectedTenant.suspended_at)+' · '+(selectedTenant.suspension_reason??'No reason'):'Active — dashboards, API keys and outbound dispatch available'}</p></div><Badge value={selectedTenant.suspended_at?'suspended':'active'}/>{platformRole==='super_admin'&&<button className={selectedTenant.suspended_at?'mini-button':'mini-button danger-mini'} disabled={tenantBusy} onClick={()=>void changeTenantSuspension(selectedTenant,selectedTenant.suspended_at?'active':'suspended')}>{tenantBusy?'Saving…':selectedTenant.suspended_at?'Reactivate client':'Suspend client'}</button>}</div>
         <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.effective_subscription_status??'none'}/></span></div>
         <h3 className="platform-profile-heading">Client members</h3>
         <p className="platform-member-hint">Suspend or reactivate workspace access with an audit reason. This does not revoke organization API keys or terminate WhatsApp sessions.</p>
@@ -621,7 +621,7 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
-        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
+        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Client</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
         {filteredSessions.map((s)=>{ const paused=Boolean(s.messaging_paused_until && new Date(s.messaging_paused_until).getTime()>Date.now()); return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
       </TableSection>}
 
@@ -718,7 +718,7 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Authentication' && <section className="panel auth-settings-panel">
-        <PanelHeading eyebrow="Authentication" title="Tenant login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
+        <PanelHeading eyebrow="Authentication" title="Client login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
 
         <div className="auth-provider-card">
           <div className="auth-provider-head">
@@ -797,7 +797,7 @@ function platformSubtitle(section:string) {
     'Google Analytics':'GA4 real-time visitors, countries, sources, page views and engagement.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
     'Audit log':'Recorded administrator actions, change history and accountability.',
-    Organizations:'Customer workspaces, memberships, plans and session footprint.',
+    Clients:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
     Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',
