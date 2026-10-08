@@ -20,3 +20,13 @@ test('audit history is protected by platform-wide authentication guards', async 
   assert.match(controller, /@UseGuards\(JwtAuthGuard, PlatformAdminGuard\)/);
   assert.match(controller, /@Get\('audit-logs'\)/);
 });
+
+test('default messaging engine changes are audited with the acting administrator', async () => {
+  const service = await readFile(new URL('../src/platform/platform-admin.service.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../src/platform/platform-admin.controller.ts', import.meta.url), 'utf8');
+  const body = service.slice(service.indexOf('async updateMessagingEngine('), service.indexOf('async messagingSafetySettings('));
+  assert.match(body, /this\.db\.transaction/);
+  assert.match(body, /messaging\.default_engine\.updated/);
+  assert.match(body, /actorUserId/);
+  assert.match(controller, /updateMessagingEngine\(body, request\.auth\.sub\)/);
+});
