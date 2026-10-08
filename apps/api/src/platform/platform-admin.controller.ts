@@ -74,21 +74,21 @@ export class PlatformAdminController {
   authProviders() { return this.platform.authProviders(); }
 
   @Patch('settings/auth-providers/google')
-  updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto) {
-    return this.platform.updateGoogleAuthProvider(body);
+  updateGoogleAuthProvider(@Body() body: UpdateGoogleAuthProviderDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateGoogleAuthProvider(body, request.auth.sub);
   }
 
   @Patch('settings/auth-providers/github')
-  updateGithubAuthProvider(@Body() body: UpdateGithubAuthProviderDto) {
-    return this.platform.updateGithubAuthProvider(body);
+  updateGithubAuthProvider(@Body() body: UpdateGithubAuthProviderDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateGithubAuthProvider(body, request.auth.sub);
   }
 
   @Get('settings/messaging-engine')
   messagingEngineSettings() { return this.platform.messagingEngineSettings(); }
 
   @Patch('settings/messaging-engine')
-  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto) {
-    return this.platform.updateMessagingEngine(body);
+  updateMessagingEngine(@Body() body: UpdateMessagingEngineDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateMessagingEngine(body, request.auth.sub);
   }
 
   @Get('settings/messaging-safety')
