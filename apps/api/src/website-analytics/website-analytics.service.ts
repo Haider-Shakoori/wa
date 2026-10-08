@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { isIP } from 'node:net';
 
@@ -14,8 +14,28 @@ export type WebsiteView = {
 };
 
 @Injectable()
-export class WebsiteAnalyticsService {
+export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
+  private pruneTimer?: ReturnType<typeof setInterval>;
   constructor(private readonly db: DatabaseService) {}
+
+  onModuleInit() {
+    // Rolling 90-day retention; once daily, without changing API response times.
+    this.pruneTimer=setInterval(()=>void this.pruneOldEvents(),24*60*60*1000);
+    this.pruneTimer.unref();
+  }
+
+  onModuleDestroy() {
+    if(this.pruneTimer)clearInterval(this.pruneTimer);
+  }
+
+  private async pruneOldEvents() {
+    try {
+      await this.db.query(`DELETE FROM website_pageviews
+        WHERE visit_day < (now() AT TIME ZONE 'UTC')::date - 90`);
+    } catch (error) {
+      console.error('[website-analytics] retention cleanup failed:',error instanceof Error?error.message:'database error');
+    }
+  }
 
   async collect(view: WebsiteView) {
     // Keyed daily visitor hash is generated in the website server;
