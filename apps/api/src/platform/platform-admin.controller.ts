@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, UpdateAlertAcknowledgementDto } from './platform-admin.dto';
+import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, UpdateAlertAcknowledgementDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -63,6 +63,13 @@ export class PlatformAdminController {
   @Get('administrators')
   @PlatformRoles('super_admin')
   administrators() { return this.platform.administrators(); }
+
+  @Post('administrators')
+  @PlatformRoles('super_admin')
+  addAdministrator(@Body() body: AddPlatformAdministratorDto,
+    @Req() request: AuthenticatedRequest) {
+    return this.platform.addAdministrator(body, request.auth.sub);
+  }
 
   @Patch('administrators/:userId/role')
   @PlatformRoles('super_admin')
