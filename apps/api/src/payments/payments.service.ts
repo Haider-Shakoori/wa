@@ -132,68 +132,61 @@ export class PaymentsService {
     const session = event.data.object;
     const paymentId = session.metadata?.relaywa_payment_id;
     if (!paymentId) throw new BadRequestException('Missing relayWA payment metadata');
+    if (session.payment_status !== 'paid') return { pending: true };
 
-    if (session.payment_status !== 'paid') {
-      return { pending: true };
-    }
-
-    const pending = await this.db.query<any>(
-      `SELECT organization_id, plan_code, billing_interval, amount_cents, currency
-       FROM payments
-       WHERE id = $1 AND provider = 'stripe' AND status = 'pending'
-       LIMIT 1`,
-      [paymentId],
-    );
-    const expected = pending.rows[0];
-    if (!expected) return { duplicate: true };
-
-    if (
-      Number(session.amount_total ?? -1) !== Number(expected.amount_cents) ||
-      String(session.currency ?? '').toUpperCase() !== String(expected.currency).toUpperCase()
-    ) {
-      throw new BadRequestException('Stripe payment amount or currency mismatch');
-    }
-
-    const result = await this.db.query<any>(
-      `UPDATE payments
-       SET status = 'paid', provider_payment_id = $1, paid_at = now(), updated_at = now()
-       WHERE id = $2 AND provider = 'stripe' AND status = 'pending'
-       RETURNING organization_id, plan_code, billing_interval`,
-      [session.payment_intent ?? session.id, paymentId],
-    );
-    const payment = result.rows[0];
-    if (!payment) return { duplicate: true };
-
-    await this.subscriptions.activatePaidPlan(
-      payment.organization_id,
-      payment.plan_code,
-      payment.billing_interval,
-      'stripe',
-      session.customer ?? null,
-      session.id,
-    );
-    return { activated: true };
+    // Webhooks can be replayed or delivered concurrently. Payment transition and
+    // extension of subscription expiry MUST commit together, exactly once.
+    return this.db.transaction(async client => {
+      const identity = await client.query<{organization_id:string}>(`SELECT organization_id
+        FROM payments WHERE id=$1 AND provider='stripe' LIMIT 1`,[paymentId]);
+      if (!identity.rows[0]) throw new NotFoundException('Checkout payment not found');
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[identity.rows[0].organization_id]);
+      const selected = await client.query<{
+        organization_id:string;plan_code:string;billing_interval:'monthly'|'annual';
+        amount_cents:number;currency:string;status:string;provider_checkout_id:string|null;
+      }>(`SELECT organization_id,plan_code,billing_interval,amount_cents,currency,
+        status,provider_checkout_id FROM payments WHERE id=$1 AND provider='stripe' FOR UPDATE`,[paymentId]);
+      const payment=selected.rows[0];
+      if (!payment) throw new NotFoundException('Checkout payment not found');
+      if (payment.status==='paid') return { duplicate:true };
+      if (payment.status!=='pending') throw new ConflictException('Checkout payment is not pending');
+      if (payment.provider_checkout_id && payment.provider_checkout_id!==session.id) {
+        throw new BadRequestException('Stripe Checkout session mismatch');
+      }
+      if (session.metadata?.organization_id!==payment.organization_id ||
+          Number(session.amount_total??-1)!==Number(payment.amount_cents) ||
+          String(session.currency??'').toUpperCase()!==String(payment.currency).toUpperCase()) {
+        throw new BadRequestException('Stripe payment details do not match the pending order');
+      }
+      await client.query(`UPDATE payments
+        SET status='paid',provider_payment_id=$2,paid_at=now(),updated_at=now()
+        WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
+      await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
+        payment.billing_interval,'stripe',session.customer??null,session.id,client);
+      return { activated:true };
+    });
   }
 
   async approveManual(paymentId: string) {
-    const result = await this.db.query<any>(
-      `UPDATE payments SET status = 'paid', paid_at = now(), updated_at = now()
-       WHERE id = $1 AND provider = 'manual' AND status = 'pending'
-       RETURNING organization_id, plan_code, billing_interval`,
-      [paymentId],
-    );
-    const payment = result.rows[0];
-    if (!payment) throw new NotFoundException('Pending manual payment not found');
-
-    await this.subscriptions.activatePaidPlan(
-      payment.organization_id,
-      payment.plan_code,
-      payment.billing_interval,
-      'manual',
-      null,
-      paymentId,
-    );
-    return { paymentId, approved: true };
+    return this.db.transaction(async client => {
+      const lookup = await client.query<{organization_id:string}>(`SELECT organization_id
+        FROM payments WHERE id=$1 AND provider='manual' LIMIT 1`,[paymentId]);
+      if (!lookup.rows[0]) throw new NotFoundException('Manual payment not found');
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[lookup.rows[0].organization_id]);
+      const selected=await client.query<{
+        organization_id:string;plan_code:string;billing_interval:'monthly'|'annual';status:string;
+      }>(`SELECT organization_id,plan_code,billing_interval,status FROM payments
+        WHERE id=$1 AND provider='manual' FOR UPDATE`,[paymentId]);
+      const payment=selected.rows[0];
+      if (!payment) throw new NotFoundException('Manual payment not found');
+      if (payment.status==='paid') return {paymentId,approved:true,duplicate:true};
+      if (payment.status!=='pending') throw new ConflictException('Manual payment is not pending');
+      await client.query(`UPDATE payments SET status='paid',paid_at=now(),updated_at=now()
+        WHERE id=$1 AND status='pending'`,[paymentId]);
+      await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
+        payment.billing_interval,'manual',null,paymentId,client);
+      return {paymentId,approved:true};
+    });
   }
 
   async updateProvider(input: UpdateProviderDto) {

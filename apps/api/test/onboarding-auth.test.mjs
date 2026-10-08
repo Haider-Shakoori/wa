@@ -37,6 +37,6 @@ test('returning logins go directly to dashboard even when onboarding is incomple
   const source = await readFile(new URL('../src/auth/auth.service.ts', import.meta.url), 'utf8');
   assert.match(source, /nextPath: isPlatformAdmin \? '\/platform' : loginMethod === 'register' && onboardingStep !== 'complete' \? '\/onboarding' : '\/dashboard'/);
   assert.match(source, /this\.issueTokens\(user, membership, 'password', context\)/);
-  assert.match(source, /this\.issueTokens\(account\.user, account\.membership, 'google'\)/);
-  assert.match(source, /this\.issueTokens\(user, membership, 'github'\)/);
+  assert.match(source, /this\.issueTokens\(account\.user, account\.membership, 'google',context\)/);
+  assert.match(source, /this\.issueTokens\(user, membership, 'github',context\)/);
 });

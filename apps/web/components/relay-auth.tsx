@@ -8,6 +8,7 @@ import { FeatherIcon } from './feather-icon';
 import { api } from '../lib/api';
 import { GoogleSignIn } from './google-signin';
 import { GithubSignIn } from './github-signin';
+import { AdaptiveLoginChallenge, useAdaptiveLoginChallenge } from './adaptive-login-challenge';
 
 function tenantDestination(result:any, register:boolean) {
   const chosen = new URLSearchParams(window.location.search);
@@ -30,6 +31,7 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [sessionExpired,setSessionExpired]=useState(false);
+  const captcha=useAdaptiveLoginChallenge();
 
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
@@ -85,14 +87,22 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
     setBusy(true);
     setError('');
     try {
+      if(!register){
+        const challenge=await captcha.check(email);
+        if(challenge.captchaRequired&&!captcha.token){
+          setError('Complete security verification before signing in.');
+          return;
+        }
+      }
       const result=await api<any>('/auth/'+(register?'register':'login'),undefined,{
         method:'POST',
-        body:JSON.stringify(register?{name,email,password}:{email,password}),
+        body:JSON.stringify(register?{name,email,password}:{email,password,captchaToken:captcha.token||undefined}),
       });
       localStorage.setItem('relaywa_access_token',result.accessToken);
       router.replace(tenantDestination(result,register));
     } catch (err) {
       setError(err instanceof Error?err.message:'Unable to sign in.');
+      if(!register){captcha.reset();void captcha.check(email).catch(()=>{});}
     } finally {
       setBusy(false);
     }
@@ -134,7 +144,7 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
           <label>Email address
             <span className="rw-input-icon">
               <FeatherIcon name="mail" size={16}/>
-              <input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/>
+              <input type="email" required autoComplete="email" value={email} onChange={e=>{setEmail(e.target.value);captcha.reset();}} onBlur={()=>{if(!register&&email.trim())void captcha.check(email).catch(()=>{});}}/>
             </span>
           </label>
           <label>Password
@@ -147,7 +157,8 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
             </span>
           </label>
           {register&&<small>Use at least 8 characters.</small>}
-          <button className="rw-button" disabled={busy}>{busy?'Please wait…':register?'Create your account':'Sign in'}</button>
+          {!register&&<AdaptiveLoginChallenge status={captcha.risk} token={captcha.token} onToken={captcha.setToken} resetKey={captcha.resetKey}/> }
+          <button className="rw-button" disabled={busy||Boolean(!register&&captcha.risk?.captchaRequired&&(!captcha.risk.captchaAvailable||!captcha.token))}>{busy?'Please wait…':register?'Create your account':'Sign in'}</button>
         </form>
 
         <p className="rw-auth-switch">{register?'Already have an account?':'New to RelayWA?'} <Link href={register?'/login':'/register'}>{register?'Sign in':'Start your free trial'}</Link></p>

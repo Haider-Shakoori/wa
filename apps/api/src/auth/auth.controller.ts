@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { AdaptiveLoginProtectionService } from './adaptive-login-protection.service';
 import type { Request } from 'express';
 import { GithubExchangeDto, GoogleAuthDto, LoginDto, RegisterDto, MfaVerifyDto, MfaCodeDto } from './auth.dto';
 import { JwtAuthGuard, type AuthenticatedRequest } from './jwt-auth.guard';
@@ -7,7 +8,8 @@ import { PlatformAdminGuard } from './platform-admin.guard';
 
 @Controller(['auth', 'v1/auth'])
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService,
+    private readonly loginProtection:AdaptiveLoginProtectionService) {}
 
   @Get('providers')
   providers() {
@@ -15,8 +17,18 @@ export class AuthController {
   }
 
   @Post('register')
-  register(@Body() body: RegisterDto) {
-    return this.auth.register(body);
+  register(@Body() body: RegisterDto,@Req() request: Request) {
+    return this.auth.register(body,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
+  }
+
+  @Get('login-protection')
+  loginProtectionStatus(@Query('email') email:string|undefined,@Req() request:Request) {
+    return this.loginProtection.status(String(email??'').slice(0,254),{
+      ip:request.ip,
+      userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Post('login')
@@ -28,8 +40,10 @@ export class AuthController {
   }
 
   @Post('google')
-  google(@Body() body: GoogleAuthDto) {
-    return this.auth.google(body);
+  google(@Body() body: GoogleAuthDto,@Req() request: Request) {
+    return this.auth.google(body,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Get('github/start')
@@ -49,8 +63,10 @@ export class AuthController {
   }
 
   @Post('github/exchange')
-  githubExchange(@Body() body: GithubExchangeDto) {
-    return this.auth.githubExchange(body.code);
+  githubExchange(@Body() body: GithubExchangeDto,@Req() request: Request) {
+    return this.auth.githubExchange(body.code,{
+      ip:request.ip,userAgent:request.headers['user-agent']??undefined,
+    });
   }
 
   @Post('mfa/verify')

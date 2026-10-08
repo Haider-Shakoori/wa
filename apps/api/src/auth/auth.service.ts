@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
+import { AdaptiveLoginProtectionService } from './adaptive-login-protection.service';
 import { GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import type { AuthTokenPayload } from './auth.types';
 import { challengeHash, createMfaSecret, createRecoveryCodes, openMfaSecret, recoveryHash, sealMfaSecret, verifyTotp } from './admin-mfa.crypto';
@@ -33,6 +34,7 @@ export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
+    private readonly loginProtection: AdaptiveLoginProtectionService,
   ) {}
 
   async providers() {
@@ -69,7 +71,7 @@ export class AuthService {
     };
   }
 
-  async register(input: RegisterDto) {
+  async register(input: RegisterDto,context?: {ip?:string;userAgent?:string}) {
     const email = input.email.trim().toLowerCase();
     const existing = await this.db.query<{ id: string }>('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
     if (existing.rowCount) throw new ConflictException('Email already registered');
@@ -82,11 +84,12 @@ export class AuthService {
       organizationName: input.organizationName?.trim(),
     });
 
-    return this.issueTokens(created.user, created.membership);
+    return this.issueTokens(created.user, created.membership,'register',context);
   }
 
   async login(input: LoginDto, context?: { ip?: string; userAgent?: string }) {
     const email = input.email.trim().toLowerCase();
+    await this.loginProtection.requireChallenge(email,input.captchaToken,context);
     const userResult = await this.db.query<UserRow & {is_platform_admin:boolean}>(
       'SELECT id, email, name, password_hash, is_platform_admin FROM users WHERE email = $1 AND disabled_at IS NULL LIMIT 1',
       [email],
@@ -101,15 +104,18 @@ export class AuthService {
       }
     }
     if (!user || !(await compare(input.password, user.password_hash))) {
+      await this.loginProtection.recordFailure(email,context);
       if (user?.is_platform_admin) await this.recordPlatformLogin(user.id, 'failed', 'password', context);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const membership = await this.membership(user.id);
-    return this.issueTokens(user, membership, 'password', context);
+    const loginResult=await this.issueTokens(user, membership, 'password', context);
+    await this.loginProtection.recordSuccess(email,context);
+    return loginResult;
   }
 
-  async google(input: GoogleAuthDto) {
+  async google(input: GoogleAuthDto,context?: {ip?:string;userAgent?:string}) {
     const profile = await this.verifyGoogleCredential(input.credential);
     const account = await this.socialAccount({
       provider: 'google',
@@ -117,7 +123,7 @@ export class AuthService {
       email: String(profile.email),
       name: String(profile.name || profile.given_name || String(profile.email).split('@')[0]),
     });
-    return this.issueTokens(account.user, account.membership, 'google');
+    return this.issueTokens(account.user, account.membership, 'google',context);
   }
 
   async githubAuthorizeUrl(returnTo?: string) {
@@ -191,7 +197,7 @@ export class AuthService {
     }
   }
 
-  async githubExchange(code: string) {
+  async githubExchange(code: string,context?: {ip?:string;userAgent?:string}) {
     const consumed = await this.db.query<{ user_id: string }>(
       `UPDATE oauth_login_codes
        SET used_at = now()
@@ -213,7 +219,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('GitHub account is no longer available');
 
     const membership = await this.membership(user.id);
-    return this.issueTokens(user, membership, 'github');
+    return this.issueTokens(user, membership, 'github',context);
   }
 
   private async socialAccount(input: {

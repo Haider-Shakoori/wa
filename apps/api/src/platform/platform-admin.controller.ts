@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, UpdateAlertAcknowledgementDto } from './platform-admin.dto';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdateMessageHistoryStorageDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, WebsitePlanDto, UpdateAlertAcknowledgementDto, UpdateAlertResolutionDto, ArchiveDiagnosticDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -40,8 +40,8 @@ export class PlatformAdminController {
   monitoringOverview() { return this.platform.monitoringOverview(); }
 
   @Get('monitoring/alerts')
-  monitoringAlerts(@Query('severity') severity?: string,@Query('acknowledgement') acknowledgement?: string) {
-    return this.platform.monitoringAlerts(severity,acknowledgement);
+  monitoringAlerts(@Query('severity') severity?: string,@Query('acknowledgement') acknowledgement?: string,@Query('lifecycle') lifecycle?: string) {
+    return this.platform.monitoringAlerts(severity,acknowledgement,lifecycle);
   }
 
   @Patch('monitoring/alerts/:alertId/acknowledgement')
@@ -49,6 +49,13 @@ export class PlatformAdminController {
   acknowledgeAlert(@Param('alertId',ParseUUIDPipe) alertId:string,
     @Body() body:UpdateAlertAcknowledgementDto,@Req() request:AuthenticatedRequest) {
     return this.platform.setAlertAcknowledgement(alertId,body.acknowledged,request.auth.sub);
+  }
+
+  @Patch('monitoring/alerts/:alertId/resolution')
+  @PlatformRoles('super_admin','support_admin')
+  resolveAlert(@Param('alertId',ParseUUIDPipe) alertId:string,
+    @Body() body:UpdateAlertResolutionDto,@Req() request:AuthenticatedRequest) {
+    return this.platform.setAlertResolution(alertId,body.resolved,body.reason,request.auth.sub);
   }
 
   @Get('audit-logs')
@@ -113,6 +120,19 @@ export class PlatformAdminController {
   @Get('subscription-plans')
   subscriptionPlans() { return this.platform.subscriptionPlans(); }
 
+  @Post('website-plans')
+  @PlatformRoles('super_admin','billing_admin')
+  createWebsitePlan(@Body() body: WebsitePlanDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.createWebsitePlan(body, request.auth.sub);
+  }
+
+  @Patch('website-plans/:code')
+  @PlatformRoles('super_admin','billing_admin')
+  updateWebsitePlan(@Param('code') code: string,
+    @Body() body: WebsitePlanDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateWebsitePlan(code, body, request.auth.sub);
+  }
+
   @Patch('sessions/:sessionId/engine')
   @PlatformRoles('super_admin','support_admin')
   updateSessionEngine(
@@ -171,6 +191,20 @@ export class PlatformAdminController {
     return this.platform.updateGithubAuthProvider(body, request.auth.sub);
   }
 
+  @Get('settings/message-history')
+  messageHistoryStorage() {
+    return this.platform.messageHistoryStorageSettings();
+  }
+
+  @Patch('settings/message-history')
+  @PlatformRoles('super_admin')
+  updateMessageHistoryStorage(
+    @Body() body:UpdateMessageHistoryStorageDto,
+    @Req() request:AuthenticatedRequest,
+  ) {
+    return this.platform.updateMessageHistoryStorage(body,request.auth.sub);
+  }
+
   @Get('settings/messaging-engine')
   messagingEngineSettings() { return this.platform.messagingEngineSettings(); }
 
@@ -199,7 +233,20 @@ export class PlatformAdminController {
   payments() { return this.platform.payments(); }
 
   @Get('errors')
-  errors() { return this.platform.recentErrors(); }
+  errors(@Query('view') view?: string) {
+    if(view && view!=='active' && view!=='archived') throw new BadRequestException('Invalid diagnostics view');
+    return this.platform.recentErrors(view==='archived'?'archived':'active');
+  }
+
+  @Patch('diagnostics/:resource/:id/archive')
+  @PlatformRoles('super_admin','support_admin')
+  archiveDiagnostic(@Param('resource') resource:string,@Param('id',ParseUUIDPipe) id:string,
+    @Body() body:ArchiveDiagnosticDto,@Req() request:AuthenticatedRequest) {
+    if (!['session','message','webhook'].includes(resource)) {
+      throw new BadRequestException('Invalid diagnostic resource type');
+    }
+    return this.platform.archiveDiagnostic(resource as 'session'|'message'|'webhook',id,body.reason,request.auth.sub);
+  }
 
   @Post('support/ask')
   supportAsk(@Body() body: PlatformSupportQuestionDto) {

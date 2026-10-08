@@ -3,9 +3,17 @@ import { deliverWebhook } from './webhook-delivery.js';
 const POLL_MS = Number(process.env.SESSION_COMMAND_POLL_MS ?? 1000);
 
 export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
+  let nextWorkerHeartbeat = 0;
   let nextHealthScan = 0;
   const healthScanIntervalMs = Math.max(30_000, Number(process.env.OPERATIONAL_HEALTH_SCAN_MS || 60_000));
   while (!signal.aborted) {
+    // This process heartbeat is separate from WhatsApp session ownership.
+    // An idle worker or reconnecting session still has a live worker process.
+    if (Date.now() >= nextWorkerHeartbeat) {
+      nextWorkerHeartbeat = Date.now() + 15_000;
+      try { await store.heartbeatWorker(); }
+      catch (error) { console.error('[monitoring] worker heartbeat failed:',error instanceof Error?error.message:String(error)); }
+    }
     // Checks run even under a heavy command load. Failures must never interrupt
     // WhatsApp command processing or webhook delivery.
     if (Date.now() >= nextHealthScan) {

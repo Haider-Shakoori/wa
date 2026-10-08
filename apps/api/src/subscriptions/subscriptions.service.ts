@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import type { PoolClient } from 'pg';
 
 type SubscriptionRow = {
   organization_id: string;
@@ -85,29 +86,45 @@ export class SubscriptionsService {
     provider: string,
     providerCustomerId: string | null,
     providerSubscriptionId: string | null,
+    tx?: PoolClient,
   ) {
+    // This must run in the same transaction that marks the payment paid.
+    // Start renewals at the later of the current expiry and payment time, so
+    // an early renewal extends access rather than throwing away paid days.
     const months = billingInterval === 'annual' ? 12 : 1;
-    await this.db.query(
-      `INSERT INTO organization_subscriptions
-        (organization_id, plan_code, status, current_period_start, current_period_end,
-         trial_ends_at, cancel_at_period_end, provider, provider_customer_id,
-         provider_subscription_id)
-       VALUES ($6, $1, 'active', now(), now() + ($2 * interval '1 month'),
-               NULL, false, $3, $4, $5)
-       ON CONFLICT (organization_id)
-       DO UPDATE SET
-         plan_code = EXCLUDED.plan_code,
-         status = 'active',
-         current_period_start = now(),
-         current_period_end = now() + ($2 * interval '1 month'),
-         trial_ends_at = NULL,
-         cancel_at_period_end = false,
-         provider = EXCLUDED.provider,
-         provider_customer_id = EXCLUDED.provider_customer_id,
-         provider_subscription_id = EXCLUDED.provider_subscription_id,
-         updated_at = now()`,
-      [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId],
-    );
+    const write = async (client: Pick<PoolClient, 'query'>) => {
+      await client.query(
+        `INSERT INTO organization_subscriptions
+          (organization_id, plan_code, status, current_period_start, current_period_end,
+           trial_ends_at, cancel_at_period_end, provider, provider_customer_id,
+           provider_subscription_id)
+         VALUES ($6, $1, 'active', now(), now() + ($2 * interval '1 month'),
+                 NULL, false, $3, $4, $5)
+         ON CONFLICT (organization_id)
+         DO UPDATE SET
+           plan_code = EXCLUDED.plan_code,
+           status = 'active',
+           current_period_start = now(),
+           current_period_end = GREATEST(organization_subscriptions.current_period_end, now()) +
+             ($2 * interval '1 month'),
+           trial_ends_at = NULL,
+           cancel_at_period_end = false,
+           provider = EXCLUDED.provider,
+           provider_customer_id = EXCLUDED.provider_customer_id,
+           provider_subscription_id = EXCLUDED.provider_subscription_id,
+           updated_at = now()`,
+        [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId],
+      );
+      await client.query(`UPDATE organizations
+        SET selected_plan_code=$2,selected_billing_interval=$3,
+          onboarding_step=CASE WHEN onboarding_step='payment' THEN 'workspace' ELSE onboarding_step END,
+          updated_at=now() WHERE id=$1`,[organizationId,planCode,billingInterval]);
+    };
+    if (tx) return write(tx);
+    return this.db.transaction(async client => {
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[organizationId]);
+      await write(client);
+    });
   }
 
   async listPlans() {

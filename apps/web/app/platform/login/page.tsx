@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { Brand } from '../../../components/relay-workspace';
+import { AdaptiveLoginChallenge, useAdaptiveLoginChallenge } from '../../../components/adaptive-login-challenge';
 
 export default function PlatformLoginPage() {
   const router=useRouter();
@@ -12,6 +13,7 @@ export default function PlatformLoginPage() {
   const [error,setError]=useState('');
   const [expired,setExpired]=useState(false);
   const [busy,setBusy]=useState(false);
+  const captcha=useAdaptiveLoginChallenge();
 
   useEffect(()=>{
     setExpired(new URLSearchParams(window.location.search).get('expired')==='1');
@@ -39,9 +41,14 @@ export default function PlatformLoginPage() {
     setBusy(true);
     setError('');
     try {
+      const challenge=await captcha.check(email);
+      if(challenge.captchaRequired&&!captcha.token){
+        setError('Complete the security verification before signing in.');
+        return;
+      }
       const result=await api<any>('/auth/login',undefined,{
         method:'POST',
-        body:JSON.stringify({email,password}),
+        body:JSON.stringify({email,password,captchaToken:captcha.token||undefined}),
       });
       if (!result.isPlatformAdmin) {
         throw new Error('This account does not have RelayWA platform administrator access.');
@@ -56,6 +63,8 @@ export default function PlatformLoginPage() {
     } catch(err) {
       localStorage.removeItem('relaywa_access_token');
       setError(err instanceof Error ? err.message : 'Unable to sign in');
+      captcha.reset();
+      void captcha.check(email).catch(()=>{});
     } finally {
       setBusy(false);
     }
@@ -76,11 +85,12 @@ export default function PlatformLoginPage() {
         <p className="eyebrow">Platform administrator</p>
         <h2>Sign in to the control plane</h2>
         <p className="light-auth-copy">Use your RelayWA platform administrator credentials.</p>
-        <label>Email address<input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required/></label>
+        <label>Email address<input type="email" value={email} onChange={(e)=>{setEmail(e.target.value);captcha.reset();}} onBlur={()=>{if(email.trim())void captcha.check(email).catch(()=>{});}} autoComplete="email" required/></label>
         <label>Password<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" required minLength={8}/></label>
+        <AdaptiveLoginChallenge status={captcha.risk} token={captcha.token} onToken={captcha.setToken} resetKey={captcha.resetKey}/>
         {expired && !error && <div className="alert" role="status">Your session expired. Please sign in again.</div>}
         {error && <div className="alert">{error}</div>}
-        <button className="primary-button wide" disabled={busy}>{busy?'Signing in…':'Sign in to platform'}</button>
+        <button className="primary-button wide" disabled={busy||Boolean(captcha.risk?.captchaRequired&&(!captcha.risk.captchaAvailable||!captcha.token))}>{busy?'Signing in…':'Sign in to platform'}</button>
         <a className="auth-back-link" href="/login">Customer workspace sign in →</a>
       </form>
     </section>

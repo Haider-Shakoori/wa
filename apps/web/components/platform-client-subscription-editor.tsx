@@ -24,7 +24,8 @@ export function PlatformClientSubscriptionEditor({
 }) {
   const [planCode,setPlanCode]=useState(subscription?.plan_code??plans.find(p=>p.code==='trial')?.code??plans[0]?.code??'');
   const [status,setStatus]=useState(subscription?.status??'trialing');
-  const [termAction,setTermAction]=useState<'keep'|'extend'|'date'>(subscription?'keep':'extend');
+  const [termAction,setTermAction]=useState<'keep'|'billing'|'extend'|'date'>(subscription?'keep':'billing');
+  const [billingInterval,setBillingInterval]=useState<'monthly'|'annual'>('monthly');
   const [extendDays,setExtendDays]=useState(30);
   const [periodEndDate,setPeriodEndDate]=useState('');
   const [reason,setReason]=useState('');
@@ -34,6 +35,15 @@ export function PlatformClientSubscriptionEditor({
   const expired=subscription?new Date(subscription.current_period_end).getTime()<=Date.now():false;
   const endsAt=subscription?.current_period_end
     ? new Date(subscription.current_period_end).toLocaleString(): 'Not assigned';
+  const autoExpiry=(()=>{
+    const now=new Date();
+    const months=billingInterval==='annual'?12:1;
+    const year=now.getUTCFullYear();
+    const month=now.getUTCMonth()+months;
+    const lastDay=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+    return new Date(Date.UTC(year,month,Math.min(now.getUTCDate(),lastDay),
+      now.getUTCHours(),now.getUTCMinutes())).toLocaleDateString();
+  })();
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,6 +59,7 @@ export function PlatformClientSubscriptionEditor({
         method:'PATCH',
         body:JSON.stringify({
           planCode,status,reason:reason.trim(),
+          ...(termAction==='billing'?{billingInterval}:{}),
           ...(termAction==='extend'?{extendDays}:{}),
           ...(termAction==='date'?{periodEndDate}:{}),
         }),
@@ -80,7 +91,15 @@ export function PlatformClientSubscriptionEditor({
     {!canEdit ? <p className="muted">Only Super Admins and Billing Admins may change client subscriptions.</p>:
       <form className="platform-client-subscription-form" onSubmit={e=>void submit(e)}>
         <label>Subscription plan
-          <select value={planCode} required onChange={e=>setPlanCode(e.target.value)}>
+          <select value={planCode} required onChange={e=>{
+            const selected=e.target.value;
+            setPlanCode(selected);
+            if(selected!==subscription?.plan_code) {
+              setTermAction(selected==='trial'?'extend':'billing');
+              setStatus(selected==='trial'?'trialing':'active');
+              if(selected==='trial')setExtendDays(7);
+            }
+          }}>
             {plans.map(item=><option value={item.code} key={item.code}>{item.name} ({item.code})</option>)}
           </select>
         </label>
@@ -91,12 +110,20 @@ export function PlatformClientSubscriptionEditor({
           </select>
         </label>
         <label>Validity
-          <select value={termAction} onChange={e=>setTermAction(e.target.value as 'keep'|'extend'|'date')}>
-            {subscription&&<option value="keep">Keep current end date (renew expired terms automatically)</option>}
+          <select value={termAction} onChange={e=>setTermAction(e.target.value as 'keep'|'billing'|'extend'|'date')}>
+            {subscription&&<option value="keep">Keep current end date (only if no new plan is selected)</option>}
+            {planCode!=='trial'&&<option value="billing">Restart term from today using billing period</option>}
             <option value="extend">Extend from current expiry or today</option>
             <option value="date">Set exact end date (UTC, inclusive)</option>
           </select>
         </label>
+        {termAction==='billing'&&<label>Billing period (updates expiration)
+          <select value={billingInterval} onChange={e=>setBillingInterval(e.target.value as 'monthly'|'annual')}>
+            <option value="monthly">Monthly · 1 calendar month</option>
+            <option value="annual">Annual · 12 calendar months</option>
+          </select>
+          <small>New expiration: {autoExpiry}. This is a manual administrative change; no payment is collected.</small>
+        </label>}
         {termAction==='extend'&&<label>Extend validity
           <select value={extendDays} onChange={e=>setExtendDays(Number(e.target.value))}>
             {[7,14,30,90,180,365,730].map(days=><option key={days} value={days}>+{days} days</option>)}

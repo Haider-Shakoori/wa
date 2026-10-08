@@ -91,7 +91,7 @@ export function PlatformMfaSettings({token}:{token:string}) {
     <h3 className="platform-profile-heading">Recent login sessions</h3>
     <div className="platform-sessions-list">
       {sessions.map(item=><div className="platform-detail-row" key={item.id}>
-        <span><strong>{item.login_method}</strong><small>{item.user_agent??'Unknown device'} · {item.ip_address??'IP unavailable'} · {new Date(item.created_at).toLocaleString()}</small></span>
+        <span><strong>{item.login_method} · IP: {item.ip_address??'Unavailable'}</strong><small>{item.user_agent??'Unknown device'} · {new Date(item.created_at).toLocaleString()}</small></span>
         <span>{item.revoked_at?'Revoked':new Date(item.expires_at).getTime()<Date.now()?'Expired':'Active'}</span>
         {!item.revoked_at&&<button className="mini-button danger-mini" onClick={()=>void revoke(item.id)}>Revoke</button>}
       </div>)}

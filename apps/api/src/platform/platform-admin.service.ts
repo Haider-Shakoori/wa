@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto, WebsitePlanDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
+import { SqliteMessageHistoryService } from '../message-history/sqlite-message-history.service';
 import type { PoolClient } from 'pg';
 
 @Injectable()
 export class PlatformAdminService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService, private readonly sqliteHistory: SqliteMessageHistoryService) {}
 
   async whoami(userId: string) {
     const result = await this.db.query<{id:string; email:string; role:string}>(
@@ -17,7 +18,7 @@ export class PlatformAdminService {
   }
 
   async overview() {
-    const [users, organizations, memberships, sessions, messages, payments, webhookFailures] = await Promise.all([
+    const [users, organizations, memberships, sessions, messages, payments, webhookFailures, activeFailures, activeWebhookFailures] = await Promise.all([
       this.count('SELECT count(*)::text AS count FROM users WHERE disabled_at IS NULL'),
       this.count('SELECT count(*)::text AS count FROM organizations'),
       this.count("SELECT count(*)::text AS count FROM organization_memberships WHERE status = 'active'"),
@@ -33,6 +34,14 @@ export class PlatformAdminService {
         `SELECT status, count(*)::text AS count FROM payments GROUP BY status`,
       ),
       this.count("SELECT count(*)::text AS count FROM webhook_deliveries WHERE status = 'failed'"),
+      this.count(`SELECT count(*)::text AS count FROM whatsapp_messages m
+        LEFT JOIN platform_diagnostic_archives a ON a.resource_type='message' AND a.resource_id=m.id
+        WHERE m.direction='outbound' AND m.status='failed'
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=m.updated_at)`),
+      this.count(`SELECT count(*)::text AS count FROM webhook_deliveries w
+        LEFT JOIN platform_diagnostic_archives a ON a.resource_type='webhook' AND a.resource_id=w.id
+        WHERE w.status='failed'
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=w.updated_at)`),
     ]);
 
     return {
@@ -43,6 +52,8 @@ export class PlatformAdminService {
       messages: Object.fromEntries(messages.rows.map((row) => [row.status, Number(row.count)])),
       payments: Object.fromEntries(payments.rows.map((row) => [row.status, Number(row.count)])),
       failedWebhooks: webhookFailures,
+      activeFailedMessages: activeFailures,
+      activeFailedWebhooks: activeWebhookFailures,
     };
   }
 
@@ -59,9 +70,9 @@ export class PlatformAdminService {
         LEFT JOIN organizations o ON o.created_at >= day AND o.created_at < day + interval '1 day'
         GROUP BY day ORDER BY day`),
       this.db.query<{ severity: string; count: number }>(`SELECT severity, count(*)::int AS count FROM system_alerts
-        WHERE created_at >= now() - interval '14 days' GROUP BY severity`),
+        WHERE created_at >= now() - interval '14 days' AND resolved_at IS NULL GROUP BY severity`),
       this.db.query(`SELECT id, severity, event_type, subject, summary, status, created_at
-        FROM system_alerts ORDER BY created_at DESC LIMIT 20`),
+        FROM system_alerts WHERE resolved_at IS NULL ORDER BY created_at DESC LIMIT 20`),
     ]);
     return { messageTrend: messageTrend.rows, tenantTrend: tenantTrend.rows,
       alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
@@ -87,7 +98,7 @@ export class PlatformAdminService {
       this.db.query(`SELECT count(*)::int AS total,
         count(*) FILTER (WHERE acknowledged_at IS NULL)::int AS unacknowledged,
         count(*) FILTER (WHERE acknowledged_at IS NULL AND severity='critical')::int AS critical
-        FROM system_alerts WHERE created_at>=now()-interval '30 days'`),
+        FROM system_alerts WHERE created_at>=now()-interval '30 days' AND resolved_at IS NULL`),
       this.workers(),
     ]);
     // Do not expose SMTP credentials; only tell operators whether outbound
@@ -103,27 +114,31 @@ export class PlatformAdminService {
       failedMessages24h:messageFailures.rows[0]?.count??0,
       alerts30d:recentAlerts.rows[0],
       workers:workers.map((worker:any)=>({
-        ...worker, leaseActive:Boolean(worker.lease_expires_at &&
+        ...worker, healthState:worker.health_state,
+        leaseActive:Boolean(worker.lease_expires_at &&
           new Date(worker.lease_expires_at).getTime()>Date.now()),
       })) };
   }
 
-  async monitoringAlerts(severity = '', acknowledgement = '') {
+  async monitoringAlerts(severity = '', acknowledgement = '', lifecycle = 'active') {
     if (severity && !['critical','warning','info'].includes(severity)) {
       throw new BadRequestException('Invalid alert severity');
     }
     if (acknowledgement && !['open','acknowledged'].includes(acknowledgement)) {
       throw new BadRequestException('Invalid alert acknowledgement filter');
     }
+    if(!['active','resolved','all'].includes(lifecycle)) throw new BadRequestException('Invalid incident lifecycle');
     const result=await this.db.query(`SELECT a.id,a.event_type,a.severity,a.subject,a.summary,
       a.organization_id,a.session_id,a.resource_type,a.resource_id,a.status,a.created_at,
-      a.sent_at,a.acknowledged_at,u.email AS acknowledged_by_email
+      a.sent_at,a.acknowledged_at,a.resolved_at,u.email AS acknowledged_by_email
       FROM system_alerts a
       LEFT JOIN users u ON u.id=a.acknowledged_by
       WHERE ($1='' OR a.severity=$1)
         AND ($2='' OR ($2='open' AND a.acknowledged_at IS NULL)
           OR ($2='acknowledged' AND a.acknowledged_at IS NOT NULL))
-      ORDER BY a.created_at DESC LIMIT 150`,[severity,acknowledgement]);
+        AND ($3='all' OR ($3='active' AND a.resolved_at IS NULL)
+          OR ($3='resolved' AND a.resolved_at IS NOT NULL))
+      ORDER BY a.created_at DESC LIMIT 150`,[severity,acknowledgement,lifecycle]);
     return result.rows;
   }
 
@@ -146,6 +161,27 @@ export class PlatformAdminService {
         {acknowledged:Boolean(alert.acknowledged_at)},
         {acknowledged});
       return {id:alertId,acknowledged,changed:true};
+    });
+  }
+
+  async setAlertResolution(alertId:string,resolved:boolean,reason:string,actorUserId:string) {
+    if (!reason?.trim() || reason.trim().length<8) {
+      throw new BadRequestException('Enter a reason of at least eight characters');
+    }
+    return this.db.transaction(async client=>{
+      const result=await client.query<{id:string;resolved_at:Date|null}>(`SELECT id,resolved_at
+        FROM system_alerts WHERE id=$1 FOR UPDATE`,[alertId]);
+      const alert=result.rows[0];
+      if(!alert)throw new NotFoundException('Incident not found');
+      if(Boolean(alert.resolved_at)===resolved) return {id:alertId,resolved,changed:false};
+      await client.query(`UPDATE system_alerts
+        SET resolved_at=CASE WHEN $2 THEN now() ELSE NULL END,updated_at=now() WHERE id=$1`,
+        [alertId,resolved]);
+      await this.recordAudit(client,actorUserId,
+        resolved?'monitoring.alert.resolved':'monitoring.alert.reopened',
+        'system_alert',alertId,{resolved:Boolean(alert.resolved_at)},
+        {resolved,reason:reason.trim()});
+      return {id:alertId,resolved,changed:true};
     });
   }
 
@@ -541,9 +577,60 @@ export class PlatformAdminService {
     return result.rows;
   }
 
+  async createWebsitePlan(input: WebsitePlanDto, actorUserId: string) {
+    if (input.reason.trim().length<8) throw new BadRequestException('Provide an audit reason of at least eight characters');
+    if (input.code === 'trial') throw new BadRequestException('Trial is a reserved built-in plan');
+    if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
+      throw new BadRequestException('Paid website plans require positive monthly and annual prices');
+    }
+    return this.db.transaction(async client => {
+      const exists = await client.query('SELECT 1 FROM subscription_plans WHERE code=$1', [input.code]);
+      if (exists.rows[0]) throw new ConflictException('A plan with that code already exists');
+      const result = await client.query(`INSERT INTO subscription_plans
+        (code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+         monthly_price_cents,annual_price_cents,currency,active)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
+        RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+          monthly_price_cents,annual_price_cents,currency,active`,
+        [input.code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
+         input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
+         input.annualPriceCents,input.currency]);
+      await this.recordAudit(client,actorUserId,'website.plan.created','subscription_plan',input.code,
+        null,{...result.rows[0],reason:input.reason.trim()});
+      return result.rows[0];
+    });
+  }
+
+  async updateWebsitePlan(code: string, input: WebsitePlanDto, actorUserId: string) {
+    if (input.reason.trim().length<8) throw new BadRequestException('Provide an audit reason of at least eight characters');
+    if (input.code !== code) throw new BadRequestException('Plan code cannot be changed');
+    if (code === 'trial') throw new BadRequestException('The built-in trial plan is managed separately');
+    if (input.monthlyPriceCents <= 0 || input.annualPriceCents <= 0) {
+      throw new BadRequestException('Paid website plans require positive monthly and annual prices');
+    }
+    return this.db.transaction(async client => {
+      const previous = await client.query(`SELECT code,name,max_sessions,daily_messages,
+        monthly_messages,max_api_keys,monthly_price_cents,annual_price_cents,currency
+        FROM subscription_plans WHERE code=$1 AND active=true FOR UPDATE`,[code]);
+      if (!previous.rows[0]) throw new NotFoundException('Website plan not found');
+      const result = await client.query(`UPDATE subscription_plans
+        SET name=$2,max_sessions=$3,daily_messages=$4,monthly_messages=$5,
+          max_api_keys=$6,monthly_price_cents=$7,annual_price_cents=$8,currency=$9
+        WHERE code=$1
+        RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
+          monthly_price_cents,annual_price_cents,currency,active`,
+        [code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
+         input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
+         input.annualPriceCents,input.currency]);
+      await this.recordAudit(client,actorUserId,'website.plan.updated','subscription_plan',code,
+        previous.rows[0],{...result.rows[0],reason:input.reason.trim()});
+      return result.rows[0];
+    });
+  }
+
   async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto, actorUserId: string) {
-    if (input.extendDays !== undefined && input.periodEndDate !== undefined) {
-      throw new BadRequestException('Choose either an expiration date or an extension, not both');
+    if ([input.extendDays, input.periodEndDate, input.billingInterval].filter(v=>v!==undefined).length>1) {
+      throw new BadRequestException('Choose one expiry method: extension, specific date, or billing interval');
     }
     const reason=input.reason?.trim();
     if (!reason || reason.length < 8) throw new BadRequestException('An audit reason of at least eight characters is required');
@@ -574,7 +661,14 @@ export class PlatformAdminService {
       const status=input.status??before?.status??'trialing';
       const now=new Date();
       const previousEnd=before?.current_period_end ? new Date(before.current_period_end) : null;
+      const planChanged=planCode!==before?.plan_code;
       let end=explicitEnd;
+      if (!end && (input.billingInterval || (planChanged && status==='active'))) {
+        if (status==='trialing') throw new BadRequestException('Trial subscriptions use trial validity, not a paid billing interval');
+        const months=input.billingInterval==='annual'?12:1;
+        const period=await client.query<{end:Date}>(`SELECT now() + ($1 * interval '1 month') AS "end"`,[months]);
+        end=new Date(period.rows[0].end);
+      }
       if(!end && input.extendDays!==undefined){
         const baseline=previousEnd && previousEnd.getTime()>now.getTime() ? previousEnd : now;
         end=new Date(baseline.getTime() + input.extendDays*86400000);
@@ -603,8 +697,13 @@ export class PlatformAdminService {
         RETURNING organization_id,plan_code,status,current_period_start,current_period_end,
           trial_ends_at,cancel_at_period_end,provider,updated_at`,
         [organizationId,planCode,status,started,end,trialEnd,cancelAtEnd]);
+      await client.query(`UPDATE organizations
+        SET selected_plan_code=$2,
+          selected_billing_interval=COALESCE($3,selected_billing_interval),
+          updated_at=now()
+        WHERE id=$1`,[organizationId,planCode,input.billingInterval??null]);
       await this.recordAudit(client,actorUserId,'subscription.updated','subscription',organizationId,
-        before,{...updated.rows[0],reason,manualAdjustment:true});
+        before,{...updated.rows[0],reason,manualAdjustment:true,planChanged,billingInterval:input.billingInterval??null});
       return {...updated.rows[0],effectiveActive:isActive && end.getTime()>Date.now()};
     });
   }
@@ -744,6 +843,56 @@ export class PlatformAdminService {
       },
       };
     });
+  }
+
+  async messageHistoryStorageSettings() {
+    const {rows}=await this.db.query<{
+      enabled:boolean;enabled_at:Date|null;retention_days:number;max_file_mb:number;updated_at:Date;
+    }>(`SELECT enabled,enabled_at,retention_days,max_file_mb,updated_at
+        FROM message_history_storage_settings WHERE id='global'`);
+    const settings=rows[0];
+    if(!settings)throw new NotFoundException('Message history storage policy is not initialized');
+    return {
+      enabled:settings.enabled,
+      retentionDays:settings.retention_days,
+      maxFileMb:settings.max_file_mb,
+      enabledAt:settings.enabled_at,
+      updatedAt:settings.updated_at,
+      ...this.sqliteHistory.status(),
+      storageMode:'optional_sqlite_archive',
+      databaseOfRecord:'postgresql',
+      notice:'PostgreSQL continues to store dispatch records and message content. This switch controls an extra local SQLite history archive only; it does not delete or migrate existing PostgreSQL messages.',
+    };
+  }
+
+  async updateMessageHistoryStorage(
+    input:{enabled:boolean;retentionDays:number;maxFileMb:number;reason:string},
+    actorUserId:string,
+  ) {
+    if(input.reason.trim().length<8)throw new BadRequestException('A reason of eight characters is required');
+    if(input.enabled&&!this.sqliteHistory.configured) {
+      throw new ConflictException('Configure a persistent RELAYWA_MESSAGE_HISTORY_SQLITE_PATH mount on the API before enabling SQLite history');
+    }
+    await this.db.transaction(async client=>{
+      const {rows}=await client.query<{
+        enabled:boolean;retention_days:number;max_file_mb:number;
+      }>(`SELECT enabled,retention_days,max_file_mb
+          FROM message_history_storage_settings WHERE id='global' FOR UPDATE`);
+      const old=rows[0];
+      if(!old)throw new NotFoundException('Message history storage settings missing');
+      await client.query(`UPDATE message_history_storage_settings
+        SET enabled=$1,retention_days=$2,max_file_mb=$3,
+          enabled_at=CASE WHEN $1 AND NOT enabled THEN now() ELSE enabled_at END,
+          updated_at=now()
+        WHERE id='global'`,
+        [input.enabled,input.retentionDays,input.maxFileMb]);
+      await this.recordAudit(client,actorUserId,'message.history.storage.updated',
+        'global_settings','sqlite_message_history',old,{
+          enabled:input.enabled,retentionDays:input.retentionDays,maxFileMb:input.maxFileMb,
+          reason:input.reason.trim(),
+        });
+    });
+    return this.messageHistoryStorageSettings();
   }
 
   async messagingEngineSettings() {
@@ -892,17 +1041,30 @@ export class PlatformAdminService {
   }
 
   async workers() {
-    const result = await this.db.query(
-      `SELECT worker_id,
-              count(*)::int AS owned_sessions,
-              max(worker_lease_expires_at) AS lease_expires_at,
-              count(*) FILTER (WHERE status = 'connected')::int AS connected_sessions,
-              count(*) FILTER (WHERE status = 'reconnecting')::int AS reconnecting_sessions
-       FROM whatsapp_sessions
-       WHERE worker_id IS NOT NULL AND deleted_at IS NULL
-       GROUP BY worker_id
-       ORDER BY worker_id`,
-    );
+    // Process liveness must be read from the process heartbeat, not the
+    // WhatsApp session-ownership lease. A worker may run with no sessions.
+    const result = await this.db.query(`WITH sessions_by_worker AS (
+      SELECT worker_id,count(*)::int AS owned_sessions,
+        count(*) FILTER (WHERE status='connected')::int AS connected_sessions,
+        count(*) FILTER (WHERE status='reconnecting')::int AS reconnecting_sessions,
+        count(*) FILTER (WHERE worker_lease_expires_at<=now())::int AS stale_session_leases,
+        max(worker_lease_expires_at) AS lease_expires_at
+      FROM whatsapp_sessions WHERE worker_id IS NOT NULL AND deleted_at IS NULL
+      GROUP BY worker_id
+    )
+    SELECT COALESCE(h.worker_id,s.worker_id) AS worker_id,
+      COALESCE(s.owned_sessions,0)::int AS owned_sessions,
+      COALESCE(s.connected_sessions,0)::int AS connected_sessions,
+      COALESCE(s.reconnecting_sessions,0)::int AS reconnecting_sessions,
+      COALESCE(s.stale_session_leases,0)::int AS stale_session_leases,
+      s.lease_expires_at,h.last_seen_at,
+      CASE WHEN h.last_seen_at IS NULL THEN 'unknown'
+        WHEN h.last_seen_at>now()-interval '90 seconds' THEN 'online'
+        ELSE 'offline' END AS health_state
+    FROM relaywa_worker_heartbeats h
+    FULL OUTER JOIN sessions_by_worker s USING(worker_id)
+    WHERE h.last_seen_at IS NULL OR h.last_seen_at>now()-interval '7 days'
+    ORDER BY worker_id`);
     return result.rows;
   }
 
@@ -939,28 +1101,65 @@ export class PlatformAdminService {
     return result.rows;
   }
 
-  async recentErrors() {
-    const [sessions, messages, webhooks] = await Promise.all([
-      this.db.query(
-        `SELECT id, organization_id, name, status, last_connection_error, updated_at
-         FROM whatsapp_sessions
-         WHERE last_connection_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
-      this.db.query(
-        `SELECT id, organization_id, session_id, status, last_error, updated_at
-         FROM whatsapp_messages
-         WHERE last_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
-      this.db.query(
-        `SELECT id, organization_id, endpoint_id, status, last_error, updated_at
-         FROM webhook_deliveries
-         WHERE last_error IS NOT NULL
-         ORDER BY updated_at DESC LIMIT 50`,
-      ),
+  async recentErrors(view:'active'|'archived'='active') {
+    // A previously failed record remains an audit fact but ceases to be an
+    // active diagnostic once its current status is healthy. An explicit
+    // archive can also mark an investigated failure as handled; any later
+    // row update automatically reopens the diagnostic.
+    const archived=view==='archived';
+    const query=async (table:string,resource:string,condition:string,columns:string)=>
+      this.db.query(`SELECT t.${columns},a.archived_at,
+          (NOT (${condition})) AS recovered
+        FROM ${table} t
+        LEFT JOIN platform_diagnostic_archives a
+          ON a.resource_type='${resource}' AND a.resource_id=t.id
+        WHERE t.last_error IS NOT NULL
+          AND (${archived?'NOT':' '}(${condition})
+            ${archived?'OR':'AND'} ${archived?'':'NOT'}(a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))
+        ORDER BY t.updated_at DESC LIMIT 50`);
+    const sessionsQuery=this.db.query(`SELECT t.id,t.organization_id,t.name,t.status,
+      t.last_connection_error,t.updated_at,a.archived_at,
+      (t.status='connected') AS recovered
+      FROM whatsapp_sessions t
+      LEFT JOIN platform_diagnostic_archives a
+        ON a.resource_type='session' AND a.resource_id=t.id
+      WHERE t.last_connection_error IS NOT NULL
+        AND ${archived?
+          "(t.status='connected' OR (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))":
+          "(t.status<>'connected' AND NOT (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))"}
+      ORDER BY t.updated_at DESC LIMIT 50`);
+    const [sessions,messages,webhooks]=await Promise.all([
+      sessionsQuery,
+      query('whatsapp_messages','message',"t.status IN ('failed','queued','claimed')",
+        'id,t.organization_id,t.session_id,t.status,t.last_error,t.updated_at'),
+      query('webhook_deliveries','webhook',"t.status IN ('failed','queued','claimed')",
+        'id,t.organization_id,t.endpoint_id,t.status,t.last_error,t.updated_at'),
     ]);
-    return { sessions: sessions.rows, messages: messages.rows, webhooks: webhooks.rows };
+    return {sessions:sessions.rows,messages:messages.rows,webhooks:webhooks.rows};
+  }
+
+  async archiveDiagnostic(
+    resource:'session'|'message'|'webhook',id:string,reason:string,actorUserId:string,
+  ) {
+    if(!reason?.trim()||reason.trim().length<8) {
+      throw new BadRequestException('Give an audit reason of at least eight characters');
+    }
+    const table=resource==='session'?'whatsapp_sessions':
+      resource==='message'?'whatsapp_messages':'webhook_deliveries';
+    return this.db.transaction(async client=>{
+      const item=await client.query(`SELECT id,status,updated_at FROM ${table}
+        WHERE id=$1 FOR UPDATE`,[id]);
+      if(!item.rows[0]) throw new NotFoundException('Diagnostic record not found');
+      await client.query(`INSERT INTO platform_diagnostic_archives
+        (resource_type,resource_id,archived_at,archived_by,reason)
+        VALUES ($1,$2,now(),$3,$4)
+        ON CONFLICT(resource_type,resource_id) DO UPDATE SET
+          archived_at=now(),archived_by=excluded.archived_by,reason=excluded.reason`,
+        [resource,id,actorUserId,reason.trim()]);
+      await this.recordAudit(client,actorUserId,'diagnostic.archived',resource,id,
+        {status:item.rows[0].status},{archived:true,reason:reason.trim()});
+      return {resource,id,archived:true};
+    });
   }
 
   async supportAnswer(rawMessage: string) {
