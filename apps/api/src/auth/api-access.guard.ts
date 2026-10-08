@@ -49,6 +49,8 @@ export class ApiAccessGuard implements CanActivate {
            AND enabled = true
            AND revoked_at IS NULL
            AND (expires_at IS NULL OR expires_at > now())
+           AND EXISTS (SELECT 1 FROM organizations o
+             WHERE o.id = api_keys.organization_id AND o.suspended_at IS NULL)
          RETURNING id, organization_id, session_id, scopes, token_type, created_by_user_id`,
         [hash],
       );
@@ -78,12 +80,14 @@ export class ApiAccessGuard implements CanActivate {
     }
 
     // User JWTs are revoked immediately when their tenant membership is suspended.
-    // Organization API keys remain separate credentials and are not affected.
+    // Tenant suspension invalidates existing user JWTs and organization API keys.
     const result = await this.db.query(
       `SELECT m.id FROM organization_memberships m
        JOIN users u ON u.id = m.user_id
+       JOIN organizations o ON o.id = m.organization_id
        WHERE m.id = $1 AND m.organization_id = $2 AND m.user_id = $3
-         AND m.status = 'active' AND u.disabled_at IS NULL LIMIT 1`,
+         AND m.status = 'active' AND u.disabled_at IS NULL
+         AND o.suspended_at IS NULL LIMIT 1`,
       [request.auth.membership, request.auth.org, request.auth.sub],
     );
     if (!result.rowCount) throw new UnauthorizedException('Organization access is inactive');
