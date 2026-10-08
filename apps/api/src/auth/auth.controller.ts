@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type { Request } from 'express';
-import { GithubExchangeDto, GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
+import { GithubExchangeDto, GoogleAuthDto, LoginDto, RegisterDto, MfaVerifyDto, MfaCodeDto } from './auth.dto';
 import { JwtAuthGuard, type AuthenticatedRequest } from './jwt-auth.guard';
+import { PlatformAdminGuard } from './platform-admin.guard';
 
 @Controller(['auth', 'v1/auth'])
 export class AuthController {
@@ -50,6 +51,47 @@ export class AuthController {
   @Post('github/exchange')
   githubExchange(@Body() body: GithubExchangeDto) {
     return this.auth.githubExchange(body.code);
+  }
+
+  @Post('mfa/verify')
+  verifyMfa(@Body() body: MfaVerifyDto) {
+    return this.auth.verifyMfaChallenge(body.ticket, body.code);
+  }
+
+  @Get('mfa/status')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  mfaStatus(@Req() request: AuthenticatedRequest) {
+    return this.auth.mfaStatus(request.auth.sub);
+  }
+
+  @Post('mfa/setup')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  mfaSetup(@Req() request: AuthenticatedRequest) {
+    return this.auth.beginMfaSetup(request.auth.sub);
+  }
+
+  @Post('mfa/confirm')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  mfaConfirm(@Req() request: AuthenticatedRequest, @Body() body: MfaCodeDto) {
+    return this.auth.confirmMfaSetup(request.auth.sub, body.code);
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  sessions(@Req() request: AuthenticatedRequest) {
+    return this.auth.userSessions(request.auth.sub);
+  }
+
+  @Post('sessions/revoke-all')
+  @UseGuards(JwtAuthGuard)
+  revokeAll(@Req() request: AuthenticatedRequest) {
+    return this.auth.revokeAllSessions(request.auth.sub);
+  }
+
+  @Post('sessions/:sessionId/revoke')
+  @UseGuards(JwtAuthGuard)
+  revokeOne(@Req() request: AuthenticatedRequest, @Param('sessionId', ParseUUIDPipe) sessionId: string) {
+    return this.auth.revokeSession(request.auth.sub, sessionId);
   }
 
   @Get('me')

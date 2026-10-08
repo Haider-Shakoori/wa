@@ -9,4 +9,6 @@ export type AuthTokenPayload = {
   email: string;
   org: string;
   membership: string;
+  sid?: string;
+  ver?: number;
 };

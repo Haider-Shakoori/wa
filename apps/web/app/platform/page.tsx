@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
+import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
@@ -472,11 +473,11 @@ export default function PlatformPage() {
           <select className="table-select" aria-label={'Administrator role for '+admin.email} value={admin.platform_role??'read_only'} onChange={e=>void changeAdministratorRole(admin,e.target.value)}><option value="super_admin">Super Admin</option><option value="billing_admin">Billing Admin</option><option value="support_admin">Support Admin</option><option value="read_only">Read-only</option></select></div>):<Empty text="Super Admin access is required to manage platform roles."/>}
       </section>}
 
-      {active === 'Security' && <section className="panel platform-detail-panel">
+      {active === 'Security' && <><PlatformMfaSettings token={token}/><section className="panel platform-detail-panel">
         <div className="panel-head"><div><p className="eyebrow">Security monitoring</p><h2>Administrator sign-in history</h2><p className="muted">Latest 100 recorded platform administrator logins, with success or failure and login method.</p></div></div>
         {['super_admin','support_admin'].includes(platformRole)?loginEvents.map((entry)=><div className="platform-detail-row" key={entry.id}><span><strong>{entry.email??'Unknown administrator'}</strong><small>{entry.login_method} · {entry.ip_address??'IP unavailable'} · {date(entry.created_at)}</small></span><Badge value={entry.outcome}/></div>):<Empty text="Security monitoring requires a Super or Support Admin role."/>}
         {!loginEvents.length&&<Empty text="No administrator sign-in events recorded yet."/>}
-      </section>}
+      </section></>}
 
       {active === 'Audit log' && <section className="panel platform-audit-panel">
         <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
