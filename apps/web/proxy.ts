@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { isIP } from 'node:net';
 import type { NextFetchEvent, NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -74,9 +75,12 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 
   const ua=(request.headers.get('user-agent')??'').slice(0,500);
   const {trafficType,botFamily}=classify(ua);
-  const clientIp=(request.headers.get('x-real-ip') ??
-    request.headers.get('x-forwarded-for')?.split(',')[0] ??
-    'unavailable').trim();
+  // The production stack is Caddy -> Nginx -> Next. Nginx sets X-Real-IP
+  // to the upstream address; X-Forwarded-For retains the original client.
+  // Proxy access control should sanitize forwarded headers at the outer edge.
+  const forwarded=request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '';
+  const real=request.headers.get('x-real-ip')?.trim()??'';
+  const clientIp=isIP(forwarded)?forwarded:isIP(real)?real:'unavailable';
   const day=new Date().toISOString().slice(0,10);
   // Per-day keyed digest avoids storing raw IP/UA and deliberately prevents
   // cross-day tracking. The counts are estimates, not verified people.

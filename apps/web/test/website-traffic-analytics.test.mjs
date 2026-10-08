@@ -34,3 +34,11 @@ test('crawler countries are available as a cross-tabulated report',async()=>{
  assert.match(screen,/Bot activity by country/);
  assert.match(screen,/botCountries/);
 });
+
+test('proxy uses a validated original forwarded IP before upstream Caddy/Nginx address',async()=>{
+ const proxy=await read('../proxy.ts');
+ assert.match(proxy,/import \{ isIP \} from 'node:net'/);
+ assert.match(proxy,/request\.headers\.get\('x-forwarded-for'\)/);
+ assert.match(proxy,/request\.headers\.get\('x-real-ip'\)/);
+ assert.match(proxy,/isIP\(forwarded\)\?forwarded:isIP\(real\)\?real/);
+});
