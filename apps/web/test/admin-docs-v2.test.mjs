@@ -39,7 +39,7 @@ test('developer portal is searchable and documents the actual RelayWA API surfac
   assert.match(docs, /\/whatsapp-sessions\/:sessionId\/contacts/);
   assert.match(docs, /\/webhooks\/:endpointId\/deliveries/);
   assert.match(docs, /x-relaywa-signature/);
-  assert.match(docs, /12025550123/);
+  assert.match(docs, /E164_RECIPIENT_NUMBER/);
 });
 
 test('light onboarding/admin contrast is explicitly protected', async () => {
