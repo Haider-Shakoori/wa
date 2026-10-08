@@ -80,7 +80,7 @@ export class PlatformAdminService {
       this.db.query(`SELECT count(*) FILTER (WHERE status='failed')::int AS failed,
         count(*) FILTER (WHERE status='queued')::int AS queued,
         count(*) FILTER (WHERE status='delivered')::int AS delivered
-        FROM webhook_deliveries WHERE created_at >= now()-interval '24 hours'`),
+        FROM webhook_deliveries WHERE queued_at >= now()-interval '24 hours'`),
       this.db.query(`SELECT count(*)::int AS count FROM whatsapp_messages
         WHERE direction='outbound' AND status='failed'
         AND created_at>=now()-interval '24 hours'`),

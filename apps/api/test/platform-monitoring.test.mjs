@@ -32,3 +32,13 @@ test('monitoring displays worker leases and alert review independently of delive
  assert.match(screen,/Reopen/);
  assert.match(screen,/Acknowledge an alert does not cancel|Acknowledging an alert does not cancel/);
 });
+
+test('webhook 24h monitoring uses the persisted webhook delivery timestamp',async()=>{
+  const service=await source('../src/platform/platform-admin.service.ts');
+  const start=service.indexOf('  async monitoringOverview()');
+  const end=service.indexOf('  async monitoringAlerts(',start);
+  assert.ok(start>=0&&end>start);
+  const overview=service.slice(start,end);
+  assert.match(overview,/FROM webhook_deliveries WHERE queued_at >= now\(\)-interval '24 hours'/);
+  assert.doesNotMatch(overview,/FROM webhook_deliveries WHERE created_at/);
+});
