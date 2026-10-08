@@ -28,6 +28,9 @@ export default function PlatformPage() {
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
   const [query,setQuery] = useState('');
+  const [paymentFilter,setPaymentFilter] = useState<'all'|'pending'|'failed'>('all');
+  const [lastUpdated,setLastUpdated] = useState<Date|null>(null);
+  const [refreshing,setRefreshing] = useState(false);
   const [googleEnabled,setGoogleEnabled] = useState(false);
   const [googleClientId,setGoogleClientId] = useState('');
   const [githubEnabled,setGithubEnabled] = useState(false);
@@ -71,6 +74,7 @@ export default function PlatformPage() {
   async function refresh(current = token) {
     if (!current) return;
     setError('');
+    setRefreshing(true);
     try {
       const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings,messagingSafetySettings] = await Promise.all([
         api('/platform/overview',current),
@@ -104,8 +108,11 @@ export default function PlatformPage() {
       setGithubSecretConfigured(Boolean(github?.public_config?.secretConfigured));
       setMessagingEngine((messagingEngineSettings as any)?.defaultEngine === 'chromium' ? 'chromium' : 'baileys');
       setMessagingSafety(messagingSafetySettings as any);
+      setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -284,6 +291,11 @@ export default function PlatformPage() {
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
   const filteredSessions = normalizedQuery ? sessions.filter((item)=>[item.name,item.organization_name,item.phone_number,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : sessions;
   const filteredSubscriptions = normalizedQuery ? subscriptions.filter((item)=>[item.organization_name,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : subscriptions;
+  const filteredPayments = payments.filter((item)=> (paymentFilter==='all' || item.status===paymentFilter) && (!normalizedQuery || [item.organization_name,item.provider,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))));
+  const disconnected = sessions.filter((s)=>s.status!=='connected').length;
+  const webhookFailures = Number(overview?.failedWebhooks ?? 0);
+  const attentionCount = Number(pendingManual>0) + Number(failedMessages>0) + Number(webhookFailures>0) + Number(disconnected>0);
+  const connectionRate = sessions.length ? Math.round(connected / sessions.length * 100) : 100;
 
   return <div className="app-shell platform-shell">
     <aside className="sidebar">
@@ -295,8 +307,8 @@ export default function PlatformPage() {
         </div>)}
       </nav>
       <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="/dashboard">Customer workspace</a>
-        <div className="status-pill"><span className="live-dot"/>Platform administration</div>
+        <a className="ghost-button platform-link" href="/dashboard">↗ Customer workspace</a>
+        <div className="status-pill"><span className="live-dot"/>Platform operations · Admin</div>
         <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>
     </aside>
@@ -304,13 +316,22 @@ export default function PlatformPage() {
     <main className="content platform-page">
       <header className="topbar platform-topbar-v2">
         <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1><p className="platform-page-context">{platformSubtitle(active)}</p></div>
-        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" onClick={()=>void refresh()}>Refresh</button></div>
+        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'Refreshing…':'↻ Refresh'}</button></div>
       </header>
 
       {error && <div className="alert">{error}</div>}
       {notice && <div className="success-alert">{notice}</div>}
 
       {active === 'Overview' && <>
+        <section className="platform-command-center" aria-label="Platform operational priorities">
+          <div className="platform-command-heading"><div><span className="platform-kicker">OPERATIONS CENTER</span><h2>{attentionCount ? attentionCount+' areas need review' : 'All monitored areas look clear'}</h2><p>Real-time priorities from your platform data. Select an item to investigate.</p></div><span className="platform-updated">Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : 'on refresh'}</span></div>
+          <div className="platform-priority-grid">
+            <button onClick={()=>setActive('Sessions')} className="platform-priority"><span>Session connectivity</span><strong>{connectionRate}%</strong><small>{disconnected ? disconnected+' not connected' : 'All sessions connected'}</small></button>
+            <button onClick={()=>setActive('Diagnostics')} className="platform-priority"><span>Outbound failures</span><strong>{failedMessages}</strong><small>{failedMessages ? 'Review delivery errors' : 'No failed messages'}</small></button>
+            <button onClick={()=>setActive('Payments')} className="platform-priority"><span>Pending approvals</span><strong>{pendingManual}</strong><small>{pendingManual ? 'Manual payments waiting' : 'Nothing awaiting approval'}</small></button>
+            <button onClick={()=>setActive('Infrastructure')} className="platform-priority"><span>Active workers</span><strong>{healthyWorkers}</strong><small>Open infrastructure status</small></button>
+          </div>
+        </section>
         <section className="platform-hero platform-hero-v2">
           <div className="platform-hero-copy"><p className="eyebrow">Private operations</p><h2>Run RelayWA with a clear view of what needs attention.</h2><p className="muted">Monitor tenants, WhatsApp sessions, message delivery, payments and infrastructure without mixing platform operations into the customer workspace.</p>
             <div className="platform-quick-actions">
@@ -380,8 +401,10 @@ export default function PlatformPage() {
       </TableSection>}
 
       {active === 'Payments' && <TableSection eyebrow="Revenue" title="Payments" subtitle="Stripe and manual payment activity across all tenants.">
+        <div className="platform-filter-bar" aria-label="Payment status filter">{(['all','pending','failed'] as const).map((filter)=><button key={filter} className={paymentFilter===filter?'selected':''} onClick={()=>setPaymentFilter(filter)}>{filter==='all'?'All payments':filter==='pending'?'Pending approval':'Failed payments'}</button>)}<span>{filteredPayments.length} results</span></div>
         <div className="platform-row platform-row-head"><span>Organization</span><span>Provider</span><span>Plan</span><span>Amount</span><span>Status</span><span>Action</span></div>
-        {payments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
+        {filteredPayments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
+        {!filteredPayments.length && <Empty text="No payments match this filter."/>}
       </TableSection>}
 
       {active === 'Infrastructure' && <section className="two-column">
