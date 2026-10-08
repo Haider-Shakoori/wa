@@ -478,6 +478,61 @@ export class SessionStore {
     }
   }
 
+  async scanOperationalHealth() {
+    // A live worker can detect peers with expired session leases. External uptime
+    // monitoring is still required when the entire worker fleet is down.
+    const staleSessions = await this.pool.query(`SELECT s.id, s.organization_id,
+      s.name, s.status, s.worker_id, s.worker_lease_expires_at, o.name AS organization_name
+      FROM whatsapp_sessions s
+      JOIN organizations o ON o.id=s.organization_id AND o.suspended_at IS NULL
+      WHERE s.deleted_at IS NULL AND s.worker_id IS NOT NULL
+        AND s.worker_lease_expires_at IS NOT NULL
+        AND s.worker_lease_expires_at < now() - interval '1 minute'
+        AND s.status IN ('connected','connecting','reconnecting')
+      ORDER BY s.worker_lease_expires_at ASC LIMIT 25`);
+    for(const session of staleSessions.rows) {
+      await this.queueSystemAlert({
+        eventType:'worker.session_lease_expired',
+        severity:'critical',
+        dedupeKey:`lease:${session.id}:expired`,
+        organizationId:session.organization_id,
+        sessionId:session.id,
+        resourceType:'whatsapp_session',
+        resourceId:session.id,
+        subject:'WhatsApp worker lease expired',
+        summary:'A WhatsApp session appears to have lost its active worker ownership and needs review.',
+        details:{organizationName:session.organization_name,sessionName:session.name,
+          workerId:session.worker_id,sessionStatus:session.status,leaseExpiresAt:session.worker_lease_expires_at},
+        cooldownSeconds:900,
+      });
+    }
+
+    // Direct-dispatch queues should drain quickly. Flag sustained backlog without
+    // touching queued records or forcing retries; preserve operator control.
+    const stalled = await this.pool.query(`SELECT organization_id, count(*)::int AS stalled
+      FROM (SELECT m.organization_id FROM whatsapp_messages m
+        JOIN organizations o ON o.id=m.organization_id AND o.suspended_at IS NULL
+        WHERE m.direction='outbound' AND m.status='queued'
+          AND m.queued_at < now() - interval '10 minutes'
+        ORDER BY m.queued_at ASC LIMIT 500) pending
+      GROUP BY organization_id HAVING count(*) >= 10 LIMIT 20`);
+    for(const item of stalled.rows) {
+      await this.queueSystemAlert({
+        eventType:'messaging.queue_stalled',
+        severity:'warning',
+        dedupeKey:`org:${item.organization_id}:stalled-queue`,
+        organizationId:item.organization_id,
+        resourceType:'organization',
+        resourceId:item.organization_id,
+        subject:'Outgoing message queue appears stalled',
+        summary:'At least ten outbound messages have remained queued for over ten minutes. Investigate dispatch and session connectivity.',
+        details:{stalledMessages:item.stalled},
+        cooldownSeconds:1800,
+      });
+    }
+    return {staleLeases:staleSessions.rowCount??0,stalledOrganizations:stalled.rowCount??0};
+  }
+
   async queueSystemAlert({
     eventType,
     severity = 'warning',

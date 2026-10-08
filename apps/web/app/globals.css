@@ -1030,3 +1030,6 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
  .platform-shell .platform-monitoring-filters select{width:100%;min-width:0}
 }
 @media(max-width:375px){.platform-shell .platform-monitoring-cards{grid-template-columns:1fr}}
+
+.platform-shell .platform-email-status-ready{color:#a9efbe!important}
+.platform-shell .platform-email-status-missing{color:#f4cb89!important}
