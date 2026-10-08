@@ -912,3 +912,81 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-detail-row .table-select{max-width:220px}
 .platform-shell .platform-detail-row small{display:block;color:#9ab3a1;margin-top:5px;font-size:11px}
 @media(max-width:600px){.platform-shell .platform-detail-row .table-select{max-width:100%}.platform-shell .platform-tenant-security{align-items:flex-start}}
+
+/* Platform admin: native-feeling mobile drawer instead of compressed 14-item bottom navigation. */
+.platform-shell .platform-mobile-menu-toggle,
+.platform-shell .platform-mobile-sidebar-header,
+.platform-shell .platform-mobile-menu-backdrop{display:none}
+@media(max-width:900px){
+  .platform-shell{display:block!important;min-width:0}
+  .platform-shell .platform-page{padding:16px 16px calc(40px + env(safe-area-inset-bottom))!important;min-width:0}
+  .platform-shell .platform-topbar-v2{display:flex!important;flex-wrap:wrap;align-items:center;gap:12px!important;padding:0 0 17px!important;min-height:66px!important}
+  .platform-shell .platform-topbar-v2>div:first-of-type{flex:1 1 185px;min-width:0}
+  .platform-shell .platform-topbar-v2 h1{font-size:clamp(21px,5vw,29px)!important}
+  .platform-shell .platform-topbar-v2 .top-actions{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:9px}
+  .platform-shell .platform-search{flex:1 1 160px;min-width:0!important}
+  .platform-shell .platform-mobile-menu-toggle{
+    display:inline-flex!important;align-items:center;justify-content:center;gap:8px;
+    flex:0 0 auto;min-width:78px;min-height:44px;padding:8px 12px;
+    background:#18261d!important;border:1px solid #3b6546!important;border-radius:12px;
+    color:#e8fbee!important;font-size:13px!important;font-weight:750!important;
+  }
+  .platform-shell .platform-mobile-menu-toggle span:first-child{font-size:19px;line-height:1}
+  .platform-shell .platform-mobile-menu-backdrop{
+    display:block;position:fixed;inset:0;z-index:1010;background:rgba(1,8,4,.68);
+    border:0;padding:0;cursor:pointer;backdrop-filter:blur(5px);
+  }
+  .platform-shell .platform-admin-sidebar{
+    display:flex!important;flex-direction:column!important;position:fixed!important;left:0!important;right:auto!important;
+    top:0!important;bottom:0!important;z-index:1011!important;width:min(320px,88vw)!important;
+    max-width:88vw!important;height:100dvh!important;box-sizing:border-box!important;
+    padding:calc(15px + env(safe-area-inset-top)) 15px calc(14px + env(safe-area-inset-bottom))!important;
+    border-right:1px solid #365340!important;border-top:0!important;
+    transform:translateX(-105%);visibility:hidden;pointer-events:none;
+    transition:transform .22s ease,visibility .22s ease;overflow:hidden!important;
+    box-shadow:20px 0 65px rgba(0,0,0,.42)!important;
+  }
+  .platform-shell .platform-admin-sidebar-open{
+    transform:translateX(0);visibility:visible;pointer-events:auto;
+  }
+  .platform-shell .platform-mobile-sidebar-header{
+    display:flex!important;align-items:center;justify-content:space-between;gap:16px;
+    color:#e5f4e9;min-height:42px;padding:0 3px 9px;
+  }
+  .platform-shell .platform-mobile-sidebar-header strong{font-size:15px}
+  .platform-shell .platform-mobile-menu-close{
+    width:42px;height:42px;border:1px solid #3b5742;border-radius:11px;background:#1c2b21;
+    color:#eef9f0;font-size:25px;line-height:1;cursor:pointer;
+  }
+  .platform-shell .platform-admin-sidebar .brand{display:flex!important;margin:0 0 10px!important;padding:0 4px 14px!important}
+  .platform-shell .platform-admin-sidebar .brand>div:last-child{display:block!important}
+  .platform-shell .platform-admin-sidebar .platform-nav-groups{
+    display:grid!important;grid-template-columns:1fr!important;gap:14px!important;
+    overflow-y:auto!important;overscroll-behavior:contain;min-height:0;
+    flex:1 1 auto;padding:0 4px 14px!important;
+  }
+  .platform-shell .platform-admin-sidebar .platform-nav-group{display:grid!important;grid-template-columns:1fr!important;gap:5px}
+  .platform-shell .platform-admin-sidebar .platform-nav-label{font-size:10px!important;letter-spacing:.11em!important}
+  .platform-shell .platform-admin-sidebar .nav-item{
+    display:flex!important;justify-content:flex-start!important;align-items:center!important;
+    padding:11px 13px!important;min-height:44px!important;font-size:13px!important;
+    white-space:normal;text-align:left;gap:10px;
+  }
+  .platform-shell .platform-admin-sidebar .sidebar-bottom{
+    display:grid!important;gap:9px!important;flex:0 0 auto;
+    padding:13px 4px 0!important;border-top:1px solid #304737!important;
+  }
+  .platform-shell .platform-admin-sidebar .sidebar-bottom .platform-link,
+  .platform-shell .platform-admin-sidebar .sidebar-bottom .account-logout{
+    min-height:43px;font-size:12px!important;
+  }
+  .platform-shell .platform-admin-sidebar .status-pill{display:flex!important}
+  .platform-shell .platform-topbar-v2 .api-badge{display:none}
+}
+@media(max-width:420px){
+  .platform-shell .platform-page{padding-left:12px!important;padding-right:12px!important}
+  .platform-shell .platform-topbar-v2 .top-actions>.secondary-button{min-height:40px}
+}
+@media(prefers-reduced-motion:reduce){
+  .platform-shell .platform-admin-sidebar{transition:none!important}
+}
