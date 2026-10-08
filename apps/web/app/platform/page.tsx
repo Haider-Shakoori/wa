@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '../../lib/api';
+import { api, API_BASE } from '../../lib/api';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
 import { PlatformMonitoring } from '../../components/platform-monitoring';
@@ -18,6 +18,8 @@ const navigationGroups = [
 export default function PlatformPage() {
   const router=useRouter();
   const [token,setToken] = useState('');
+  const [platformAccess,setPlatformAccess] = useState<'checking'|'allowed'|'error'>('checking');
+  const [accessError,setAccessError] = useState('');
   const [active,setActive] = useState('Overview');
   const [mobileNavOpen,setMobileNavOpen] = useState(false);
   const mobileNavToggleRef=useRef<HTMLButtonElement>(null);
@@ -94,12 +96,49 @@ export default function PlatformPage() {
   });
 
   useEffect(()=>{
+    let cancelled=false;
     const current=localStorage.getItem('relaywa_access_token') ?? '';
     if (!current) {
       router.replace('/platform/login');
       return;
     }
-    setToken(current);
+    // Do not mount or fetch any administrator UI until the server confirms role.
+    // A valid tenant JWT gets HTTP 403 from the existing PlatformAdminGuard.
+    async function verifyPlatformAccess(){
+      try {
+        const response=await fetch(API_BASE+'/platform/whoami',{
+          headers:{authorization:'Bearer '+current},
+          cache:'no-store',
+        });
+        if(cancelled)return;
+        if(response.status===403){
+          // Preserve the client's valid session; they belong in their workspace.
+          router.replace('/dashboard');
+          return;
+        }
+        if(response.status===401){
+          localStorage.removeItem('relaywa_access_token');
+          router.replace('/platform/login?expired=1');
+          return;
+        }
+        if(!response.ok)throw new Error('Unable to verify administrator access. Please retry.');
+        const identity=await response.json() as {role?:string};
+        if(cancelled)return;
+        if(!['super_admin','billing_admin','support_admin','read_only'].includes(identity.role??'')){
+          router.replace('/dashboard');
+          return;
+        }
+        setPlatformRole(identity.role!);
+        setToken(current);
+        setPlatformAccess('allowed');
+      }catch(err){
+        if(cancelled)return;
+        setAccessError(err instanceof Error?err.message:'Unable to verify access');
+        setPlatformAccess('error');
+      }
+    }
+    void verifyPlatformAccess();
+    return ()=>{cancelled=true;};
   },[router]);
 
   function accountLogout() {
@@ -129,15 +168,14 @@ export default function PlatformPage() {
         api('/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
-      void api<{role:string}>('/platform/whoami',current).then(async(identity)=>{
-        setPlatformRole(identity.role);
-        if(identity.role==='super_admin') {
+      void (async()=>{
+        if(platformRole==='super_admin') {
           void api<any[]>('/platform/administrators',current).then(setAdministrators).catch(()=>setAdministrators([]));
         } else setAdministrators([]);
         if(identity.role==='super_admin'||identity.role==='support_admin') {
           void api<any[]>('/platform/security/login-events',current).then(setLoginEvents).catch(()=>setLoginEvents([]));
         } else setLoginEvents([]);
-      }).catch(()=>setPlatformRole('read_only'));
+      })();
       void api('/platform/analytics',current).then(setAnalytics).catch(()=>setAnalytics(null));
       void api<any[]>('/platform/audit-logs',current).then(setAuditLogs).catch(()=>setAuditLogs([]));
       setTenants(t as any[]);
@@ -165,7 +203,7 @@ export default function PlatformPage() {
     }
   }
 
-  useEffect(()=>{ void refresh(); },[token]);
+  useEffect(()=>{ if(platformAccess==='allowed')void refresh(); },[token,platformAccess]);
 
   async function approveManual(paymentId:string) {
     setError(''); setNotice('');
@@ -427,6 +465,18 @@ export default function PlatformPage() {
   const webhookFailures = Number(overview?.failedWebhooks ?? 0);
   const attentionCount = Number(pendingManual>0) + Number(failedMessages>0) + Number(webhookFailures>0) + Number(disconnected>0);
   const connectionRate = sessions.length ? Math.round(connected / sessions.length * 100) : 100;
+
+  if(platformAccess!=='allowed'){
+    return <main className="platform-access-gate" aria-live="polite">
+      {platformAccess==='error'
+        ? <section role="alert"><h1>Unable to verify administrator access</h1>
+            <p>{accessError}</p>
+            <button type="button" onClick={()=>window.location.reload()}>Retry verification</button>
+            <button type="button" onClick={()=>router.replace('/dashboard')}>Go to dashboard</button>
+          </section>
+        : <p role="status">Checking platform administrator access…</p>}
+    </main>;
+  }
 
   return <div className="app-shell platform-shell">
     {mobileNavOpen&&<button type="button" className="platform-mobile-menu-backdrop"
