@@ -5,11 +5,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { PlatformRoles } from '../auth/platform-roles.decorator';
 import { PlatformAdminService } from './platform-admin.service';
+import { WebsiteAnalyticsService } from '../website-analytics/website-analytics.service';
 
 @Controller(['platform', 'v1/platform'])
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class PlatformAdminController {
-  constructor(private readonly platform: PlatformAdminService) {}
+  constructor(private readonly platform: PlatformAdminService,
+    private readonly websiteTraffic: WebsiteAnalyticsService) {}
 
   @Get('whoami')
   whoami(@Req() request: AuthenticatedRequest) {
@@ -21,6 +23,11 @@ export class PlatformAdminController {
 
   @Get('analytics')
   analytics() { return this.platform.analytics(); }
+
+  @Get('website-traffic')
+  websiteTrafficReport(@Query('days') days?: string) {
+    return this.websiteTraffic.report(days);
+  }
 
   @Get('monitoring/overview')
   monitoringOverview() { return this.platform.monitoringOverview(); }
