@@ -8,7 +8,7 @@ test('public RelayWA hero is developer-focused and does not expose BusinessOS br
   assert.match(source, /Bring WhatsApp into your product/);
   assert.match(source, /rw-hero-visual/);
   assert.match(source, /\/api\/send-message/);
-  assert.match(source, /rw-integration/);
+  assert.match(source, /rw-features/);
   assert.doesNotMatch(source, /BusinessOS/i);
   assert.doesNotMatch(source, /93744119422/);
   assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
