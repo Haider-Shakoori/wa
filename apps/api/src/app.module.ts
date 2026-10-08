@@ -4,6 +4,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PlatformAdminModule } from './platform/platform-admin.module';
+import { MessageHistoryModule } from './message-history/message-history.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
 import { DirectoryModule } from './directory/directory.module';
@@ -18,6 +19,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
     DatabaseModule,
     AuthModule,
     OrganizationsModule,
+    MessageHistoryModule,
     PlatformAdminModule,
     SessionsModule,
     MessagesModule,
