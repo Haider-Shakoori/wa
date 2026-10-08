@@ -83,7 +83,7 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
         body:JSON.stringify(register?{name,email,password}:{email,password}),
       });
       localStorage.setItem('relaywa_access_token',result.accessToken);
-      router.push(tenantDestination(result,register));
+      router.replace(tenantDestination(result,register));
     } catch (err) {
       setError(err instanceof Error?err.message:'Unable to sign in.');
     } finally {
