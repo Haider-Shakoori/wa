@@ -7,7 +7,7 @@ import type { PoolClient } from 'pg';
 
 @Injectable()
 export class PlatformAdminService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService, private readonly sqliteHistory: SqliteMessageHistoryService) {}
 
   async whoami(userId: string) {
     const result = await this.db.query<{id:string; email:string; role:string}>(
