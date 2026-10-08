@@ -507,7 +507,7 @@ export class PlatformAdminService {
     };
   }
 
-  async updateMessagingSafety(input: UpdateMessagingSafetyDto) {
+  async updateMessagingSafety(input: UpdateMessagingSafetyDto, actorUserId: string) {
     const current = await this.messagingSafetySettings();
     const next = {
       enabled: input.enabled ?? current.enabled,
@@ -533,7 +533,11 @@ export class PlatformAdminService {
       throw new BadRequestException('Hourly message limit must be at least the per-minute limit');
     }
 
-    await this.db.query(
+    await this.db.transaction(async (client) => {
+      const locked = await client.query(`SELECT enabled, min_delay_ms, max_delay_ms, messages_per_minute,
+        messages_per_hour, burst_limit, duplicate_window_seconds, failure_pause_threshold, auto_pause_seconds
+        FROM messaging_safety_settings WHERE id = 'global' FOR UPDATE`);
+      await client.query(
       `UPDATE messaging_safety_settings
        SET enabled = $1,
            min_delay_ms = $2,
@@ -569,6 +573,10 @@ export class PlatformAdminService {
       ],
     );
 
+      await this.recordAudit(client, actorUserId, 'messaging.safety.updated',
+        'global_settings', 'messaging_safety',
+        locked.rows[0] ?? null, next);
+    });
     return this.messagingSafetySettings();
   }
 
