@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
+import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
 import type { PoolClient } from 'pg';
 
@@ -65,6 +65,73 @@ export class PlatformAdminService {
       FROM platform_admin_audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
       ORDER BY a.created_at DESC LIMIT 100`);
     return result.rows;
+  }
+
+  async updateTenantMemberStatus(
+    organizationId: string,
+    membershipId: string,
+    input: UpdateTenantMemberStatusDto,
+    actorUserId: string,
+  ) {
+    const reason = input.reason?.trim();
+    if (!reason || reason.length < 8) throw new BadRequestException('Provide a reason (at least 8 characters)');
+
+    return this.db.transaction(async (client) => {
+      // Serialize membership changes per organization to protect the final owner.
+      const org = await client.query('SELECT id FROM organizations WHERE id = $1 FOR UPDATE', [organizationId]);
+      if (!org.rows[0]) throw new NotFoundException('Organization not found');
+
+      const member = await client.query<{
+        id: string; user_id: string; role: string; status: string;
+        is_platform_admin: boolean; email: string;
+      }>(
+        `SELECT m.id, m.user_id, m.role, m.status, u.is_platform_admin, u.email
+         FROM organization_memberships m JOIN users u ON u.id = m.user_id
+         WHERE m.id = $1 AND m.organization_id = $2
+         FOR UPDATE OF m`,
+        [membershipId, organizationId],
+      );
+      const target = member.rows[0];
+      if (!target) throw new NotFoundException('Tenant member not found');
+      if (!['active', 'suspended'].includes(target.status)) {
+        throw new BadRequestException('This membership is not eligible for suspension or reactivation');
+      }
+      if (target.status === input.status) {
+        return { membershipId, organizationId, status: target.status, changed: false };
+      }
+      if (input.status === 'suspended') {
+        if (target.user_id === actorUserId) {
+          throw new ForbiddenException('Cannot suspend your own membership');
+        }
+        if (target.is_platform_admin) {
+          throw new ForbiddenException('Cannot suspend a platform administrator');
+        }
+        if (target.role === 'owner') {
+          const owners = await client.query<{ count: number }>(
+            `SELECT count(*)::int AS count FROM organization_memberships
+             WHERE organization_id = $1 AND role = 'owner' AND status = 'active' AND id <> $2`,
+            [organizationId, membershipId],
+          );
+          if ((owners.rows[0]?.count ?? 0) < 1) {
+            throw new ForbiddenException('Cannot suspend the final active organization owner');
+          }
+        }
+      }
+
+      const updated = await client.query(
+        `UPDATE organization_memberships SET status = $3, updated_at = now()
+         WHERE organization_id = $1 AND id = $2
+         RETURNING id AS membership_id, organization_id, user_id, role, status, updated_at`,
+        [organizationId, membershipId, input.status],
+      );
+      await this.recordAudit(
+        client, actorUserId, input.status === 'suspended' ? 'tenant.member.suspended' : 'tenant.member.reactivated',
+        'tenant_member', membershipId,
+        { organizationId, userId: target.user_id, role: target.role, status: target.status },
+        { organizationId, userId: target.user_id, role: target.role, status: input.status, reason },
+      );
+      return { ...updated.rows[0], changed: true };
+    });
   }
 
   async tenantMembers(organizationId: string) {
