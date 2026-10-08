@@ -131,6 +131,17 @@ export class UpdateGithubAuthProviderDto {
 }
 
 
+export class UpdateMessageHistoryStorageDto {
+  @IsBoolean()
+  enabled!: boolean;
+  @IsInt() @Min(1) @Max(365)
+  retentionDays!: number;
+  @IsInt() @Min(100) @Max(102400)
+  maxFileMb!: number;
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
 export class UpdateMessagingEngineDto {
   @IsIn(['baileys', 'chromium'])
   engine!: 'baileys' | 'chromium';
