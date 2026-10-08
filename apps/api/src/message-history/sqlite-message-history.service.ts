@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, statSync, chmodSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { existsSync, statSync, chmodSync, accessSync, constants } from 'node:fs';
+import { isAbsolute, dirname } from 'node:path';
 import { DatabaseService } from '../database/database.service';
 
 type Policy = {
@@ -31,7 +31,12 @@ export class SqliteMessageHistoryService implements OnModuleInit, OnModuleDestro
   get configured() {
     // Operators must mount a writable persistent directory into the API
     // container. The path should never point into the ephemeral image layer.
-    return this.location.length>0 && isAbsolute(this.location);
+    if(!this.location || !isAbsolute(this.location))return false;
+    try {
+      if(!statSync(dirname(this.location)).isDirectory())return false;
+      accessSync(dirname(this.location),constants.W_OK);
+      return true;
+    }catch{return false;}
   }
 
   async onModuleInit() {
