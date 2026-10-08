@@ -901,3 +901,14 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-safety-input input:focus-visible{outline:2px solid #25d366}
 .platform-shell .platform-safety-input small{color:#a5bcaa;white-space:nowrap;font-size:10px}
 @media(max-width:620px){.platform-shell .platform-safety-grid{grid-template-columns:1fr}}
+
+/* Phase 6B enterprise security: tenant suspension, administrators and audit filters */
+.platform-shell .platform-tenant-security{display:flex;align-items:center;flex-wrap:wrap;gap:14px;justify-content:space-between;margin:20px 0;padding:17px;background:#17251d;border:1px solid #355240;border-radius:12px}
+.platform-shell .platform-tenant-security>div{flex:1;min-width:180px}
+.platform-shell .platform-tenant-security strong{color:#eaf5ec;font-size:14px}
+.platform-shell .platform-tenant-security p{font-size:12px;color:#a5beaa;margin:6px 0 0;overflow-wrap:anywhere}
+.platform-shell .platform-filter-bar input{background:#131d17;color:#eef9f0;border:1px solid #34513c;padding:9px 11px;border-radius:8px;min-width:130px;flex:1;max-width:250px;font-size:12px}
+.platform-shell .platform-filter-bar input:focus-visible,.platform-shell .table-select:focus-visible{outline:2px solid #25d366;outline-offset:2px}
+.platform-shell .platform-detail-row .table-select{max-width:220px}
+.platform-shell .platform-detail-row small{display:block;color:#9ab3a1;margin-top:5px;font-size:11px}
+@media(max-width:600px){.platform-shell .platform-detail-row .table-select{max-width:100%}.platform-shell .platform-tenant-security{align-items:flex-start}}
