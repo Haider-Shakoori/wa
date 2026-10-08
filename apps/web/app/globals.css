@@ -1200,3 +1200,89 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .website-subscription-status.expired,.platform-shell .website-subscription-status.past_due{color:#e39b4d;background:rgba(231,156,54,.12)}
 @media(max-width:980px){.platform-shell .website-subscription-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.platform-shell .platform-admin-create form{grid-template-columns:1fr}.platform-shell .website-subscription-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-shell .website-subscriptions-head{flex-direction:column}.platform-shell .website-subscription-controls{flex-direction:column}.platform-shell .website-subscription-controls select{max-width:none}.platform-shell .website-subscription-plans{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}}
+
+
+/* High-contrast forms and plan catalog — dark Platform Admin theme.
+   Do not inherit light public-website --rw-* colors in the control plane. */
+.platform-shell .platform-admin-create,
+.platform-shell .website-plan-editor,
+.platform-shell .website-subscription-panel,
+.platform-shell .website-subscriptions-head{background:#101a14!important;border:1px solid #354b3c!important;color:#edf9f0!important}
+.platform-shell .platform-admin-create strong,
+.platform-shell .website-plan-editor h3,
+.platform-shell .website-subscription-panel h2,
+.platform-shell .website-subscriptions-head h2,
+.platform-shell .website-subscription-plans article h3,
+.platform-shell .website-subscription-plans article strong{color:#f4fff6!important}
+.platform-shell .platform-admin-create p.muted,
+.platform-shell .website-plan-editor p.muted,
+.platform-shell .website-subscriptions p.muted,
+.platform-shell .website-subscription-plans article p,
+.platform-shell .website-subscription-plans article small{color:#b5c8b9!important}
+.platform-shell .platform-admin-create label,
+.platform-shell .website-plan-form label{color:#e3f0e7!important;font-size:13px;font-weight:700}
+.platform-shell .platform-admin-create input,
+.platform-shell .platform-admin-create select,
+.platform-shell .platform-admin-create textarea,
+.platform-shell .website-plan-form input,
+.platform-shell .website-plan-form select,
+.platform-shell .website-plan-form textarea,
+.platform-shell .platform-client-subscription-form select,
+.platform-shell .platform-subscription-selector select{
+  color-scheme:dark!important;
+  background:#17261d!important;
+  color:#f6fff8!important;
+  border:1px solid #55745d!important;
+  border-radius:10px!important;
+  padding:12px!important;
+  min-height:44px;
+  opacity:1;
+  -webkit-text-fill-color:#f6fff8;
+}
+.platform-shell .platform-admin-create select option,
+.platform-shell .website-plan-form select option,
+.platform-shell .platform-client-subscription-form select option,
+.platform-shell .platform-subscription-selector select option,
+.platform-shell .table-select option{
+  background-color:#17261d!important;color:#f6fff8!important
+}
+.platform-shell .platform-admin-create input:focus-visible,
+.platform-shell .platform-admin-create select:focus-visible,
+.platform-shell .platform-admin-create textarea:focus-visible,
+.platform-shell .website-plan-form input:focus-visible,
+.platform-shell .website-plan-form textarea:focus-visible{outline:2px solid #39db84;outline-offset:2px}
+.platform-shell .platform-admin-create input::placeholder,
+.platform-shell .website-plan-form input::placeholder,
+.platform-shell .website-plan-form textarea::placeholder{color:#a2b6a7}
+.platform-shell .website-subscription-plans article{
+  background:#17231c!important;border:1px solid #3b5341!important;color:#edf9f0!important;
+  box-shadow:none!important
+}
+.platform-shell .website-subscription-plans article .website-plan-edit-btn{
+  justify-self:stretch;align-self:end;margin-top:10px;min-height:40px;
+  background:#264231!important;color:#f4fff6!important;border:1px solid #648b6b!important
+}
+.platform-shell .website-subscription-links .primary-button{min-height:43px}
+.platform-shell .website-subscription-switch{background:#17261d;border-color:#49694f!important}
+.platform-shell .website-subscription-switch button{color:#e2f1e7!important}
+.platform-shell .website-subscription-switch button.selected{background:#277449!important;color:#fff!important}
+.platform-shell .website-subscription-table th,
+.platform-shell .website-subscription-table td{border-bottom:1px solid #354b3c!important}
+.platform-shell .website-subscription-table th{color:#c3d8c8!important}
+.platform-shell .website-subscription-table td{color:#eef8f1!important}
+.platform-shell .website-plan-editor{margin-bottom:4px;padding:22px!important}
+.platform-shell .website-plan-editor .panel-head{align-items:flex-start;flex-wrap:wrap}
+.platform-shell .website-plan-editor h3{font-size:22px;margin:7px 0}
+.platform-shell .website-plan-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.platform-shell .website-plan-form label{display:grid;align-content:start;gap:7px;min-width:0}
+.platform-shell .website-plan-form label small{font-size:11px;font-weight:400;color:#bdd2c2!important}
+.platform-shell .website-plan-form input,
+.platform-shell .website-plan-form textarea{width:100%;min-width:0}
+.platform-shell .website-plan-form input:disabled{opacity:.75!important;cursor:not-allowed}
+.platform-shell .website-plan-wide{grid-column:1/-1}
+.platform-shell .website-plan-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+@media(max-width:650px){
+  .platform-shell .website-plan-form{grid-template-columns:1fr}
+  .platform-shell .website-plan-editor{padding:15px!important}
+  .platform-shell .website-plan-actions button{flex:1}
+}
