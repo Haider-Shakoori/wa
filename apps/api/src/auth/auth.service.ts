@@ -316,7 +316,9 @@ export class AuthService {
 
   private async membership(userId: string) {
     const membershipResult = await this.db.query<MembershipRow>(
-      'SELECT id, organization_id FROM organization_memberships WHERE user_id = $1 AND status = $2 ORDER BY created_at ASC LIMIT 1',
+      `SELECT m.id, m.organization_id FROM organization_memberships m
+       JOIN organizations o ON o.id = m.organization_id AND o.suspended_at IS NULL
+       WHERE m.user_id = $1 AND m.status = $2 ORDER BY m.created_at ASC LIMIT 1`,
       [userId, 'active'],
     );
     const membership = membershipResult.rows[0];
@@ -329,9 +331,10 @@ export class AuthService {
     membership: MembershipRow,
   ) {
     const onboarding = await this.db.query<{ onboarding_step: string }>(
-      'SELECT onboarding_step FROM organizations WHERE id = $1 LIMIT 1',
+      'SELECT onboarding_step FROM organizations WHERE id = $1 AND suspended_at IS NULL LIMIT 1',
       [membership.organization_id],
     );
+    if (!onboarding.rows[0]) throw new UnauthorizedException('Organization access is suspended');
     const onboardingStep = onboarding.rows[0]?.onboarding_step ?? 'complete';
     const platformAdmin = await this.db.query<{ is_platform_admin: boolean }>(
       'SELECT is_platform_admin FROM users WHERE id = $1 AND disabled_at IS NULL LIMIT 1',
