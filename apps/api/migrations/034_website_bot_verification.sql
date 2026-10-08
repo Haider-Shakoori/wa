@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS website_bot_ranges (
   address_range cidr NOT NULL,
   PRIMARY KEY(family,address_range)
 );
+CREATE INDEX IF NOT EXISTS idx_website_bot_ranges_gist
+  ON website_bot_ranges USING GIST (address_range inet_ops);
+
 CREATE TABLE IF NOT EXISTS website_bot_range_sources (
   family varchar(50) PRIMARY KEY,
   refreshed_at timestamptz NOT NULL,
