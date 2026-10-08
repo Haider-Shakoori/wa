@@ -1,6 +1,11 @@
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 
+export class UpdateAlertAcknowledgementDto {
+  @IsBoolean()
+  acknowledged!: boolean;
+}
+
 export class UpdateTenantSuspensionDto {
   @IsIn(['active', 'suspended'])
   status!: 'active' | 'suspended';
