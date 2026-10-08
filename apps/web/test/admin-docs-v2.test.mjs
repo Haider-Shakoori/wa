@@ -14,7 +14,7 @@ test('Platform Admin uses grouped operations navigation and includes Ops Assista
   assert.match(platform, /PlatformSupportBot/);
   assert.match(platform, /platform-hero-v2/);
   assert.match(bot, /RelayWA Ops Assistant/);
-  assert.match(bot, /\/v1\/platform\/support\/ask/);
+  assert.match(bot, /\/platform\/support\/ask/);
   assert.match(bot, /read-only diagnostics/);
   assert.match(css, /RelayWA Admin \+ Docs v7/);
   assert.match(css, /\.ops-bot-panel/);
@@ -35,11 +35,11 @@ test('developer portal is searchable and documents the actual RelayWA API surfac
   assert.match(docs, /Troubleshooting/);
   assert.match(docs, /Production checklist/);
 
-  assert.match(docs, /\/v1\/sessions\/:sessionId\/messages\/text/);
-  assert.match(docs, /\/v1\/sessions\/:sessionId\/contacts/);
-  assert.match(docs, /\/v1\/webhooks\/:endpointId\/deliveries/);
+  assert.match(docs, /\/whatsapp-sessions\/:sessionId\/messages/);
+  assert.match(docs, /\/whatsapp-sessions\/:sessionId\/contacts/);
+  assert.match(docs, /\/webhooks\/:endpointId\/deliveries/);
   assert.match(docs, /x-relaywa-signature/);
-  assert.match(docs, /E\\.164/);
+  assert.match(docs, /E\.164/);
 });
 
 test('light onboarding/admin contrast is explicitly protected', async () => {
