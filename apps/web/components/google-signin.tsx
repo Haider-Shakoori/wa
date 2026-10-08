@@ -57,7 +57,7 @@ export function GoogleSignIn({ destination, preservePlan = false }: { destinatio
             const next = plan
               ? '/subscription?plan=' + encodeURIComponent(plan) + '&interval=' + encodeURIComponent(params.get('interval') || 'monthly')
               : destination ?? (preservePlan ? (result.nextPath ?? '/onboarding') : (result.isPlatformAdmin ? '/platform' : '/dashboard'));
-            router.push(next);
+            router.replace(next);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Google sign-in failed');
           }
