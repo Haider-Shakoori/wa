@@ -343,7 +343,7 @@ export class PlatformAdminService {
        LEFT JOIN organization_subscriptions s ON s.organization_id = o.id
        LEFT JOIN whatsapp_sessions ws ON ws.organization_id = o.id AND ws.deleted_at IS NULL
        LEFT JOIN organization_memberships m ON m.organization_id = o.id AND m.status = 'active'
-       GROUP BY o.id, s.plan_code, s.status, s.current_period_end
+       GROUP BY o.id, s.plan_code, s.status, s.current_period_end, s.trial_ends_at
        ORDER BY o.created_at DESC
        LIMIT 200`,
     );
