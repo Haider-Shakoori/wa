@@ -5,7 +5,7 @@ const read=(path)=>readFile(new URL(path,import.meta.url),'utf8');
 
 test('platform mobile drawer exposes all navigation groups without hiding sections',async()=>{
   const page=await read('../app/platform/page.tsx');
-  for(const section of ['Operations','Commercial','System','Overview','Organizations','Sessions','Subscriptions','Security','Administrators','Diagnostics']){
+  for(const section of ['Operations','Commercial','System','Overview','Clients','Sessions','Subscriptions','Security','Administrators','Diagnostics']){
     assert.ok(page.includes(section),section);
   }
   assert.match(page,/aria-controls="platform-admin-navigation"/);

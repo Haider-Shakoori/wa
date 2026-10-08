@@ -34,7 +34,7 @@ export class SubscriptionsService {
   }
 
   async summary(organizationId: string) {
-    const subscription = await this.getActiveSubscription(organizationId);
+    const subscription = await this.getSubscription(organizationId);
     const usage = await this.db.query<{ metric: string; quantity: string }>(
       `SELECT metric, quantity::text
        FROM subscription_usage
@@ -58,6 +58,12 @@ export class SubscriptionsService {
 
     return {
       subscription,
+      effectiveStatus: (['trialing','active'].includes(subscription.status) &&
+        new Date(subscription.current_period_end).getTime() <= Date.now()) ? 'expired' : subscription.status,
+      canSendMessages: ['trialing','active'].includes(subscription.status) &&
+        new Date(subscription.current_period_end).getTime()>Date.now() &&
+        (subscription.status!=='trialing' || !subscription.trial_ends_at ||
+          new Date(subscription.trial_ends_at).getTime()>Date.now()),
       usage: {
         sessions: Number(sessions.rows[0]?.count ?? 0),
         monthlyMessages: Number(usage.rows.find((row) => row.metric === 'outbound_messages')?.quantity ?? 0),
@@ -198,7 +204,7 @@ export class SubscriptionsService {
     });
   }
 
-  private async getActiveSubscription(organizationId: string) {
+  private async getSubscription(organizationId: string) {
     const result = await this.db.query<SubscriptionRow>(
       `SELECT s.organization_id, s.plan_code, s.status,
               s.current_period_start, s.current_period_end, s.trial_ends_at,
@@ -213,8 +219,15 @@ export class SubscriptionsService {
     const subscription = result.rows[0];
     if (!subscription) throw new NotFoundException('Subscription not found');
 
+    return subscription;
+  }
+
+  private async getActiveSubscription(organizationId: string) {
+    const subscription = await this.getSubscription(organizationId);
     const active = ['trialing', 'active'].includes(subscription.status);
-    const expired = new Date(subscription.current_period_end).getTime() <= Date.now();
+    const expired = new Date(subscription.current_period_end).getTime() <= Date.now() ||
+      (subscription.status==='trialing' && subscription.trial_ends_at !== null &&
+       new Date(subscription.trial_ends_at).getTime() <= Date.now());
     if (!active || expired) {
       throw new ConflictException('relayWA subscription is not active');
     }

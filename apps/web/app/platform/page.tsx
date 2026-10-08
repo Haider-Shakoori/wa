@@ -7,11 +7,12 @@ import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
 import { PlatformMonitoring } from '../../components/platform-monitoring';
 import { PlatformWebsiteTraffic } from '../../components/platform-website-traffic';
+import { PlatformClientSubscriptionEditor, type ClientPlan } from '../../components/platform-client-subscription-editor';
 import { PlatformGoogleAnalytics } from '../../components/platform-google-analytics';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
-  { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
+  { label:'Operations', items:['Overview','Clients','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
   { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
@@ -55,6 +56,8 @@ export default function PlatformPage() {
   const [tenants,setTenants] = useState<any[]>([]);
   const [sessions,setSessions] = useState<any[]>([]);
   const [subscriptions,setSubscriptions] = useState<any[]>([]);
+  const [subscriptionPlans,setSubscriptionPlans] = useState<ClientPlan[]>([]);
+  const [editingClientId,setEditingClientId] = useState<string|null>(null);
   const [workers,setWorkers] = useState<any[]>([]);
   const [queues,setQueues] = useState<any>(null);
   const [errors,setErrors] = useState<any>(null);
@@ -154,11 +157,12 @@ export default function PlatformPage() {
     setError('');
     setRefreshing(true);
     try {
-      const [o,t,s,subs,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings,messagingSafetySettings] = await Promise.all([
+      const [o,t,s,subs,plans,w,q,e,p,providerRows,authProviderRows,messagingEngineSettings,messagingSafetySettings] = await Promise.all([
         api('/platform/overview',current),
         api('/platform/tenants',current),
         api('/platform/sessions',current),
         api('/platform/subscriptions',current),
+        api('/platform/subscription-plans',current),
         api('/platform/workers',current),
         api('/platform/queues',current),
         api('/platform/errors',current),
@@ -180,6 +184,7 @@ export default function PlatformPage() {
       setTenants(t as any[]);
       setSessions(s as any[]);
       setSubscriptions(subs as any[]);
+      setSubscriptionPlans(plans as ClientPlan[]);
       setWorkers(w as any[]);
       setQueues(q);
       setErrors(e);
@@ -252,18 +257,9 @@ export default function PlatformPage() {
     }
   }
 
-  async function updateSubscription(organizationId:string, patch:any) {
-    setError(''); setNotice('');
-    try {
-      await api('/platform/subscriptions/' + organizationId,token,{
-        method:'PATCH',
-        body:JSON.stringify(patch),
-      });
-      setNotice('Subscription updated.');
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update subscription');
-    }
+  async function subscriptionSaved() {
+    await refresh();
+    setNotice('Client subscription saved. Changes apply to the client API and queued outbound messaging.');
   }
 
   async function saveGoogleAuth() {
@@ -452,13 +448,15 @@ export default function PlatformPage() {
   }
 
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
-  const visibleTenants = filteredTenants.filter((item)=>tenantFilter==='all' || (tenantFilter==='active' ? item.subscription_status==='active' : tenantFilter==='trialing' ? item.subscription_status==='trialing' : !['active','trialing'].includes(String(item.subscription_status??''))));
+  const visibleTenants = filteredTenants.filter((item)=>tenantFilter==='all' || (tenantFilter==='active' ? item.effective_subscription_status==='active' : tenantFilter==='trialing' ? item.effective_subscription_status==='trialing' : !['active','trialing'].includes(String(item.effective_subscription_status??''))));
   const selectedTenant = tenants.find((item)=>item.id===selectedTenantId);
+  const subscriptionClient = tenants.find((item)=>item.id===editingClientId);
+  const subscriptionRecord = subscriptions.find((item)=>item.organization_id===editingClientId);
   const tenantSubscriptions = subscriptions.filter((item)=>item.organization_id===selectedTenantId);
   const tenantSessions = sessions.filter((item)=>item.organization_id===selectedTenantId || (selectedTenant && item.organization_name===selectedTenant.name));
   const filteredSessions = normalizedQuery ? sessions.filter((item)=>[item.name,item.organization_name,item.phone_number,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : sessions;
   const filteredSubscriptions = normalizedQuery ? subscriptions.filter((item)=>[item.organization_name,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : subscriptions;
-  const visibleSubscriptions = filteredSubscriptions.filter((item)=>subscriptionFilter==='all' || (subscriptionFilter==='active' ? item.status==='active' : subscriptionFilter==='trialing' ? item.status==='trialing' : !['active','trialing'].includes(String(item.status??''))));
+  const visibleSubscriptions = filteredSubscriptions.filter((item)=>subscriptionFilter==='all' || (subscriptionFilter==='active' ? item.effective_status==='active' : subscriptionFilter==='trialing' ? item.effective_status==='trialing' : !['active','trialing'].includes(String(item.effective_status??''))));
   const filteredPayments = payments.filter((item)=> (paymentFilter==='all' || item.status===paymentFilter) && (!normalizedQuery || [item.organization_name,item.provider,item.plan_code,item.status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))));
   const disconnected = sessions.filter((s)=>s.status!=='connected').length;
   const webhookFailures = Number(overview?.failedWebhooks ?? 0);
@@ -509,7 +507,7 @@ export default function PlatformPage() {
           <span aria-hidden="true">☰</span><span>Menu</span>
         </button>
         <div><p className="eyebrow">RelayWA control plane</p><h1>{active}</h1><p className="platform-page-context">{platformSubtitle(active)}</p></div>
-        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search tenants, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'Refreshing…':'↻ Refresh'}</button></div>
+        <div className="top-actions"><div className="platform-search"><span>⌕</span><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search clients, numbers, plans…"/></div><div className="api-badge"><span className="live-dot"/>Production</div><button className="secondary-button" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'Refreshing…':'↻ Refresh'}</button></div>
       </header>
 
       {error && <div className="alert">{error}</div>}
@@ -539,7 +537,7 @@ export default function PlatformPage() {
           </div>
         </section>
         <section className="platform-metrics">
-          <Metric label="Organizations" value={overview?.organizations ?? 0} detail="Customer tenants"/>
+          <Metric label="Clients" value={overview?.organizations ?? 0} detail="Customer clients"/>
           <Metric label="Connected sessions" value={connected} detail={sessions.length + ' total sessions'}/>
           <Metric label="Users" value={overview?.users ?? 0} detail="Platform accounts"/>
           <Metric label="Pending manual payments" value={pendingManual} detail="Needs review"/>
@@ -547,7 +545,7 @@ export default function PlatformPage() {
           <Metric label="Failed webhooks" value={overview?.failedWebhooks ?? 0} detail="Delivery failures"/>
         </section>
         <section className="two-column">
-          <Panel title="Recent organizations">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No organizations yet."/>}</Panel>
+          <Panel title="Recent clients">{tenants.slice(0,6).map((t)=><TenantRow key={t.id} tenant={t}/>)}{!tenants.length && <Empty text="No clients yet."/>}</Panel>
           <Panel title="WhatsApp health">{sessions.slice(0,6).map((s)=><SessionRow key={s.id} session={s}/>)}{!sessions.length && <Empty text="No sessions yet."/>}</Panel>
         </section>
       </>}
@@ -579,11 +577,11 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Analytics' && <section className="panel platform-analytics-panel">
-        <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new organizations, and operational notifications.</p></div></div>
+        <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new clients, and operational notifications.</p></div></div>
         {analytics ? <>
           <div className="platform-analytics-columns">
             <div><h3>Outbound messaging</h3><div className="platform-spark-bars" aria-label="Successful outbound messages per day">{(analytics.messageTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.sent+' sent, '+day.failed+' failed'}><span style={{height:Math.max(4,Number(day.sent)/Math.max(1,...analytics.messageTrend.map((x:any)=>Number(x.sent)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
-            <div><h3>New organizations</h3><div className="platform-spark-bars" aria-label="New organizations per day">{(analytics.tenantTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.organizations+' organizations'}><span style={{height:Math.max(4,Number(day.organizations)/Math.max(1,...analytics.tenantTrend.map((x:any)=>Number(x.organizations)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
+            <div><h3>New clients</h3><div className="platform-spark-bars" aria-label="New clients per day">{(analytics.tenantTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.organizations+' clients'}><span style={{height:Math.max(4,Number(day.organizations)/Math.max(1,...analytics.tenantTrend.map((x:any)=>Number(x.organizations)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
           </div>
           <h3>Recent system alerts</h3>
           <div className="platform-filter-bar">{(analytics.alertSummary??[]).map((a:any)=><span key={a.severity}>{a.severity}: {a.count}</span>)}</div>
@@ -592,18 +590,18 @@ export default function PlatformPage() {
         </>:<Empty text="Analytics unavailable or loading. Refresh to retry."/>}
       </section>}
 
-      {active === 'Organizations' && <TableSection eyebrow="Tenants" title="Customer organizations" subtitle="Review membership, subscriptions and WhatsApp session footprint.">
-        <div className="platform-filter-bar" aria-label="Organization status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={tenantFilter===filter?'selected':''} onClick={()=>setTenantFilter(filter)}>{filter==='all'?'All tenants':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleTenants.length} organizations</span></div>
-        <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Details</span></div>
-        {visibleTenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}{t.suspended_at?' · SUSPENDED':''}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span><button className="mini-button" onClick={()=>setSelectedTenantId(t.id)}>Inspect</button></span></div>)}
-        {!visibleTenants.length&&<Empty text="No organizations match your filters."/>}
+      {active === 'Clients' && <TableSection eyebrow="Client management" title="Clients" subtitle="Review membership, subscriptions and WhatsApp session footprint.">
+        <div className="platform-filter-bar" aria-label="Client subscription status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={tenantFilter===filter?'selected':''} onClick={()=>setTenantFilter(filter)}>{filter==='all'?'All clients':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleTenants.length} clients</span></div>
+        <div className="platform-row platform-row-head"><span>Client</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Details</span></div>
+        {visibleTenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}{t.suspended_at?' · SUSPENDED':''}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.effective_subscription_status ?? 'none'}/></span><span><button className="mini-button" onClick={()=>setSelectedTenantId(t.id)}>Inspect</button> <button className="mini-button" onClick={()=>{setEditingClientId(t.id);setActive('Subscriptions');}}>Subscription</button></span></div>)}
+        {!visibleTenants.length&&<Empty text="No clients match your filters."/>}
       </TableSection>}
 
-      {active === 'Organizations' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected tenant details">
-        <div className="panel-head"><div><p className="eyebrow">Organization profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
-        <div className="platform-tenant-security"><div><strong>Tenant access</strong><p>{selectedTenant.suspended_at?'Suspended since '+date(selectedTenant.suspended_at)+' · '+(selectedTenant.suspension_reason??'No reason'):'Active — dashboards, API keys and outbound dispatch available'}</p></div><Badge value={selectedTenant.suspended_at?'suspended':'active'}/>{platformRole==='super_admin'&&<button className={selectedTenant.suspended_at?'mini-button':'mini-button danger-mini'} disabled={tenantBusy} onClick={()=>void changeTenantSuspension(selectedTenant,selectedTenant.suspended_at?'active':'suspended')}>{tenantBusy?'Saving…':selectedTenant.suspended_at?'Reactivate tenant':'Suspend tenant'}</button>}</div>
-        <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.subscription_status??'none'}/></span></div>
-        <h3 className="platform-profile-heading">Tenant members</h3>
+      {active === 'Clients' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected client details">
+        <div className="panel-head"><div><p className="eyebrow">Client profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
+        <div className="platform-tenant-security"><div><strong>Client access</strong><p>{selectedTenant.suspended_at?'Suspended since '+date(selectedTenant.suspended_at)+' · '+(selectedTenant.suspension_reason??'No reason'):'Active — dashboards, API keys and outbound dispatch available'}</p></div><Badge value={selectedTenant.suspended_at?'suspended':'active'}/>{platformRole==='super_admin'&&<button className={selectedTenant.suspended_at?'mini-button':'mini-button danger-mini'} disabled={tenantBusy} onClick={()=>void changeTenantSuspension(selectedTenant,selectedTenant.suspended_at?'active':'suspended')}>{tenantBusy?'Saving…':selectedTenant.suspended_at?'Reactivate client':'Suspend client'}</button>}</div>
+        <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.effective_subscription_status??'none'}/></span></div>
+        <h3 className="platform-profile-heading">Client members</h3>
         <p className="platform-member-hint">Suspend or reactivate workspace access with an audit reason. This does not revoke organization API keys or terminate WhatsApp sessions.</p>
         {membersLoading?<Empty text="Loading members…"/>:tenantMembers.length?tenantMembers.map((member)=><div className="platform-detail-row platform-member-row" key={member.membership_id}>
           <span><strong>{member.name}</strong><small>{member.email} · Added {date(member.created_at)}</small></span>
@@ -611,18 +609,19 @@ export default function PlatformPage() {
           <Badge value={member.account_disabled?'disabled':member.status}/>
           {member.status==='active' && ['super_admin','support_admin'].includes(platformRole) && <button className="mini-button danger-mini" disabled={Boolean(memberActionBusy)||Boolean(member.platform_admin)} title={member.platform_admin?'Platform administrators cannot be suspended':''} onClick={()=>void changeMemberStatus(member,'suspended')}>{memberActionBusy===member.membership_id?'Saving…':'Suspend'}</button>}
           {member.status==='suspended' && ['super_admin','support_admin'].includes(platformRole) && <button className="mini-button" disabled={Boolean(memberActionBusy)} onClick={()=>void changeMemberStatus(member,'active')}>{memberActionBusy===member.membership_id?'Saving…':'Reactivate'}</button>}
-        </div>):<Empty text="No memberships found for this organization."/>}
+        </div>):<Empty text="No members found for this client."/>}
         <h3 className="platform-profile-heading">Recent admin actions</h3>
         {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
-        {!auditLogs.some((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id))&&<Empty text="No admin actions recorded for this tenant yet."/>}
+        {!auditLogs.some((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id))&&<Empty text="No admin actions recorded for this client yet."/>}
         <h3 className="platform-profile-heading">Subscriptions</h3>
-        {tenantSubscriptions.length?tenantSubscriptions.map((sub)=><div className="platform-detail-row" key={sub.organization_id}><span>{sub.plan_code} · {sub.status}</span><span>Period ends {date(sub.current_period_end)}</span><button className="mini-button" onClick={()=>{setActive('Subscriptions');setQuery(selectedTenant.name);}}>Manage subscription</button></div>):<Empty text="No subscription record found."/>}
+        {tenantSubscriptions.length?tenantSubscriptions.map((sub)=><div className="platform-detail-row" key={sub.organization_id}><span>{sub.plan_code} · {sub.status}</span><span>Period ends {date(sub.current_period_end)}</span><button className="mini-button" onClick={()=>{setActive('Subscriptions');setEditingClientId(selectedTenant.id);}}>Manage subscription</button></div>):<Empty text="No subscription assigned. Use Manage subscription to assign a plan."/>}
+        <button className="mini-button" onClick={()=>{setEditingClientId(selectedTenant.id);setActive('Subscriptions');}}>Manage client subscription</button>
         <h3 className="platform-profile-heading">Connected numbers</h3>
         {tenantSessions.length?tenantSessions.map((session)=><div className="platform-detail-row" key={session.id}><span>{session.name} · {session.phone_number? '+'+session.phone_number:'Not linked'}</span><Badge value={session.status}/><button className="mini-button" onClick={()=>{setActive('Sessions');setQuery(selectedTenant.name);}}>View session</button></div>):<Empty text="No WhatsApp sessions found."/>}
       </section>}
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
-        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
+        <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Client</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
         {filteredSessions.map((s)=>{ const paused=Boolean(s.messaging_paused_until && new Date(s.messaging_paused_until).getTime()>Date.now()); return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
       </TableSection>}
 
@@ -670,16 +669,40 @@ export default function PlatformPage() {
       <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}
 
-      {active === 'Subscriptions' && <TableSection eyebrow="Commercial" title="Subscriptions" subtitle="Plan state, renewals, trials and configured quotas.">
-        <div className="platform-filter-bar" aria-label="Subscription status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={subscriptionFilter===filter?'selected':''} onClick={()=>setSubscriptionFilter(filter)}>{filter==='all'?'All subscriptions':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleSubscriptions.length} subscriptions</span></div>
-        <div className="platform-row platform-row-head subscription-admin-row"><span>Organization</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span><span>Controls</span></div>
-        {visibleSubscriptions.map((s)=><div className="platform-row subscription-admin-row" key={s.organization_id}><span><strong>{s.organization_name}</strong><small>{s.provider || 'Internal / trial'}</small></span><span><select className="table-select" value={s.plan_code} onChange={(e)=>{const next=e.target.value;if(window.confirm('Change '+s.organization_name+' plan from '+s.plan_code+' to '+next+'?')) void updateSubscription(s.organization_id,{planCode:next});}}>{[['trial','Trial'],['starter','Basic'],['growth','Pro'],['plus','Plus'],['scale','Business']].map(([plan,label])=><option value={plan} key={plan}>{label}</option>)}</select></span><span><select className="table-select" value={s.status} onChange={(e)=>{const next=e.target.value;if(window.confirm('Change '+s.organization_name+' subscription status to '+next+'?')) void updateSubscription(s.organization_id,{status:next});}}>{['trialing','active','past_due','paused','canceled','expired'].map((status)=><option value={status} key={status}>{status}</option>)}</select></span><span>{date(s.current_period_end)}</span><span>{s.max_sessions}</span><span>{Number(s.monthly_messages).toLocaleString()}</span><span><button className="mini-button" onClick={()=>{if(window.confirm('Extend '+s.organization_name+' subscription by 7 days?')) void updateSubscription(s.organization_id,{extendDays:7});}}>+7 days</button></span></div>)}
-        {!visibleSubscriptions.length&&<Empty text="No subscriptions match your filters."/>}
-      </TableSection>}
+      {active === 'Subscriptions' && <>
+        <section className="panel platform-subscription-selector">
+          <div><p className="eyebrow">Client billing</p><h2>Manage client subscriptions</h2>
+            <p className="muted">Select a client to assign, renew, pause or change its plan. Changes are audited and take effect without reconnecting WhatsApp.</p></div>
+          <label>Choose client
+            <select aria-label="Choose client for subscription management" value={editingClientId??''}
+              onChange={e=>setEditingClientId(e.target.value||null)}>
+              <option value="">Select a client…</option>
+              {tenants.map(item=><option key={item.id} value={item.id}>{item.name} ({item.slug})</option>)}
+            </select>
+          </label>
+        </section>
+        {subscriptionClient&&<PlatformClientSubscriptionEditor key={subscriptionClient.id}
+          client={subscriptionClient} subscription={subscriptionRecord} plans={subscriptionPlans} token={token}
+          canEdit={['super_admin','billing_admin'].includes(platformRole)}
+          onClose={()=>setEditingClientId(null)} onUpdated={subscriptionSaved}/>}
+        <TableSection eyebrow="Commercial" title="Client subscriptions" subtitle="Actual plan, effective status, expiry, and quotas (not only the stored status).">
+          <div className="platform-filter-bar" aria-label="Subscription status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={subscriptionFilter===filter?'selected':''} onClick={()=>setSubscriptionFilter(filter)}>{filter==='all'?'All subscriptions':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleSubscriptions.length} subscriptions</span></div>
+          <div className="platform-row platform-row-head subscription-admin-row"><span>Client</span><span>Plan</span><span>Status</span><span>Period end</span><span>Sessions</span><span>Messages/mo</span><span>Controls</span></div>
+          {visibleSubscriptions.map((item)=><div className="platform-row subscription-admin-row" key={item.organization_id}>
+            <span><strong>{item.organization_name}</strong><small>{item.provider||'Platform / trial'}</small></span>
+            <span>{item.plan_code}</span><span><Badge value={item.effective_status??item.status}/></span>
+            <span>{date(item.current_period_end)}</span>
+            <span>{item.max_sessions}</span>
+            <span>{item.monthly_messages===null?'Unlimited':Number(item.monthly_messages).toLocaleString()}</span>
+            <span><button type="button" className="mini-button" onClick={()=>setEditingClientId(item.organization_id)}>Manage</button></span>
+          </div>)}
+          {!visibleSubscriptions.length&&<Empty text="No client subscriptions match your filters. Select a client above to assign a plan."/>}
+        </TableSection>
+      </>}
 
       {active === 'Payments' && <TableSection eyebrow="Revenue" title="Payments" subtitle="Stripe and manual payment activity across all tenants.">
         <div className="platform-filter-bar" aria-label="Payment status filter">{(['all','pending','failed'] as const).map((filter)=><button key={filter} className={paymentFilter===filter?'selected':''} onClick={()=>setPaymentFilter(filter)}>{filter==='all'?'All payments':filter==='pending'?'Pending approval':'Failed payments'}</button>)}<span>{filteredPayments.length} results</span></div>
-        <div className="platform-row platform-row-head"><span>Organization</span><span>Provider</span><span>Plan</span><span>Amount</span><span>Status</span><span>Action</span></div>
+        <div className="platform-row platform-row-head"><span>Client</span><span>Provider</span><span>Plan</span><span>Amount</span><span>Status</span><span>Action</span></div>
         {filteredPayments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
         {!filteredPayments.length && <Empty text="No payments match this filter."/>}
       </TableSection>}
@@ -695,7 +718,7 @@ export default function PlatformPage() {
       </section>}
 
       {active === 'Authentication' && <section className="panel auth-settings-panel">
-        <PanelHeading eyebrow="Authentication" title="Tenant login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
+        <PanelHeading eyebrow="Authentication" title="Client login providers" subtitle="Email/password remains available. Google and GitHub apply only to customer signup/login; Platform Admin keeps its separate private login."/>
 
         <div className="auth-provider-card">
           <div className="auth-provider-head">
@@ -774,7 +797,7 @@ function platformSubtitle(section:string) {
     'Google Analytics':'GA4 real-time visitors, countries, sources, page views and engagement.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
     'Audit log':'Recorded administrator actions, change history and accountability.',
-    Organizations:'Customer workspaces, memberships, plans and session footprint.',
+    Clients:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
     Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',

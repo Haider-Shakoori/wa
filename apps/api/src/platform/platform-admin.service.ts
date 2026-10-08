@@ -333,13 +333,17 @@ export class PlatformAdminService {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at, o.suspended_at, o.suspension_reason,
               s.plan_code, s.status AS subscription_status, s.current_period_end,
+              CASE WHEN s.status IN ('active','trialing') AND (
+                 s.current_period_end <= now() OR (s.status='trialing' AND
+                 s.trial_ends_at IS NOT NULL AND s.trial_ends_at<=now()))
+                THEN 'expired' ELSE COALESCE(s.status,'none') END AS effective_subscription_status,
               count(DISTINCT ws.id)::int AS sessions,
               count(DISTINCT m.id)::int AS members
        FROM organizations o
        LEFT JOIN organization_subscriptions s ON s.organization_id = o.id
        LEFT JOIN whatsapp_sessions ws ON ws.organization_id = o.id AND ws.deleted_at IS NULL
        LEFT JOIN organization_memberships m ON m.organization_id = o.id AND m.status = 'active'
-       GROUP BY o.id, s.plan_code, s.status, s.current_period_end
+       GROUP BY o.id, s.plan_code, s.status, s.current_period_end, s.trial_ends_at
        ORDER BY o.created_at DESC
        LIMIT 200`,
     );
@@ -366,7 +370,11 @@ export class PlatformAdminService {
       `SELECT s.organization_id, o.name AS organization_name, s.plan_code,
               s.status, s.current_period_start, s.current_period_end,
               s.trial_ends_at, s.cancel_at_period_end, s.provider,
-              p.max_sessions, p.monthly_messages, p.max_api_keys
+              CASE WHEN s.status IN ('active','trialing') AND (
+                 s.current_period_end <= now() OR (s.status='trialing' AND
+                 s.trial_ends_at IS NOT NULL AND s.trial_ends_at<=now()))
+                THEN 'expired' ELSE s.status END AS effective_status,
+              p.max_sessions, p.daily_messages, p.monthly_messages, p.max_api_keys
        FROM organization_subscriptions s
        JOIN organizations o ON o.id = s.organization_id
        JOIN subscription_plans p ON p.code = s.plan_code
@@ -492,42 +500,81 @@ export class PlatformAdminService {
     return { sessionId, resumed: true };
   }
 
-  async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto, actorUserId: string) {
-    if (input.planCode) {
-      const plan = await this.db.query<{ code: string }>(
-        'SELECT code FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1',
-        [input.planCode],
-      );
-      if (!plan.rows[0]) throw new NotFoundException('Plan not found');
-    }
+  async subscriptionPlans() {
+    const result = await this.db.query(`SELECT code, name, max_sessions,
+      daily_messages, monthly_messages, max_api_keys,
+      monthly_price_cents, annual_price_cents, currency
+      FROM subscription_plans WHERE active = true ORDER BY
+      CASE code WHEN 'trial' THEN 1 WHEN 'starter' THEN 2
+        WHEN 'growth' THEN 3 WHEN 'plus' THEN 4 WHEN 'scale' THEN 5 ELSE 99 END`);
+    return result.rows;
+  }
 
+  async updateSubscription(organizationId: string, input: UpdatePlatformSubscriptionDto, actorUserId: string) {
+    if (input.extendDays !== undefined && input.periodEndDate !== undefined) {
+      throw new BadRequestException('Choose either an expiration date or an extension, not both');
+    }
+    const reason=input.reason?.trim();
+    if (!reason || reason.length < 8) throw new BadRequestException('An audit reason of at least eight characters is required');
+    let explicitEnd: Date | null = null;
+    if (input.periodEndDate !== undefined) {
+      explicitEnd = new Date(input.periodEndDate + 'T23:59:59.999Z');
+      if (Number.isNaN(explicitEnd.getTime()) || explicitEnd.toISOString().slice(0,10) !== input.periodEndDate) {
+        throw new BadRequestException('Invalid calendar expiration date');
+      }
+      if (explicitEnd.getTime() <= Date.now()) throw new BadRequestException('Expiration date must be in the future');
+    }
     return this.db.transaction(async (client) => {
-      const before = await client.query('SELECT plan_code, status, current_period_end, trial_ends_at FROM organization_subscriptions WHERE organization_id = $1 FOR UPDATE', [organizationId]);
-      if (!before.rows[0]) throw new NotFoundException('Subscription not found');
-      const result = await client.query(
-      `UPDATE organization_subscriptions
-       SET plan_code = COALESCE($2, plan_code),
-           status = COALESCE($3, status),
-           current_period_end = CASE
-             WHEN $4::int IS NOT NULL THEN GREATEST(current_period_end, now()) + ($4::int * interval '1 day')
-             ELSE current_period_end
-           END,
-           trial_ends_at = CASE
-             WHEN $4::int IS NOT NULL AND COALESCE($3, status) = 'trialing'
-               THEN GREATEST(COALESCE(trial_ends_at, now()), now()) + ($4::int * interval '1 day')
-             ELSE trial_ends_at
-           END,
-           updated_at = now()
-       WHERE organization_id = $1
-       RETURNING organization_id, plan_code, status, current_period_start,
-                 current_period_end, trial_ends_at, cancel_at_period_end, provider`,
-      [organizationId, input.planCode ?? null, input.status ?? null, input.extendDays ?? null],
-    );
-    if (!result.rows[0]) throw new NotFoundException('Subscription not found');
-    await client.query(`INSERT INTO platform_admin_audit_logs (id, actor_user_id, action, target_type, target_id, before_state, after_state)
-      VALUES ($1, $2, 'subscription.updated', 'subscription', $3, $4::jsonb, $5::jsonb)`,
-      [randomUUID(), actorUserId, organizationId, JSON.stringify(before.rows[0]), JSON.stringify(result.rows[0])]);
-    return result.rows[0];
+      // Serialize mutations with the parent organization, including the first assignment.
+      const org=await client.query<{id:string}>(`SELECT id FROM organizations WHERE id=$1 FOR UPDATE`,[organizationId]);
+      if (!org.rows[0]) throw new NotFoundException('Client not found');
+      const previous=await client.query<{
+        plan_code:string;status:string;current_period_start:Date;current_period_end:Date;
+        trial_ends_at:Date|null;cancel_at_period_end:boolean;provider:string|null;
+      }>(`SELECT plan_code,status,current_period_start,current_period_end,trial_ends_at,
+        cancel_at_period_end,provider FROM organization_subscriptions
+        WHERE organization_id=$1 FOR UPDATE`,[organizationId]);
+      const before=previous.rows[0]??null;
+      const planCode=input.planCode??before?.plan_code;
+      if (!planCode) throw new BadRequestException('Select a subscription plan');
+      const plan=await client.query(`SELECT code FROM subscription_plans
+        WHERE code=$1 AND active=true LIMIT 1`,[planCode]);
+      if (!plan.rows[0]) throw new NotFoundException('Plan not found or inactive');
+      const status=input.status??before?.status??'trialing';
+      const now=new Date();
+      const previousEnd=before?.current_period_end ? new Date(before.current_period_end) : null;
+      let end=explicitEnd;
+      if(!end && input.extendDays!==undefined){
+        const baseline=previousEnd && previousEnd.getTime()>now.getTime() ? previousEnd : now;
+        end=new Date(baseline.getTime() + input.extendDays*86400000);
+      }
+      if(!end){
+        // An "active" status with an expired period is still blocked by the client API.
+        // Give newly activated/renewed clients a real term, never a cosmetically active label.
+        end=previousEnd && previousEnd.getTime()>now.getTime() ?
+          previousEnd : new Date(now.getTime()+((status==='trialing')?7:30)*86400000);
+      }
+      const isActive=['trialing','active'].includes(status);
+      const started=(!before || (isActive && !['trialing','active'].includes(before.status)))
+        ? now : new Date(before.current_period_start);
+      const trialEnd=status==='trialing'?end:null;
+      const cancelAtEnd=isActive?false:(before?.cancel_at_period_end??false);
+      const updated=await client.query(`INSERT INTO organization_subscriptions
+        (organization_id,plan_code,status,current_period_start,current_period_end,
+         trial_ends_at,cancel_at_period_end,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+        ON CONFLICT (organization_id) DO UPDATE SET
+          plan_code=excluded.plan_code,status=excluded.status,
+          current_period_start=excluded.current_period_start,
+          current_period_end=excluded.current_period_end,
+          trial_ends_at=excluded.trial_ends_at,
+          cancel_at_period_end=excluded.cancel_at_period_end,updated_at=now()
+        RETURNING organization_id,plan_code,status,current_period_start,current_period_end,
+          trial_ends_at,cancel_at_period_end,provider,updated_at`,
+        [organizationId,planCode,status,started,end,trialEnd,cancelAtEnd]);
+      await this.recordAudit(client,actorUserId,'subscription.updated','subscription',organizationId,
+        before,{...updated.rows[0],reason,manualAdjustment:true});
+      return {...updated.rows[0],effectiveActive:isActive && end.getTime()>Date.now()};
     });
   }
 
