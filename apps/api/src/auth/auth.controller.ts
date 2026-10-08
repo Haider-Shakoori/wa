@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import type { Request } from 'express';
 import { GithubExchangeDto, GoogleAuthDto, LoginDto, RegisterDto } from './auth.dto';
 import { JwtAuthGuard, type AuthenticatedRequest } from './jwt-auth.guard';
 
@@ -18,8 +19,11 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() body: LoginDto) {
-    return this.auth.login(body);
+  login(@Body() body: LoginDto, @Req() request: Request) {
+    return this.auth.login(body, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'] ?? undefined,
+    });
   }
 
   @Post('google')
