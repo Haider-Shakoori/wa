@@ -435,7 +435,7 @@ export default function PlatformPage() {
 
       {active === 'Sessions' && <TableSection eyebrow="WhatsApp" title="All linked sessions" subtitle="Live number, customer, worker ownership and connection state.">
         <div className="platform-row platform-row-head session-admin-row"><span>Session</span><span>Organization</span><span>WhatsApp number</span><span>Status</span><span>Engine</span><span>Worker</span><span>Last connected</span><span>Actions</span></div>
-        {filteredSessions.map((s)=>{ const paused=false; return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
+        {filteredSessions.map((s)=>{ const paused=Boolean(s.messaging_paused_until && new Date(s.messaging_paused_until).getTime()>Date.now()); return <div className="platform-row session-admin-row" key={s.id}><span><strong>{s.name}</strong><small>{s.display_name || 'No profile name'}</small></span><span>{s.organization_name}</span><span className="phone-cell">{s.phone_number ? '+' + s.phone_number : 'Not linked'}</span><span><Badge value={paused?'safety_paused':s.status}/>{paused && <small>{s.messaging_pause_reason || 'Safety Governor pause'} · until {date(s.messaging_paused_until)}</small>}</span><span><select className="table-select engine-select" value={s.next_engine ?? s.engine ?? 'baileys'} onChange={(e)=>void changeSessionEngine(s.id,e.target.value as 'baileys'|'chromium')}><option value="baileys">Baileys</option><option value="chromium">Chromium</option></select><small>{s.next_engine ? 'Active: ' + s.engine + ' · Next: ' + s.next_engine : 'Active: ' + (s.engine ?? 'baileys')}</small></span><span>{s.worker_id ?? '—'}</span><span>{date(s.last_connected_at)}</span><span className="row-actions">{paused && <button className="mini-button" onClick={()=>void resumeSessionMessaging(s.id)}>Resume sending</button>}{s.status==='connected'?<><button className="mini-button" onClick={()=>void sessionControl(s.id,'restart')}>Restart</button><button className="mini-button danger-mini" onClick={()=>void sessionControl(s.id,'logout')}>Logout</button></>:<button className="mini-button" onClick={()=>void sessionControl(s.id,'connect')}>Connect</button>}</span></div>})}
       </TableSection>}
 
       {active === 'Messaging' && <>
@@ -460,6 +460,24 @@ export default function PlatformPage() {
           <p>Changing the platform default affects new sessions only. For an existing connected session, a per-session engine choice is saved as the next engine while the current authenticated engine keeps running. RelayWA never logs out a working session or forces a QR scan just because this setting changes.</p>
         </div>
         <button className="primary-button" onClick={()=>void saveMessagingEngine()}>Save messaging engine</button>
+      </section>
+      <section className="panel platform-safety-panel">
+        <PanelHeading eyebrow="Sending protection" title="Safety Governor" subtitle="Control outgoing message pacing and automatic safety pauses for the shared worker fleet."/>
+        <label className="platform-safety-toggle"><input type="checkbox" checked={Boolean(messagingSafety.enabled)} onChange={e=>setMessagingSafety((v:any)=>({...v,enabled:e.target.checked}))}/> Enable outbound safety controls</label>
+        <div className="platform-safety-grid">
+          {([
+            ['minDelayMs','Minimum delay between messages','milliseconds',1000,60000],
+            ['maxDelayMs','Maximum delay between messages','milliseconds',1000,120000],
+            ['messagesPerMinute','Messages per minute','messages',1,120],
+            ['messagesPerHour','Messages per hour','messages',1,5000],
+            ['burstLimit','Burst limit','messages',1,50],
+            ['duplicateWindowSeconds','Duplicate suppression window','seconds',0,3600],
+            ['failurePauseThreshold','Auto-pause after final failures','failures',2,20],
+            ['autoPauseSeconds','Auto-pause duration','seconds',60,86400],
+          ] as const).map(([field,label,unit,min,max])=><label key={field}>{label}<span className="platform-safety-input"><input type="number" min={min} max={max} step="1" value={messagingSafety[field] ?? min} onChange={e=>setSafetyNumber(field,e.target.value)} /><small>{unit}</small></span></label>)}
+        </div>
+        <p className="muted">These limits reduce burst risk but cannot guarantee that WhatsApp will not restrict an account. Existing sessions are not logged out when limits change.</p>
+        <button className="primary-button" onClick={()=>void saveMessagingSafety()}>Save Safety Governor settings</button>
       </section>
       <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}
