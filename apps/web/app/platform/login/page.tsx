@@ -10,9 +10,11 @@ export default function PlatformLoginPage() {
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [error,setError]=useState('');
+  const [expired,setExpired]=useState(false);
   const [busy,setBusy]=useState(false);
 
   useEffect(()=>{
+    setExpired(new URLSearchParams(window.location.search).get('expired')==='1');
     const current=localStorage.getItem('relaywa_access_token');
     if (!current) return;
     void api<any>('/auth/me',current)
@@ -65,6 +67,7 @@ export default function PlatformLoginPage() {
         <p className="light-auth-copy">Use your RelayWA platform administrator credentials.</p>
         <label>Email address<input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required/></label>
         <label>Password<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" required minLength={8}/></label>
+        {expired && !error && <div className="alert" role="status">Your session expired. Please sign in again.</div>}
         {error && <div className="alert">{error}</div>}
         <button className="primary-button wide" disabled={busy}>{busy?'Signing in…':'Sign in to platform'}</button>
         <a className="auth-back-link" href="/login">Customer workspace sign in →</a>
