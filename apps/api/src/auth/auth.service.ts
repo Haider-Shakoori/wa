@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, HttpException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -92,6 +92,14 @@ export class AuthService {
       [email],
     );
     const user = userResult.rows[0];
+    if (user?.is_platform_admin) {
+      const failures=await this.db.query<{total:number}>(`SELECT count(*)::int AS total
+        FROM platform_login_events WHERE user_id=$1 AND outcome='failed'
+        AND created_at > now()-interval '15 minutes'`,[user.id]);
+      if ((failures.rows[0]?.total??0)>=5) {
+        throw new HttpException('Too many failed administrator sign-in attempts. Try again in 15 minutes.',429);
+      }
+    }
     if (!user || !(await compare(input.password, user.password_hash))) {
       if (user?.is_platform_admin) await this.recordPlatformLogin(user.id, 'failed', 'password', context);
       throw new UnauthorizedException('Invalid email or password');
@@ -478,7 +486,7 @@ export class AuthService {
   async revokeSession(userId:string, sessionId:string){
     const result=await this.db.query(`UPDATE user_login_sessions SET revoked_at=now()
       WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL RETURNING id`,[sessionId,userId]);
-    return { revoked:result.rowCount>0 };
+    return { revoked:(result.rowCount??0)>0 };
   }
 
   async revokeAllSessions(userId:string){
@@ -498,6 +506,21 @@ export class AuthService {
       VALUES ($1,$2,$3,$4,$5,$6)`,
       [randomUUID(),userId,outcome,method,
         context?.ip?.slice(0,64) ?? null, context?.userAgent?.slice(0,256) ?? null]);
+    if (outcome === 'failed' && method === 'password') {
+      const failures=await this.db.query<{total:number}>(`SELECT count(*)::int AS total FROM platform_login_events
+        WHERE user_id=$1 AND outcome='failed' AND created_at > now()-interval '15 minutes'`,[userId]);
+      if ((failures.rows[0]?.total??0)>=5) {
+        await this.db.query(`INSERT INTO system_alerts
+          (id,event_type,severity,dedupe_key,resource_type,resource_id,subject,summary,details)
+          SELECT $1,'admin.login.failures','critical',$2,'platform_admin',$3,
+            'Repeated administrator sign-in failures',
+            'At least five failed password attempts within 15 minutes; sign-in temporarily restricted.',
+            jsonb_build_object('failedAttempts',$4::int)
+          WHERE NOT EXISTS (SELECT 1 FROM system_alerts WHERE dedupe_key=$2
+            AND created_at > now()-interval '1 hour')`,
+          [randomUUID(),'admin-failed-login:'+userId,userId,failures.rows[0].total]);
+      }
+    }
   }
 
   private async verifyGoogleCredential(credential: string) {
