@@ -44,7 +44,7 @@ export class UpdatePlatformSubscriptionDto {
   extendDays?: number;
 
   // Inclusive calendar date in UTC, e.g. "2026-12-31". Mutually exclusive with extendDays.
-  @IsOptional() @Matches(/^\\d{4}-\\d{2}-\\d{2}$/)
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/)
   periodEndDate?: string;
 
   @IsString() @MinLength(8) @MaxLength(500)
