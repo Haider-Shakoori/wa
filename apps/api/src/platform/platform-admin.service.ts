@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomUUID } from 'node:crypto';
 import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, AddPlatformAdministratorDto, WebsitePlanDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
+import { SqliteMessageHistoryService } from '../message-history/sqlite-message-history.service';
 import type { PoolClient } from 'pg';
 
 @Injectable()
