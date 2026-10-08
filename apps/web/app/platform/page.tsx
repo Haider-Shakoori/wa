@@ -9,7 +9,7 @@ import { Brand } from '../../components/relay-workspace';
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Analytics','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -17,6 +17,7 @@ export default function PlatformPage() {
   const [token,setToken] = useState('');
   const [active,setActive] = useState('Overview');
   const [overview,setOverview] = useState<any>(null);
+  const [analytics,setAnalytics] = useState<any>(null);
   const [tenants,setTenants] = useState<any[]>([]);
   const [sessions,setSessions] = useState<any[]>([]);
   const [subscriptions,setSubscriptions] = useState<any[]>([]);
@@ -94,6 +95,7 @@ export default function PlatformPage() {
         api('/platform/settings/messaging-safety',current),
       ]);
       setOverview(o);
+      void api('/platform/analytics',current).then(setAnalytics).catch(()=>setAnalytics(null));
       setTenants(t as any[]);
       setSessions(s as any[]);
       setSubscriptions(subs as any[]);
@@ -367,6 +369,20 @@ export default function PlatformPage() {
         </section>
       </>}
 
+      {active === 'Analytics' && <section className="panel platform-analytics-panel">
+        <div className="panel-head"><div><p className="eyebrow">Platform intelligence</p><h2>14-day activity and alerts</h2><p className="muted">Daily outbound outcomes, new organizations, and operational notifications.</p></div></div>
+        {analytics ? <>
+          <div className="platform-analytics-columns">
+            <div><h3>Outbound messaging</h3><div className="platform-spark-bars" aria-label="Successful outbound messages per day">{(analytics.messageTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.sent+' sent, '+day.failed+' failed'}><span style={{height:Math.max(4,Number(day.sent)/Math.max(1,...analytics.messageTrend.map((x:any)=>Number(x.sent)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
+            <div><h3>New organizations</h3><div className="platform-spark-bars" aria-label="New organizations per day">{(analytics.tenantTrend??[]).map((day:any)=><div key={day.day} title={day.day+': '+day.organizations+' organizations'}><span style={{height:Math.max(4,Number(day.organizations)/Math.max(1,...analytics.tenantTrend.map((x:any)=>Number(x.organizations)))*100)+'%'}}/><small>{String(day.day).slice(5)}</small></div>)}</div></div>
+          </div>
+          <h3>Recent system alerts</h3>
+          <div className="platform-filter-bar">{(analytics.alertSummary??[]).map((a:any)=><span key={a.severity}>{a.severity}: {a.count}</span>)}</div>
+          {(analytics.alerts??[]).map((a:any)=><div className="platform-detail-row" key={a.id}><Badge value={a.severity}/><span><strong>{a.subject}</strong><small>{a.summary}</small></span><span>{date(a.created_at)}</span></div>)}
+          {!analytics.alerts?.length&&<Empty text="No alerts recorded."/>}
+        </>:<Empty text="Analytics unavailable or loading. Refresh to retry."/>}
+      </section>}
+
       {active === 'Organizations' && <TableSection eyebrow="Tenants" title="Customer organizations" subtitle="Review membership, subscriptions and WhatsApp session footprint.">
         <div className="platform-filter-bar" aria-label="Organization status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={tenantFilter===filter?'selected':''} onClick={()=>setTenantFilter(filter)}>{filter==='all'?'All tenants':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleTenants.length} organizations</span></div>
         <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Details</span></div>
@@ -513,6 +529,7 @@ function money(cents:number,currency:string) { try { return new Intl.NumberForma
 function platformSubtitle(section:string) {
   const subtitles:Record<string,string> = {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
+    Analytics:'Message delivery trends, organization growth and system alerts.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
