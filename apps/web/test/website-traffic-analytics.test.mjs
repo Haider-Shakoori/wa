@@ -42,3 +42,16 @@ test('proxy uses a validated original forwarded IP before upstream Caddy/Nginx a
  assert.match(proxy,/request\.headers\.get\('x-real-ip'\)/);
  assert.match(proxy,/isIP\(forwarded\)\?forwarded:isIP\(real\)\?real/);
 });
+
+test('internal and test traffic is flagged without blocking the website',async()=>{
+ const proxy=await read('../proxy.ts');
+ const screen=await read('../components/platform-website-traffic.tsx');
+ assert.match(proxy,/WEBSITE_ANALYTICS_EXCLUDE_IPS/);
+ assert.match(proxy,/relaywa_analytics_optout/);
+ assert.match(proxy,/relaywa-analyticssmoke/);
+ assert.match(proxy,/isExcluded/);
+ assert.match(proxy,/event\.waitUntil\(/);
+ assert.match(screen,/Exclude my browser/);
+ assert.match(screen,/Verified Google\/Bing\/Apple crawler hits/);
+ assert.match(screen,/Excluded test\/internal requests/);
+});
