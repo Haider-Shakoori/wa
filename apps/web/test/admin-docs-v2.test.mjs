@@ -30,7 +30,7 @@ test('developer portal is searchable and documents the actual RelayWA API surfac
   assert.match(docs, /Contacts, chats & groups/);
   assert.match(docs, /Direct sending & retries/);
   assert.match(docs, /Webhooks/);
-  assert.match(docs, /Safety Governor/);
+  assert.match(docs, /Application responsibilities/);
   assert.match(docs, /Baileys vs Chromium/);
   assert.match(docs, /Troubleshooting/);
   assert.match(docs, /Production checklist/);
