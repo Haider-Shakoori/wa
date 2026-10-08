@@ -11,12 +11,13 @@ import { PlatformClientSubscriptionEditor, type ClientPlan } from '../../compone
 import { PlatformGoogleAnalytics } from '../../components/platform-google-analytics';
 import { PlatformAddAdministrator } from '../../components/platform-add-administrator';
 import { PlatformWebsiteSubscriptions } from '../../components/platform-website-subscriptions';
+import { PlatformMessageHistoryStorage } from '../../components/platform-message-history-storage';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Clients','Sessions','Messaging'] },
   { label:'Commercial', items:['Website subscriptions','Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Message storage','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -755,6 +756,9 @@ export default function PlatformPage() {
         {filteredPayments.map((p)=><div className="platform-row" key={p.id}><span><strong>{p.organization_name}</strong><small>{date(p.created_at)}</small></span><span>{p.provider}</span><span>{p.plan_code} / {p.billing_interval}</span><span>{money(p.amount_cents,p.currency)}</span><span><Badge value={p.status}/></span><span>{p.provider==='manual' && p.status==='pending'?<button className="mini-button" onClick={()=>void approveManual(p.id)}>Approve</button>:'—'}</span></div>)}
         {!filteredPayments.length && <Empty text="No payments match this filter."/>}
       </TableSection>}
+
+      {active === 'Message storage' && <PlatformMessageHistoryStorage
+        token={token} canEdit={platformRole==='super_admin'}/>}
 
       {active === 'Infrastructure' && <section className="two-column">
         <Panel title="Worker process and session leases">{workers.map((w)=><div className="session-row" key={w.worker_id}><div className="session-avatar small">WK</div><div className="grow"><strong>{w.worker_id}</strong><span>{w.connected_sessions} connected · {w.owned_sessions} owned · {w.stale_session_leases??0} stale session leases</span><small>Process heartbeat: {date(w.last_seen_at)}</small></div><Badge value={w.health_state==='online'?'online':w.health_state==='offline'?'offline':'unknown'}/></div>)}{!workers.length && <Empty text="No worker heartbeat observed yet. Verify the worker service and deployment."/>}</Panel>
