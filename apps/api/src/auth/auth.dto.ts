@@ -21,6 +21,9 @@ export class RegisterDto {
 }
 
 export class LoginDto {
+  @IsOptional() @IsString() @MaxLength(2048)
+  captchaToken?:string;
+
   @IsEmail()
   email!: string;
 
