@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import type { UpdateMessagingSafetyDto, UpdatePlatformSubscriptionDto } from './platform-admin.dto';
 import { DatabaseService } from '../database/database.service';
+import type { PoolClient } from 'pg';
 
 @Injectable()
 export class PlatformAdminService {
@@ -66,6 +67,35 @@ export class PlatformAdminService {
     return result.rows;
   }
 
+  async tenantMembers(organizationId: string) {
+    const organization = await this.db.query('SELECT id FROM organizations WHERE id = $1 LIMIT 1', [organizationId]);
+    if (!organization.rows[0]) throw new NotFoundException('Organization not found');
+    const result = await this.db.query(
+      `SELECT m.id AS membership_id, m.user_id, u.name, u.email, m.role, m.status,
+              m.created_at, m.updated_at, (u.disabled_at IS NOT NULL) AS account_disabled
+       FROM organization_memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.organization_id = $1
+       ORDER BY m.created_at ASC LIMIT 200`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  private async recordAudit(
+    client: PoolClient, actorUserId: string, action: string,
+    targetType: string, targetId: string, before: unknown, after: unknown,
+  ) {
+    await client.query(
+      `INSERT INTO platform_admin_audit_logs
+       (id, actor_user_id, action, target_type, target_id, before_state, after_state)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)`,
+      [randomUUID(), actorUserId, action, targetType, targetId,
+       before === undefined ? null : JSON.stringify(before),
+       after === undefined ? null : JSON.stringify(after)],
+    );
+  }
+
   async tenants() {
     const result = await this.db.query(
       `SELECT o.id, o.name, o.slug, o.created_at,
@@ -113,24 +143,26 @@ export class PlatformAdminService {
     return result.rows;
   }
 
-  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout') {
-    const session = await this.db.query<{ organization_id: string }>(
-      `SELECT organization_id
-       FROM whatsapp_sessions
-       WHERE id = $1 AND deleted_at IS NULL
-       LIMIT 1`,
-      [sessionId],
-    );
-    if (!session.rows[0]) throw new NotFoundException('Session not found');
-
-    const commandId = randomUUID();
-    await this.db.query(
-      `INSERT INTO whatsapp_session_commands
-        (id, organization_id, session_id, command, status)
-       VALUES ($1, $2, $3, $4, 'queued')`,
-      [commandId, session.rows[0].organization_id, sessionId, action],
-    );
-    return { commandId, sessionId, action, status: 'queued' };
+  async sessionAction(sessionId: string, action: 'connect' | 'restart' | 'logout', actorUserId: string) {
+    return this.db.transaction(async (client) => {
+      const session = await client.query<{ organization_id: string; status: string }>(
+        `SELECT organization_id, status FROM whatsapp_sessions
+         WHERE id = $1 AND deleted_at IS NULL LIMIT 1`, [sessionId],
+      );
+      if (!session.rows[0]) throw new NotFoundException('Session not found');
+      const commandId = randomUUID();
+      await client.query(
+        `INSERT INTO whatsapp_session_commands
+          (id, organization_id, session_id, command, status)
+         VALUES ($1, $2, $3, $4, 'queued')`,
+        [commandId, session.rows[0].organization_id, sessionId, action],
+      );
+      await this.recordAudit(client, actorUserId, 'session.command.' + action,
+        'session', sessionId,
+        { sessionStatus: session.rows[0].status },
+        { commandId, command: action, status: 'queued' });
+      return { commandId, sessionId, action, status: 'queued' };
+    });
   }
 
   async updateSessionEngine(sessionId: string, input: { engine: 'baileys' | 'chromium' }) {
