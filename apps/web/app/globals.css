@@ -889,3 +889,15 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .platform-member-row small{display:block;font-size:11px;color:#94ad9c;margin-top:5px}
 .platform-shell .platform-member-role{font-size:11px;letter-spacing:.02em;padding:5px 9px;background:#1c3425;color:#93e1aa;border:1px solid #376349;border-radius:8px;text-transform:capitalize}
 .platform-shell .platform-member-row .state{white-space:nowrap}
+
+/* Platform Safety Governor */
+.platform-shell .platform-safety-panel{padding:22px!important}
+.platform-shell .platform-safety-toggle{display:flex;align-items:center;gap:10px;margin:16px 0;color:#dcefe0;font-size:13px;font-weight:700}
+.platform-shell .platform-safety-toggle input{accent-color:#25d366;width:17px;height:17px}
+.platform-shell .platform-safety-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.platform-shell .platform-safety-grid>label{display:grid;gap:7px;min-width:0;color:#c6dbcb;font-size:12px}
+.platform-shell .platform-safety-input{display:flex;align-items:center;gap:12px;background:#17231c;border:1px solid #34503c;border-radius:9px;padding:7px 10px}
+.platform-shell .platform-safety-input input{width:100%;min-width:0;background:none;border:0;outline:0;color:#f4fff6;font-size:15px;font-weight:750;font-variant-numeric:tabular-nums}
+.platform-shell .platform-safety-input input:focus-visible{outline:2px solid #25d366}
+.platform-shell .platform-safety-input small{color:#a5bcaa;white-space:nowrap;font-size:10px}
+@media(max-width:620px){.platform-shell .platform-safety-grid{grid-template-columns:1fr}}
