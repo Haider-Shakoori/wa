@@ -17,10 +17,21 @@ export default function PlatformLoginPage() {
     setExpired(new URLSearchParams(window.location.search).get('expired')==='1');
     const current=localStorage.getItem('relaywa_access_token');
     if (!current) return;
-    void api<any>('/auth/me',current)
-      .then(()=>api<any>('/platform/overview',current))
-      .then(()=>router.replace('/platform'))
-      .catch(()=>localStorage.removeItem('relaywa_access_token'));
+    // Platform access is checked independently of an existing client login.
+    // Never erase a valid client token just because its platform role is denied.
+    let mounted=true;
+    void api('/platform/whoami',current).then(()=>{
+      if(mounted)router.replace('/platform');
+    }).catch(async()=>{
+      try {
+        await api('/auth/me',current);
+        if(mounted)router.replace('/dashboard');
+      }catch{
+        // Only a genuinely invalid/expired login belongs on the login form.
+        if(mounted)localStorage.removeItem('relaywa_access_token');
+      }
+    });
+    return ()=>{mounted=false;};
   },[router]);
 
   async function submit(event:FormEvent) {
