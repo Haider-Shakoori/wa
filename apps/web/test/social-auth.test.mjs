@@ -37,3 +37,13 @@ test('GitHub callback stays on the canonical RelayWA origin', async () => {
   assert.match(env, /GITHUB_CALLBACK_URL=https:\/\/relaywa\.com\/api\/auth\/github\/callback/);
   assert.match(env, /AUTH_FRONTEND_URL=https:\/\/relaywa\.com/);
 });
+
+test('successful tenant login bypasses onboarding for email, Google, and GitHub', async () => {
+  const auth = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
+  const google = await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8');
+  assert.match(auth, /if \(!register\) return result\?\.isPlatformAdmin \? '\/platform' : '\/dashboard'/);
+  assert.match(auth, /router\.replace\(tenantDestination\(result,register\)\)/);
+  assert.match(auth, /\/auth\/github\/exchange/);
+  assert.match(google, /preservePlan \? \(result\.nextPath \?\? '\/onboarding'\) : \(result\.isPlatformAdmin \? '\/platform' : '\/dashboard'\)/);
+  assert.match(google, /router\.replace\(next\)/);
+});
