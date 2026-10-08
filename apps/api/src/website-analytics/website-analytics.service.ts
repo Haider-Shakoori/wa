@@ -42,7 +42,7 @@ export class WebsiteAnalyticsService {
       throw new BadRequestException('Days must be 7, 30, or 90');
     }
     // Visitors are estimated distinct per UTC day, not cross-day identities.
-    const [summary, trend, countries, bots, pages, sources, devices] = await Promise.all([
+    const [summary, trend, countries, bots, botCountries, pages, sources, devices] = await Promise.all([
       this.db.query(`SELECT count(*)::int AS pageviews,
         count(*) FILTER (WHERE traffic_type='human')::int AS human_pageviews,
         count(*) FILTER (WHERE traffic_type='bot')::int AS declared_bot_hits,
@@ -70,6 +70,11 @@ export class WebsiteAnalyticsService {
         FROM website_pageviews WHERE traffic_type IN ('bot','suspected_bot')
           AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
         GROUP BY bot_family ORDER BY hits DESC LIMIT 25`,[days]),
+      this.db.query(`SELECT coalesce(bot_family,'Other automation') AS bot_family,
+        country_code, count(*)::int AS hits
+        FROM website_pageviews WHERE traffic_type<>'human'
+          AND visit_day >= (now() AT TIME ZONE 'UTC')::date - ($1::int-1)
+        GROUP BY bot_family,country_code ORDER BY hits DESC LIMIT 80`,[days]),
       this.db.query(`SELECT path,
         count(*) FILTER (WHERE traffic_type='human')::int AS human,
         count(*) FILTER (WHERE traffic_type<>'human')::int AS automated
@@ -87,7 +92,7 @@ export class WebsiteAnalyticsService {
       days, since: new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0,10),
       generatedAt: new Date().toISOString(),
       summary: summary.rows[0], trend:trend.rows, countries:countries.rows,
-      bots:bots.rows, pages:pages.rows, sources:sources.rows, devices:devices.rows,
+      bots:bots.rows, botCountries:botCountries.rows, pages:pages.rows, sources:sources.rows, devices:devices.rows,
       note:'First-party server page requests; visitors are approximate daily unique hashes. Bots are user-agent based, not independently verified. Country is derived from the local offline IP country dataset or a configured trusted CDN header; Unknown indicates missing or unresolvable location.',
     };
   }
