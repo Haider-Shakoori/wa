@@ -7,12 +7,13 @@ import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
 import { PlatformMonitoring } from '../../components/platform-monitoring';
 import { PlatformWebsiteTraffic } from '../../components/platform-website-traffic';
+import { PlatformGoogleAnalytics } from '../../components/platform-google-analytics';
 import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Organizations','Sessions','Messaging'] },
   { label:'Commercial', items:['Subscriptions','Payments','Providers'] },
-  { label:'System', items:['Monitoring','Website traffic','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
+  { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Diagnostics'] },
 ] as const;
 
 export default function PlatformPage() {
@@ -565,6 +566,7 @@ export default function PlatformPage() {
 
       {active === 'Monitoring' && <PlatformMonitoring token={token} role={platformRole}/>}
       {active === 'Website traffic' && <PlatformWebsiteTraffic token={token}/>}
+      {active === 'Google Analytics' && <PlatformGoogleAnalytics token={token}/>}
 
       {active === 'Audit log' && <section className="panel platform-audit-panel">
         <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
@@ -769,6 +771,7 @@ function platformSubtitle(section:string) {
     Overview:'Operational health, tenant activity and platform-wide exceptions.',
     Monitoring:'Worker leases, session health, webhook failures and actionable alerts.',
     'Website traffic':'Visitor counts, search crawlers, countries and popular public pages.',
+    'Google Analytics':'GA4 real-time visitors, countries, sources, page views and engagement.',
     Analytics:'Message delivery trends, organization growth and system alerts.',
     'Audit log':'Recorded administrator actions, change history and accountability.',
     Organizations:'Customer workspaces, memberships, plans and session footprint.',
