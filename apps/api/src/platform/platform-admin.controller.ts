@@ -103,6 +103,9 @@ export class PlatformAdminController {
   @Get('subscriptions')
   subscriptions() { return this.platform.subscriptions(); }
 
+  @Get('subscription-plans')
+  subscriptionPlans() { return this.platform.subscriptionPlans(); }
+
   @Patch('sessions/:sessionId/engine')
   @PlatformRoles('super_admin','support_admin')
   updateSessionEngine(
@@ -139,7 +142,7 @@ export class PlatformAdminController {
   @Patch('subscriptions/:organizationId')
   @PlatformRoles('super_admin','billing_admin')
   updateSubscription(
-    @Param('organizationId') organizationId: string,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Body() body: UpdatePlatformSubscriptionDto,
     @Req() request: AuthenticatedRequest,
   ) {
