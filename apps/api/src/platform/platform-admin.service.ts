@@ -845,6 +845,56 @@ export class PlatformAdminService {
     });
   }
 
+  async messageHistoryStorageSettings() {
+    const {rows}=await this.db.query<{
+      enabled:boolean;enabled_at:Date|null;retention_days:number;max_file_mb:number;updated_at:Date;
+    }>(`SELECT enabled,enabled_at,retention_days,max_file_mb,updated_at
+        FROM message_history_storage_settings WHERE id='global'`);
+    const settings=rows[0];
+    if(!settings)throw new NotFoundException('Message history storage policy is not initialized');
+    return {
+      enabled:settings.enabled,
+      retentionDays:settings.retention_days,
+      maxFileMb:settings.max_file_mb,
+      enabledAt:settings.enabled_at,
+      updatedAt:settings.updated_at,
+      ...this.sqliteHistory.status(),
+      storageMode:'optional_sqlite_archive',
+      databaseOfRecord:'postgresql',
+      notice:'PostgreSQL continues to store dispatch records and message content. This switch controls an extra local SQLite history archive only; it does not delete or migrate existing PostgreSQL messages.',
+    };
+  }
+
+  async updateMessageHistoryStorage(
+    input:{enabled:boolean;retentionDays:number;maxFileMb:number;reason:string},
+    actorUserId:string,
+  ) {
+    if(input.reason.trim().length<8)throw new BadRequestException('A reason of eight characters is required');
+    if(input.enabled&&!this.sqliteHistory.configured) {
+      throw new ConflictException('Configure a persistent RELAYWA_MESSAGE_HISTORY_SQLITE_PATH mount on the API before enabling SQLite history');
+    }
+    await this.db.transaction(async client=>{
+      const {rows}=await client.query<{
+        enabled:boolean;retention_days:number;max_file_mb:number;
+      }>(`SELECT enabled,retention_days,max_file_mb
+          FROM message_history_storage_settings WHERE id='global' FOR UPDATE`);
+      const old=rows[0];
+      if(!old)throw new NotFoundException('Message history storage settings missing');
+      await client.query(`UPDATE message_history_storage_settings
+        SET enabled=$1,retention_days=$2,max_file_mb=$3,
+          enabled_at=CASE WHEN $1 AND NOT enabled THEN now() ELSE enabled_at END,
+          updated_at=now()
+        WHERE id='global'`,
+        [input.enabled,input.retentionDays,input.maxFileMb]);
+      await this.recordAudit(client,actorUserId,'message.history.storage.updated',
+        'global_settings','sqlite_message_history',old,{
+          enabled:input.enabled,retentionDays:input.retentionDays,maxFileMb:input.maxFileMb,
+          reason:input.reason.trim(),
+        });
+    });
+    return this.messageHistoryStorageSettings();
+  }
+
   async messagingEngineSettings() {
     const result = await this.db.query<{ default_engine: 'baileys' | 'chromium'; updated_at: string | null }>(
       `SELECT default_engine, updated_at
