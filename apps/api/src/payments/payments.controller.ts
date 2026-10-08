@@ -5,6 +5,7 @@ import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard'
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
+import { PlatformRoles } from '../auth/platform-roles.decorator';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { CreateCheckoutDto, CreateManualPaymentDto, UpdateProviderDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
@@ -70,12 +71,14 @@ export class PaymentsController {
   }
 
   @Post('admin/manual/:paymentId/approve')
+  @PlatformRoles('super_admin','billing_admin')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   approveManual(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
     return this.payments.approveManual(paymentId);
   }
 
   @Post('admin/providers')
+  @PlatformRoles('super_admin','billing_admin')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   updateProvider(@Body() body: UpdateProviderDto) {
     return this.payments.updateProvider(body);
