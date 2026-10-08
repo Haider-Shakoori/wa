@@ -20,9 +20,9 @@ test('customer portal exposes session restart and logout controls', async () => 
   assert.match(dashboard, /Disconnect/);
 });
 
-test('platform console supports search and tenant operations', async () => {
+test('platform console supports client search and subscription editor', async () => {
   const source = await readFile(new URL('../app/platform/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /Search tenants, numbers, plans/);
+  assert.match(source, /Search clients, numbers, plans/);
   assert.match(source, /sessionControl/);
   assert.match(source, /updateSubscription/);
   assert.match(source, /\+7 days/);
