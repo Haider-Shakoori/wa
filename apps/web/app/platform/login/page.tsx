@@ -33,6 +33,11 @@ export default function PlatformLoginPage() {
       if (!result.isPlatformAdmin) {
         throw new Error('This account does not have RelayWA platform administrator access.');
       }
+      if (result.mfaRequired && result.mfaTicket) {
+        sessionStorage.setItem('relaywa_platform_mfa_ticket',result.mfaTicket);
+        router.replace('/platform/mfa');
+        return;
+      }
       localStorage.setItem('relaywa_access_token',result.accessToken);
       router.replace('/platform');
     } catch(err) {
