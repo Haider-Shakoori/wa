@@ -823,3 +823,26 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-shell .state,.platform-shell .count-badge{background:#15372f!important;color:#74e8a0!important}
 .platform-shell .secondary-button:hover,.platform-shell .mini-button:hover{background:#1b281f!important}
 .platform-shell input,.platform-shell select{color-scheme:dark}
+
+/* Platform operations center — shared RelayWA dark visual language */
+.platform-shell .platform-command-center{padding:23px 25px;margin:0 0 20px;background:linear-gradient(110deg,#111b17,#10241c);border:1px solid #2d4438;border-radius:16px;color:#f5f7f5}
+.platform-shell .platform-command-heading{display:flex;justify-content:space-between;gap:20px;align-items:start;margin-bottom:19px}
+.platform-shell .platform-kicker{display:block;color:#25d366;font-size:11px;font-weight:800;letter-spacing:.12em;margin-bottom:7px}
+.platform-shell .platform-command-heading h2{font-size:21px;font-weight:800;letter-spacing:-.035em;margin:0 0 5px;color:#f5f7f5}
+.platform-shell .platform-command-heading p{margin:0;font-size:13px;color:#a0b1a6}
+.platform-shell .platform-updated{font-size:11px;color:#9eb9a8;white-space:nowrap;padding:7px 10px;background:#1a2b21;border:1px solid #2f4738;border-radius:8px}
+.platform-shell .platform-priority-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.platform-shell .platform-priority{display:grid;gap:6px;text-align:left;cursor:pointer;padding:17px;border:1px solid #34493d;background:#151f19;color:#f5f7f5;border-radius:11px;transition:background .15s,border-color .15s,transform .15s}
+.platform-shell .platform-priority:hover{background:#1d3024;border-color:#25d366;transform:translateY(-2px)}
+.platform-shell .platform-priority:focus-visible,.platform-shell .platform-filter-bar button:focus-visible{outline:2px solid #25d366;outline-offset:3px}
+.platform-shell .platform-priority span{font-size:12px;color:#b4c7ba;font-weight:650}
+.platform-shell .platform-priority strong{font-size:29px;color:#fff;line-height:1.15;letter-spacing:-.03em}
+.platform-shell .platform-priority small{font-size:11px;color:#92a79a}
+.platform-shell .platform-filter-bar{display:flex;align-items:center;gap:8px;padding:14px;flex-wrap:wrap;background:#111613;border:1px solid #29372e;border-bottom:0}
+.platform-shell .platform-filter-bar button{border:1px solid #344039;background:#19211b;color:#b5c6bb;border-radius:8px;padding:9px 12px;cursor:pointer;font-size:12px;font-weight:650}
+.platform-shell .platform-filter-bar button.selected{background:#15372f;color:#69e99c;border-color:#25d366}
+.platform-shell .platform-filter-bar>span{margin-left:auto;font-size:11px;color:#9aa99f}
+.platform-shell .sidebar-bottom .platform-link,.platform-shell .sidebar-bottom .status-pill{background:#17241b!important;color:#d2e8d7!important;border:1px solid #344b3b!important;border-radius:9px!important;text-align:left!important;padding:11px 13px!important}
+.platform-shell .sidebar-bottom .account-logout{background:#241b1f!important;color:#ffb9c2!important;border:1px solid #633440!important;border-radius:9px!important}
+@media(max-width:1050px){.platform-shell .platform-priority-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.platform-shell .platform-command-center{padding:17px}.platform-shell .platform-command-heading{flex-direction:column}.platform-shell .platform-priority-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-shell .platform-priority{padding:12px}.platform-shell .platform-priority strong{font-size:24px}}
