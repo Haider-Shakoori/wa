@@ -17,7 +17,7 @@ export class PlatformAdminService {
   }
 
   async overview() {
-    const [users, organizations, memberships, sessions, messages, payments, webhookFailures] = await Promise.all([
+    const [users, organizations, memberships, sessions, messages, payments, webhookFailures, activeFailures, activeWebhookFailures] = await Promise.all([
       this.count('SELECT count(*)::text AS count FROM users WHERE disabled_at IS NULL'),
       this.count('SELECT count(*)::text AS count FROM organizations'),
       this.count("SELECT count(*)::text AS count FROM organization_memberships WHERE status = 'active'"),
@@ -33,6 +33,14 @@ export class PlatformAdminService {
         `SELECT status, count(*)::text AS count FROM payments GROUP BY status`,
       ),
       this.count("SELECT count(*)::text AS count FROM webhook_deliveries WHERE status = 'failed'"),
+      this.count(`SELECT count(*)::text AS count FROM whatsapp_messages m
+        LEFT JOIN platform_diagnostic_archives a ON a.resource_type='message' AND a.resource_id=m.id
+        WHERE m.direction='outbound' AND m.status='failed'
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=m.updated_at)`),
+      this.count(`SELECT count(*)::text AS count FROM webhook_deliveries w
+        LEFT JOIN platform_diagnostic_archives a ON a.resource_type='webhook' AND a.resource_id=w.id
+        WHERE w.status='failed'
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=w.updated_at)`),
     ]);
 
     return {
@@ -43,6 +51,8 @@ export class PlatformAdminService {
       messages: Object.fromEntries(messages.rows.map((row) => [row.status, Number(row.count)])),
       payments: Object.fromEntries(payments.rows.map((row) => [row.status, Number(row.count)])),
       failedWebhooks: webhookFailures,
+      activeFailedMessages: activeFailures,
+      activeFailedWebhooks: activeWebhookFailures,
     };
   }
 
@@ -59,9 +69,9 @@ export class PlatformAdminService {
         LEFT JOIN organizations o ON o.created_at >= day AND o.created_at < day + interval '1 day'
         GROUP BY day ORDER BY day`),
       this.db.query<{ severity: string; count: number }>(`SELECT severity, count(*)::int AS count FROM system_alerts
-        WHERE created_at >= now() - interval '14 days' GROUP BY severity`),
+        WHERE created_at >= now() - interval '14 days' AND resolved_at IS NULL GROUP BY severity`),
       this.db.query(`SELECT id, severity, event_type, subject, summary, status, created_at
-        FROM system_alerts ORDER BY created_at DESC LIMIT 20`),
+        FROM system_alerts WHERE resolved_at IS NULL ORDER BY created_at DESC LIMIT 20`),
     ]);
     return { messageTrend: messageTrend.rows, tenantTrend: tenantTrend.rows,
       alertSummary: alertSummary.rows, alerts: recentAlerts.rows };
@@ -87,7 +97,7 @@ export class PlatformAdminService {
       this.db.query(`SELECT count(*)::int AS total,
         count(*) FILTER (WHERE acknowledged_at IS NULL)::int AS unacknowledged,
         count(*) FILTER (WHERE acknowledged_at IS NULL AND severity='critical')::int AS critical
-        FROM system_alerts WHERE created_at>=now()-interval '30 days'`),
+        FROM system_alerts WHERE created_at>=now()-interval '30 days' AND resolved_at IS NULL`),
       this.workers(),
     ]);
     // Do not expose SMTP credentials; only tell operators whether outbound
@@ -103,27 +113,31 @@ export class PlatformAdminService {
       failedMessages24h:messageFailures.rows[0]?.count??0,
       alerts30d:recentAlerts.rows[0],
       workers:workers.map((worker:any)=>({
-        ...worker, leaseActive:Boolean(worker.lease_expires_at &&
+        ...worker, healthState:worker.health_state,
+        leaseActive:Boolean(worker.lease_expires_at &&
           new Date(worker.lease_expires_at).getTime()>Date.now()),
       })) };
   }
 
-  async monitoringAlerts(severity = '', acknowledgement = '') {
+  async monitoringAlerts(severity = '', acknowledgement = '', lifecycle = 'active') {
     if (severity && !['critical','warning','info'].includes(severity)) {
       throw new BadRequestException('Invalid alert severity');
     }
     if (acknowledgement && !['open','acknowledged'].includes(acknowledgement)) {
       throw new BadRequestException('Invalid alert acknowledgement filter');
     }
+    if(!['active','resolved','all'].includes(lifecycle)) throw new BadRequestException('Invalid incident lifecycle');
     const result=await this.db.query(`SELECT a.id,a.event_type,a.severity,a.subject,a.summary,
       a.organization_id,a.session_id,a.resource_type,a.resource_id,a.status,a.created_at,
-      a.sent_at,a.acknowledged_at,u.email AS acknowledged_by_email
+      a.sent_at,a.acknowledged_at,a.resolved_at,u.email AS acknowledged_by_email
       FROM system_alerts a
       LEFT JOIN users u ON u.id=a.acknowledged_by
       WHERE ($1='' OR a.severity=$1)
         AND ($2='' OR ($2='open' AND a.acknowledged_at IS NULL)
           OR ($2='acknowledged' AND a.acknowledged_at IS NOT NULL))
-      ORDER BY a.created_at DESC LIMIT 150`,[severity,acknowledgement]);
+        AND ($3='all' OR ($3='active' AND a.resolved_at IS NULL)
+          OR ($3='resolved' AND a.resolved_at IS NOT NULL))
+      ORDER BY a.created_at DESC LIMIT 150`,[severity,acknowledgement,lifecycle]);
     return result.rows;
   }
 
