@@ -466,8 +466,21 @@ export default function PlatformPage() {
         </section>
       </>}
 
+      {active === 'Administrators' && <section className="panel platform-detail-panel">
+        <div className="panel-head"><div><p className="eyebrow">Platform security</p><h2>Administrator roles</h2><p className="muted">Super Admin, Billing Admin, Support Admin and Read-only. Role changes are audited.</p></div></div>
+        {platformRole==='super_admin'?administrators.map((admin)=><div className="platform-detail-row" key={admin.id}><span><strong>{admin.name}</strong><small>{admin.email}</small></span>
+          <select className="table-select" aria-label={'Administrator role for '+admin.email} value={admin.platform_role??'read_only'} onChange={e=>void changeAdministratorRole(admin,e.target.value)}><option value="super_admin">Super Admin</option><option value="billing_admin">Billing Admin</option><option value="support_admin">Support Admin</option><option value="read_only">Read-only</option></select></div>):<Empty text="Super Admin access is required to manage platform roles."/>}
+      </section>}
+
+      {active === 'Security' && <section className="panel platform-detail-panel">
+        <div className="panel-head"><div><p className="eyebrow">Security monitoring</p><h2>Administrator sign-in history</h2><p className="muted">Latest 100 recorded platform administrator logins, with success or failure and login method.</p></div></div>
+        {['super_admin','support_admin'].includes(platformRole)?loginEvents.map((entry)=><div className="platform-detail-row" key={entry.id}><span><strong>{entry.email??'Unknown administrator'}</strong><small>{entry.login_method} · {entry.ip_address??'IP unavailable'} · {date(entry.created_at)}</small></span><Badge value={entry.outcome}/></div>):<Empty text="Security monitoring requires a Super or Support Admin role."/>}
+        {!loginEvents.length&&<Empty text="No administrator sign-in events recorded yet."/>}
+      </section>}
+
       {active === 'Audit log' && <section className="panel platform-audit-panel">
         <div className="panel-head"><div><p className="eyebrow">Security & accountability</p><h2>Administrator activity</h2><p className="muted">Most recent 100 recorded administrative changes. Subscription changes are recorded with the actor and before/after state.</p></div></div>
+        <div className="platform-filter-bar"><input aria-label="Filter by action" placeholder="Filter action" value={auditAction} onChange={e=>setAuditAction(e.target.value)}/><input aria-label="Filter by actor email" placeholder="Filter actor email" value={auditActor} onChange={e=>setAuditActor(e.target.value)}/><button onClick={()=>void searchAudit()}>Search audit</button><span>{auditLogs.length} records</span></div>
         {auditLogs.map((entry)=><div className="platform-audit-entry" key={entry.id}>
           <div><strong>{entry.action?.replaceAll('.', ' · ')}</strong><small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small><small>{entry.target_type} · {entry.target_id}</small></div>
           <details><summary>Change details</summary><pre>{JSON.stringify({before:entry.before_state,after:entry.after_state},null,2)}</pre></details>
@@ -492,12 +505,13 @@ export default function PlatformPage() {
       {active === 'Organizations' && <TableSection eyebrow="Tenants" title="Customer organizations" subtitle="Review membership, subscriptions and WhatsApp session footprint.">
         <div className="platform-filter-bar" aria-label="Organization status filter">{(['all','active','trialing','attention'] as const).map((filter)=><button key={filter} className={tenantFilter===filter?'selected':''} onClick={()=>setTenantFilter(filter)}>{filter==='all'?'All tenants':filter==='active'?'Active':filter==='trialing'?'Trials':'Needs attention'}</button>)}<span>{visibleTenants.length} organizations</span></div>
         <div className="platform-row platform-row-head"><span>Organization</span><span>Plan</span><span>Members</span><span>Sessions</span><span>Subscription</span><span>Details</span></div>
-        {visibleTenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span><button className="mini-button" onClick={()=>setSelectedTenantId(t.id)}>Inspect</button></span></div>)}
+        {visibleTenants.map((t)=><div className="platform-row" key={t.id}><span><strong>{t.name}</strong><small>{t.slug}{t.suspended_at?' · SUSPENDED':''}</small></span><span>{t.plan_code ?? '—'}</span><span>{t.members}</span><span>{t.sessions}</span><span><Badge value={t.subscription_status ?? 'none'}/></span><span><button className="mini-button" onClick={()=>setSelectedTenantId(t.id)}>Inspect</button></span></div>)}
         {!visibleTenants.length&&<Empty text="No organizations match your filters."/>}
       </TableSection>}
 
       {active === 'Organizations' && selectedTenant && <section className="panel platform-detail-panel" aria-label="Selected tenant details">
         <div className="panel-head"><div><p className="eyebrow">Organization profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
+        <div className="platform-tenant-security"><div><strong>Tenant access</strong><p>{selectedTenant.suspended_at?'Suspended since '+date(selectedTenant.suspended_at)+' · '+(selectedTenant.suspension_reason??'No reason'):'Active — dashboards, API keys and outbound dispatch available'}</p></div><Badge value={selectedTenant.suspended_at?'suspended':'active'}/>{platformRole==='super_admin'&&<button className={selectedTenant.suspended_at?'mini-button':'mini-button danger-mini'} disabled={tenantBusy} onClick={()=>void changeTenantSuspension(selectedTenant,selectedTenant.suspended_at?'active':'suspended')}>{tenantBusy?'Saving…':selectedTenant.suspended_at?'Reactivate tenant':'Suspend tenant'}</button>}</div>
         <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.subscription_status??'none'}/></span></div>
         <h3 className="platform-profile-heading">Tenant members</h3>
         <p className="platform-member-hint">Suspend or reactivate workspace access with an audit reason. This does not revoke organization API keys or terminate WhatsApp sessions.</p>
@@ -505,8 +519,8 @@ export default function PlatformPage() {
           <span><strong>{member.name}</strong><small>{member.email} · Added {date(member.created_at)}</small></span>
           <span className="platform-member-role">{member.role}</span>
           <Badge value={member.account_disabled?'disabled':member.status}/>
-          {member.status==='active' && <button className="mini-button danger-mini" disabled={Boolean(memberActionBusy)||Boolean(member.platform_admin)} title={member.platform_admin?'Platform administrators cannot be suspended':''} onClick={()=>void changeMemberStatus(member,'suspended')}>{memberActionBusy===member.membership_id?'Saving…':'Suspend'}</button>}
-          {member.status==='suspended' && <button className="mini-button" disabled={Boolean(memberActionBusy)} onClick={()=>void changeMemberStatus(member,'active')}>{memberActionBusy===member.membership_id?'Saving…':'Reactivate'}</button>}
+          {member.status==='active' && ['super_admin','support_admin'].includes(platformRole) && <button className="mini-button danger-mini" disabled={Boolean(memberActionBusy)||Boolean(member.platform_admin)} title={member.platform_admin?'Platform administrators cannot be suspended':''} onClick={()=>void changeMemberStatus(member,'suspended')}>{memberActionBusy===member.membership_id?'Saving…':'Suspend'}</button>}
+          {member.status==='suspended' && ['super_admin','support_admin'].includes(platformRole) && <button className="mini-button" disabled={Boolean(memberActionBusy)} onClick={()=>void changeMemberStatus(member,'active')}>{memberActionBusy===member.membership_id?'Saving…':'Reactivate'}</button>}
         </div>):<Empty text="No memberships found for this organization."/>}
         <h3 className="platform-profile-heading">Recent admin actions</h3>
         {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
