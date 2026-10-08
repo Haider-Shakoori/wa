@@ -55,6 +55,11 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
       body:JSON.stringify({code:githubCode}),
     }).then((result)=>{
       if (!active) return;
+      if (result.mfaRequired && result.mfaTicket) {
+        sessionStorage.setItem('relaywa_platform_mfa_ticket',result.mfaTicket);
+        router.replace('/platform/mfa');
+        return;
+      }
       localStorage.setItem('relaywa_access_token',result.accessToken);
       params.delete('github_code');
       const cleaned=window.location.pathname + (params.toString() ? '?' + params.toString() : '');
