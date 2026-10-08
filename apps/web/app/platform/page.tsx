@@ -683,16 +683,13 @@ export default function PlatformPage() {
       <section className="panel"><PanelHeading eyebrow="Direct sending" title="Application-managed delivery" subtitle="RelayWA sends immediately. Configure scheduling, retries, and message pacing in Laravel Jobs or your application's job system."/></section>
       </>}
 
-      {active === 'Website subscriptions' && <>
+      {active === 'Website subscriptions' &&
         <PlatformWebsiteSubscriptions
-          plans={subscriptionPlans} subscriptions={subscriptions} payments={payments}
-          clientCount={tenants.length} onPayments={()=>setActive('Payments')}
-          onManage={id=>setEditingClientId(id)}/>
-        {subscriptionClient&&<PlatformClientSubscriptionEditor key={subscriptionClient.id}
-          client={subscriptionClient} subscription={subscriptionRecord} plans={subscriptionPlans} token={token}
+          plans={subscriptionPlans} payments={payments} token={token}
           canEdit={['super_admin','billing_admin'].includes(platformRole)}
-          onClose={()=>setEditingClientId(null)} onUpdated={subscriptionSaved}/>}
-      </>}
+          onUpdated={async()=>{await refresh();setNotice('Website pricing catalog saved.');}}
+          onPayments={()=>setActive('Payments')}/>
+      }
 
       {active === 'Subscriptions' && <>
         <section className="panel platform-subscription-selector">
@@ -825,7 +822,7 @@ function platformSubtitle(section:string) {
     Clients:'Customer workspaces, memberships, plans and session footprint.',
     Sessions:'WhatsApp connection health, engines, workers and recovery controls.',
     Messaging:'Default engine selection and immediate message dispatch.',
-    'Website subscriptions':'Customers, pricing, checkout payments and live website subscription records.',
+    'Website subscriptions':'Create and edit public website plans, pricing and checkout configuration.',
     Subscriptions:'Plan lifecycle, quotas, renewals and trial controls.',
     Payments:'Payment activity, manual approvals and provider status.',
     Providers:'Payment provider availability and platform configuration.',
