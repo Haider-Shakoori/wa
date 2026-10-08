@@ -23,8 +23,10 @@ export class JwtAuthGuard implements CanActivate {
     const result = await this.db.query(
       `SELECT m.id FROM organization_memberships m
        JOIN users u ON u.id = m.user_id
+       JOIN organizations o ON o.id = m.organization_id
        WHERE m.id = $1 AND m.organization_id = $2 AND m.user_id = $3
-         AND m.status = 'active' AND u.disabled_at IS NULL LIMIT 1`,
+         AND m.status = 'active' AND u.disabled_at IS NULL
+         AND o.suspended_at IS NULL LIMIT 1`,
       [request.auth.membership, request.auth.org, request.auth.sub],
     );
     if (!result.rowCount) throw new UnauthorizedException('Organization access is inactive');
