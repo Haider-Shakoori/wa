@@ -51,6 +51,11 @@ export function GoogleSignIn({ destination, preservePlan = false }: { destinatio
               method:'POST',
               body:JSON.stringify({credential:response.credential}),
             });
+            if (result.mfaRequired && result.mfaTicket) {
+              sessionStorage.setItem('relaywa_platform_mfa_ticket',result.mfaTicket);
+              router.replace('/platform/mfa');
+              return;
+            }
             localStorage.setItem('relaywa_access_token',result.accessToken);
             const params = new URLSearchParams(window.location.search);
             const plan = preservePlan ? params.get('plan') : null;
