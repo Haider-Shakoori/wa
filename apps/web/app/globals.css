@@ -1114,3 +1114,42 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 .platform-access-gate p{font-size:14px;line-height:1.6;color:#b2c8b8}
 .platform-access-gate button{cursor:pointer;min-height:44px;padding:9px 15px;margin:8px 5px 0;border-radius:10px;background:#204c34;border:1px solid #4f8461;color:#eefbf0;font-weight:650}
 .platform-access-gate button:focus-visible{outline:2px solid #25d366;outline-offset:2px}
+
+/* Platform client subscription management: deliberate, audited edits rather than on-change mutations. */
+.platform-shell .platform-subscription-selector{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;margin:0 0 16px;padding:21px!important}
+.platform-shell .platform-subscription-selector>div{flex:1;min-width:190px}
+.platform-shell .platform-subscription-selector h2,.platform-shell .platform-client-subscription-editor h2{font-size:21px;margin:7px 0 9px;color:#f2fff6;letter-spacing:-.025em}
+.platform-shell .platform-subscription-selector>label{display:grid;gap:8px;flex:0 1 330px;font-size:12px;font-weight:700;color:#bad0bf}
+.platform-shell .platform-subscription-selector select,
+.platform-shell .platform-client-subscription-form select,
+.platform-shell .platform-client-subscription-form input,
+.platform-shell .platform-client-subscription-form textarea{
+ width:100%;min-width:0;min-height:43px;box-sizing:border-box;border:1px solid #385743;
+ border-radius:10px;padding:10px 12px;background:#18271f;color:#e8f7ec;
+ font:inherit;font-size:13px;line-height:1.5;
+}
+.platform-shell .platform-client-subscription-form input:focus-visible,
+.platform-shell .platform-client-subscription-form select:focus-visible,
+.platform-shell .platform-client-subscription-form textarea:focus-visible,
+.platform-shell .platform-subscription-selector select:focus-visible{outline:2px solid #33d77f;outline-offset:2px}
+.platform-shell .platform-client-subscription-editor{margin:0 0 19px;padding:21px!important}
+.platform-shell .platform-client-subscription-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:15px;row-gap:15px;margin-top:16px}
+.platform-shell .platform-client-subscription-form>label{display:grid;gap:8px;align-content:start;font-size:12px;font-weight:750;color:#bcd0c1}
+.platform-shell .platform-client-subscription-form .platform-subscription-reason,
+.platform-shell .platform-client-subscription-form>p,
+.platform-shell .platform-client-subscription-form>.alert,
+.platform-shell .platform-subscription-plan-limits,
+.platform-shell .platform-subscription-actions{grid-column:1/-1}
+.platform-shell .platform-subscription-plan-limits{display:flex;align-items:center;flex-wrap:wrap;gap:8px;border:1px solid #314739;border-radius:12px;background:#15241b;padding:12px 14px;font-size:11px;color:#b4ceba}
+.platform-shell .platform-subscription-plan-limits>strong{font-size:12px;color:#edfff1;margin-right:9px}
+.platform-shell .platform-subscription-plan-limits>span{border:1px solid #3c5945;border-radius:8px;padding:5px 8px}
+.platform-shell .platform-subscription-notice{border:1px solid #90764c;border-radius:11px;padding:12px 14px;margin:13px 0;background:#332d20;color:#f6d9a6;font-size:12px;line-height:1.65}
+.platform-shell .platform-subscription-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.platform-shell .platform-subscription-actions button{min-height:43px}
+@media(max-width:730px){
+ .platform-shell .platform-client-subscription-form{grid-template-columns:1fr}
+ .platform-shell .platform-client-subscription-editor{padding:15px!important}
+ .platform-shell .platform-subscription-selector{padding:15px!important}
+ .platform-shell .platform-subscription-selector>label{flex-basis:100%}
+ .platform-shell .platform-subscription-actions>button{flex:1}
+}
