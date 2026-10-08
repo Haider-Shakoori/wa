@@ -19,22 +19,35 @@ test('administrators have an audited Add administrator action and a protected fo
  assert.doesNotMatch(form, /type="password"|passwordHash|generatePassword/);
 });
 
-test('website subscriptions use the website plan catalog and the same client billing records',async()=>{
+test('website subscription page edits public plans without duplicating customer subscriptions',async()=>{
  const page=await load('../app/platform/page.tsx');
  const dashboard=await load('../components/platform-website-subscriptions.tsx');
+ const editor=await load('../components/platform-website-plan-editor.tsx');
  const pricing=await load('../components/relay-home.tsx');
  assert.match(page, /'Website subscriptions','Subscriptions','Payments'/);
  assert.match(page, /active === 'Website subscriptions'/);
  assert.match(page, /<PlatformWebsiteSubscriptions/);
- assert.match(page, /onManage=\{id=>setEditingClientId\(id\)\}/);
+ assert.match(page, /plans=\{subscriptionPlans\} payments=\{payments\} token=\{token\}/);
  assert.match(page, /<PlatformClientSubscriptionEditor/);
  assert.match(dashboard, /\/pricing/);
  assert.match(dashboard, /plans\.map/);
- assert.match(dashboard, /subscriptions\.filter/);
  assert.match(dashboard, /payments\.slice\(0,12\)/);
+ assert.match(dashboard, /\+ Add website plan/);
+ assert.match(dashboard, /Edit plan/);
  assert.match(dashboard, /monthly_price_cents/);
  assert.match(dashboard, /annual_price_cents/);
- assert.match(dashboard, /effective_status/);
+ assert.doesNotMatch(dashboard, /Website customer subscriptions/);
+ assert.doesNotMatch(dashboard, /subscriptions\.filter|onManage/);
+ assert.match(editor, /method:plan\?'PATCH':'POST'/);
+ assert.match(editor, /reason\.trim\(\)\.length<8/);
+ assert.match(editor, /onSubmit=\{e=>void submit\(e\)\}/);
  assert.match(pricing, /api<Plan\[]>\('\/public\/plans'\)/);
- assert.doesNotMatch(dashboard, /fake|mocked|demoData/);
+});
+test('administrator role, public plan, and subscription selectors have legible dark options',async()=>{
+ const styles=await load('../app/globals.css');
+ assert.match(styles,/\.platform-shell \.platform-admin-create select option/);
+ assert.match(styles,/\.platform-shell \.website-plan-form select option/);
+ assert.match(styles,/\.platform-shell \.platform-client-subscription-form select option/);
+ assert.match(styles,/color-scheme:dark!important/);
+ assert.match(styles,/background:#17261d!important;color:#f6fff8!important/);
 });
