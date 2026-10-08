@@ -1331,3 +1331,19 @@ linear-gradient(150deg,#10232d,#15333a 64%,#164233)}
 @media(max-width:560px){
   .platform-shell .sqlite-history-fields,.platform-shell .sqlite-history-status{grid-template-columns:1fr}
 }
+
+
+/* Conditional anti-bot verification on sign-in pages (customer and platform) */
+.rw-login-security{
+  display:grid;gap:8px;margin:13px 0;padding:16px;
+  border:1px solid #567763;border-radius:12px;background:#eef8f2;
+  color:#153b2a;line-height:1.55;max-width:100%
+}
+.rw-login-security strong{font-weight:750;color:#113e27}
+.rw-login-security p{margin:0!important;color:#315d44!important;font-size:13px}
+.rw-login-security small{color:#456951!important;font-size:12px}
+.rw-login-security .rw-login-security-ok{color:#116a3a!important}
+.rw-login-security-error{border-color:#bd8b60;background:#fff4e9;color:#6a411d}
+.rw-login-challenge-widget{max-width:100%;min-height:65px;overflow:visible}
+.rw-login-challenge-widget iframe{max-width:100%}
+@media(max-width:420px){.rw-login-security{padding:12px}.rw-login-challenge-widget{transform-origin:left top}}
