@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 
 type TrafficReport={
   days:number; generatedAt:string;
-  summary:{pageviews:number;human_pageviews:number;declared_bot_hits:number;suspected_bot_hits:number;daily_unique_visitors:number};
+  summary:{pageviews:number;human_pageviews:number;declared_bot_hits:number;suspected_bot_hits:number;daily_unique_visitors:number;verified_bot_hits:number;unverified_bot_hits:number;excluded_hits:number};
   trend:Array<{day:string;human:number;bots:number;suspected:number;unique_visitors:number}>;
   countries:Array<{country_code:string;human:number;bots:number;suspected:number;daily_unique_visitors:number}>;
   bots:Array<{bot_family:string;hits:number;countries:number}>;
@@ -29,6 +29,17 @@ function Bar({value,max,kind}:{value:number;max:number;kind?:'bots'|'visitors'|'
 
 export function PlatformWebsiteTraffic({token}:{token:string}){
   const [days,setDays]=useState<7|30|90>(30);
+  const [excludeBrowser,setExcludeBrowser]=useState(false);
+  useEffect(()=>{
+    setExcludeBrowser(document.cookie.split(';').some(v=>v.trim()==='relaywa_analytics_optout=1'));
+  },[]);
+  function toggleExclude(){
+    const next=!excludeBrowser;
+    document.cookie='relaywa_analytics_optout='+ (next?'1':'0') +
+      '; Path=/; Max-Age='+ (next?31536000:0) +'; SameSite=Lax'+
+      (window.location.protocol==='https:'?'; Secure':'');
+    setExcludeBrowser(next);
+  }
   const [report,setReport]=useState<TrafficReport|null>(null);
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
@@ -64,12 +75,25 @@ export function PlatformWebsiteTraffic({token}:{token:string}){
         <button type="button" onClick={()=>void refresh()} disabled={loading}>{loading?'Loading…':'↻ Refresh'}</button>
       </div>
     </div>
+    <div className="panel website-traffic-preferences">
+      <div><strong>Exclude this browser from future traffic statistics</strong>
+        <p className="muted">For administrators and internal testing. Applies to this browser only; other visitors are unaffected.</p>
+      </div>
+      <button className="secondary-button" type="button" aria-pressed={excludeBrowser}
+        onClick={toggleExclude}>{excludeBrowser?'Exclusion enabled':'Exclude my browser'}</button>
+    </div>
     {error&&<div className="alert" role="alert">{error}</div>}
     <div className="website-traffic-stats">
       <div className="panel"><span>Human page views</span><strong>{number(summary?.human_pageviews)}</strong><small>Observed document requests</small></div>
       <div className="panel"><span>Daily unique visitors</span><strong>{number(summary?.daily_unique_visitors)}</strong><small>Approximate, privacy-preserving</small></div>
       <div className="panel"><span>Declared crawler hits</span><strong>{number(summary?.declared_bot_hits)}</strong><small>Bot user-agent claims</small></div>
       <div className="panel"><span>Suspected automated hits</span><strong>{number(summary?.suspected_bot_hits)}</strong><small>Non-browser clients and headless tools</small></div>
+    </div>
+    <div className="panel website-traffic-verification">
+      <div><strong>Verified Google/Bing/Apple crawler hits</strong><b>{number(summary?.verified_bot_hits)}</b></div>
+      <div><strong>Unverified crawler claims</strong><b>{number(summary?.unverified_bot_hits)}</b></div>
+      <div><strong>Excluded test/internal requests</strong><b>{number(summary?.excluded_hits)}</b></div>
+      <p className="muted">Verification is based on official crawler IP ranges refreshed daily. Other named bots and stale lists remain unverified/not checked, never automatically trusted.</p>
     </div>
     <div className="panel website-traffic-panel">
       <h3>Traffic trend</h3>
