@@ -35,6 +35,7 @@ export default function PlatformPage() {
   const [selectedTenantId,setSelectedTenantId] = useState<string|null>(null);
   const [tenantMembers,setTenantMembers] = useState<any[]>([]);
   const [membersLoading,setMembersLoading] = useState(false);
+  const [memberActionBusy,setMemberActionBusy] = useState<string|null>(null);
   const [subscriptionFilter,setSubscriptionFilter] = useState<'all'|'active'|'trialing'|'attention'>('all');
   const [lastUpdated,setLastUpdated] = useState<Date|null>(null);
   const [refreshing,setRefreshing] = useState(false);
@@ -308,6 +309,31 @@ export default function PlatformPage() {
     return ()=>{ canceled=true; };
   },[token,selectedTenantId]);
 
+  async function changeMemberStatus(member:any, status:'active'|'suspended') {
+    if (!selectedTenantId || memberActionBusy) return;
+    const action = status === 'suspended' ? 'Suspend' : 'Reactivate';
+    const reason = window.prompt(action+' access for '+member.email+'? Enter an audit reason (minimum 8 characters):');
+    if (reason === null) return;
+    if (reason.trim().length < 8) { setError('Provide a reason containing at least 8 characters.'); return; }
+    if (!window.confirm(action+' membership access for '+member.email+'? This affects user dashboard access only; organization API keys stay active.')) return;
+    setMemberActionBusy(member.membership_id); setError(''); setNotice('');
+    try {
+      await api('/platform/tenants/'+encodeURIComponent(selectedTenantId)+'/members/'+encodeURIComponent(member.membership_id)+'/status',token,{
+        method:'PATCH', body:JSON.stringify({status,reason:reason.trim()}),
+      });
+      const [members,audits] = await Promise.all([
+        api<any[]>('/platform/tenants/'+encodeURIComponent(selectedTenantId)+'/members',token),
+        api<any[]>('/platform/audit-logs',token),
+      ]);
+      setTenantMembers(members); setAuditLogs(audits);
+      setNotice(member.email+' membership '+(status==='active'?'reactivated.':'suspended.')+' Organization API keys were not changed.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update membership');
+    } finally {
+      setMemberActionBusy(null);
+    }
+  }
+
   const filteredTenants = normalizedQuery ? tenants.filter((item)=>[item.name,item.slug,item.plan_code,item.subscription_status].some((value)=>String(value??'').toLowerCase().includes(normalizedQuery))) : tenants;
   const visibleTenants = filteredTenants.filter((item)=>tenantFilter==='all' || (tenantFilter==='active' ? item.subscription_status==='active' : tenantFilter==='trialing' ? item.subscription_status==='trialing' : !['active','trialing'].includes(String(item.subscription_status??''))));
   const selectedTenant = tenants.find((item)=>item.id===selectedTenantId);
@@ -418,14 +444,16 @@ export default function PlatformPage() {
         <div className="panel-head"><div><p className="eyebrow">Organization profile</p><h2>{selectedTenant.name}</h2><p className="muted">{selectedTenant.slug} · Created {date(selectedTenant.created_at)}</p></div><button className="secondary-button" onClick={()=>setSelectedTenantId(null)}>Close</button></div>
         <div className="platform-profile-stats"><span><small>Members</small><strong>{selectedTenant.members}</strong></span><span><small>WhatsApp sessions</small><strong>{selectedTenant.sessions}</strong></span><span><small>Subscription</small><Badge value={selectedTenant.subscription_status??'none'}/></span></div>
         <h3 className="platform-profile-heading">Tenant members</h3>
-        <p className="platform-member-hint">Memberships are displayed read-only. Changes to access should be made through a verified, auditable workflow.</p>
+        <p className="platform-member-hint">Suspend or reactivate workspace access with an audit reason. This does not revoke organization API keys or terminate WhatsApp sessions.</p>
         {membersLoading?<Empty text="Loading members…"/>:tenantMembers.length?tenantMembers.map((member)=><div className="platform-detail-row platform-member-row" key={member.membership_id}>
           <span><strong>{member.name}</strong><small>{member.email} · Added {date(member.created_at)}</small></span>
           <span className="platform-member-role">{member.role}</span>
           <Badge value={member.account_disabled?'disabled':member.status}/>
+          {member.status==='active' && <button className="mini-button danger-mini" disabled={Boolean(memberActionBusy)||Boolean(member.platform_admin)} title={member.platform_admin?'Platform administrators cannot be suspended':''} onClick={()=>void changeMemberStatus(member,'suspended')}>{memberActionBusy===member.membership_id?'Saving…':'Suspend'}</button>}
+          {member.status==='suspended' && <button className="mini-button" disabled={Boolean(memberActionBusy)} onClick={()=>void changeMemberStatus(member,'active')}>{memberActionBusy===member.membership_id?'Saving…':'Reactivate'}</button>}
         </div>):<Empty text="No memberships found for this organization."/>}
         <h3 className="platform-profile-heading">Recent admin actions</h3>
-        {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
+        {auditLogs.filter((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)||tenantMembers.some((member)=>member.membership_id===entry.target_id)).slice(0,5).map((entry)=><div className="platform-detail-row" key={entry.id}><span>{entry.action.replaceAll('.',' · ')}<small>{entry.actor_email??'Former administrator'} · {date(entry.created_at)}</small></span></div>)}
         {!auditLogs.some((entry)=>entry.target_id===selectedTenantId||tenantSessions.some((session)=>session.id===entry.target_id))&&<Empty text="No admin actions recorded for this tenant yet."/>}
         <h3 className="platform-profile-heading">Subscriptions</h3>
         {tenantSubscriptions.length?tenantSubscriptions.map((sub)=><div className="platform-detail-row" key={sub.organization_id}><span>{sub.plan_code} · {sub.status}</span><span>Period ends {date(sub.current_period_end)}</span><button className="mini-button" onClick={()=>{setActive('Subscriptions');setQuery(selectedTenant.name);}}>Manage subscription</button></div>):<Empty text="No subscription record found."/>}

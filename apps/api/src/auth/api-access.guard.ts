@@ -73,9 +73,20 @@ export class ApiAccessGuard implements CanActivate {
         ...(await this.jwt.verifyAsync<AuthTokenPayload>(token)),
         kind: 'user',
       };
-      return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
+
+    // User JWTs are revoked immediately when their tenant membership is suspended.
+    // Organization API keys remain separate credentials and are not affected.
+    const result = await this.db.query(
+      `SELECT m.id FROM organization_memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.id = $1 AND m.organization_id = $2 AND m.user_id = $3
+         AND m.status = 'active' AND u.disabled_at IS NULL LIMIT 1`,
+      [request.auth.membership, request.auth.org, request.auth.sub],
+    );
+    if (!result.rowCount) throw new UnauthorizedException('Organization access is inactive');
+    return true;
   }
 }

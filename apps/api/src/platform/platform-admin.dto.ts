@@ -1,5 +1,16 @@
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
+
+export class UpdateTenantMemberStatusDto {
+  @IsIn(['active', 'suspended'])
+  status!: 'active' | 'suspended';
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(240)
+  reason!: string;
+}
+
 export class UpdatePlatformSubscriptionDto {
   @IsOptional()
   @IsString()
