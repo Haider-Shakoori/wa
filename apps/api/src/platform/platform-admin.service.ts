@@ -139,7 +139,8 @@ export class PlatformAdminService {
     if (!organization.rows[0]) throw new NotFoundException('Organization not found');
     const result = await this.db.query(
       `SELECT m.id AS membership_id, m.user_id, u.name, u.email, m.role, m.status,
-              m.created_at, m.updated_at, (u.disabled_at IS NOT NULL) AS account_disabled
+              m.created_at, m.updated_at, (u.disabled_at IS NOT NULL) AS account_disabled,
+              u.is_platform_admin AS platform_admin
        FROM organization_memberships m
        JOIN users u ON u.id = m.user_id
        WHERE m.organization_id = $1
