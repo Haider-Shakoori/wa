@@ -62,7 +62,7 @@ export function PlatformMonitoring({token,role}:{token:string;role:string}) {
     finally{setBusy(null);}
   }
 
-  const value=(number:number|undefined)=>Number(number??0).toLocaleString();
+  const value=(number:number|undefined)=>number===undefined?'—':Number(number).toLocaleString();
   return <section className="platform-monitoring" aria-label="Platform system monitoring">
     <div className="panel platform-monitoring-head">
       <div><p className="eyebrow">Phase 7 · Operations intelligence</p>
