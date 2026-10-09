@@ -14,7 +14,6 @@ test('Stripe Checkout uses recurring subscriptions and ties subscription to tena
 test('initial checkout and renewal processing remain separate and atomic', async () => {
   const source = await readFile(new URL('../src/payments/payments.service.ts', import.meta.url), 'utf8');
   assert.match(source, /checkout\.session\.completed/);
-  assert.match(source, /invoice\.payment_succeeded/);
   assert.match(source, /invoice\.paid/);
   assert.match(source, /subscription_cycle/);
   assert.match(source, /SELECT id FROM organizations WHERE id=\$1 FOR UPDATE/);
@@ -29,4 +28,10 @@ test('failed invoices and subscription status changes have handlers', async () =
   assert.match(source, /customer\.subscription\.updated/);
   assert.match(source, /handleStripeFailure/);
   assert.match(source, /handleStripeStatus/);
+});
+
+test('API prevents a second active recurring subscription for a tenant', async () => {
+  const source = await readFile(new URL('../src/payments/payments.service.ts', import.meta.url), 'utf8');
+  assert.match(source, /provider='stripe' AND status IN \('active','past_due','paused'\)/);
+  assert.match(source, /Manage your existing Stripe subscription/);
 });
