@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS billing_notification_outbox (
   kind varchar(64) NOT NULL,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   status varchar(20) NOT NULL DEFAULT 'pending',
+  attempts integer NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  last_error text,
   created_at timestamptz NOT NULL DEFAULT now(),
   sent_at timestamptz,
   CONSTRAINT billing_outbox_status CHECK (status IN ('pending','sent','failed'))
