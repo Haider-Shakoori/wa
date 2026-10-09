@@ -198,6 +198,10 @@ export class PaymentsService {
         WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
       await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
         payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client);
+      await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
+        VALUES ($1,$2,$3,'subscription_activated',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
+        [randomUUID(),payment.organization_id,'checkout:'+session.id,
+         JSON.stringify({planCode:payment.plan_code,paymentId})]);
       return { activated:true };
     });
   }
@@ -246,6 +250,10 @@ export class PaymentsService {
         [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id]);
       await this.subscriptions.activatePaidPlan(organizationId,item.code,interval,'stripe',
         subscription.rows[0].provider_customer_id,subscriptionId,client);
+      await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
+        VALUES ($1,$2,$3,'subscription_renewed',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
+        [randomUUID(),organizationId,'invoice:'+invoice.id,
+         JSON.stringify({planCode:item.code,paymentId,invoiceId:invoice.id})]);
       return { renewed: true };
     });
   }
