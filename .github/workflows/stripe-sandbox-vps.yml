@@ -31,7 +31,7 @@ jobs:
           [[ "$STRIPE_SECRET_KEY" == sk_test_* ]] || { echo 'A Stripe sk_test_ key is required'; exit 1; }
           [[ "$STRIPE_WEBHOOK_SECRET" == whsec_* ]] || { echo 'A Stripe webhook signing secret is required'; exit 1; }
           [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || exit 1
-      - name: Provision sandbox keys over verified SSH
+      - name: Provision sandbox keys without changing running containers
         shell: bash
         run: |
           set -euo pipefail
@@ -67,12 +67,10 @@ jobs:
                   os.replace(temp,target)
               finally:
                   if os.path.exists(temp): os.unlink(temp)
-              subprocess.run(['docker','compose','-f','compose.yml','up','-d','--no-deps','--force-recreate','api'],
-                             cwd=str(target.parent),check=True)
-              result = subprocess.run(['docker','exec','deploy-api-1','node','-e',
-                  'if(!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")||!process.env.STRIPE_WEBHOOK_SECRET?.startsWith("whsec_"))process.exit(1)'],
-                  check=True)
-              print('Sandbox Stripe credentials installed and API restarted (values hidden)')
+              verified = dict(line.split('=',1) for line in target.read_text().splitlines() if '=' in line and not line.startswith('#'))
+              assert verified['STRIPE_SECRET_KEY'].startswith('sk_test_')
+              assert verified['STRIPE_WEBHOOK_SECRET'].startswith('whsec_')
+              print('Sandbox secrets persisted; no containers restarted. Deploy application image separately.')
           """)
           remote = "KEY="+repr(key)+"\nHOOK="+repr(hook)+"\n"+remote
           command = ["ssh","-T","-i",os.path.expanduser("~/.ssh/id_ed25519"),
