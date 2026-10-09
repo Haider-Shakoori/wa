@@ -198,6 +198,10 @@ export class PaymentsService {
         WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
       await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
         payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client);
+      await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
+        VALUES ($1,$2,$3,'subscription_activated',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
+        [randomUUID(),payment.organization_id,'checkout:'+session.id,
+         JSON.stringify({planCode:payment.plan_code,paymentId})]);
       return { activated:true };
     });
   }
@@ -246,6 +250,10 @@ export class PaymentsService {
         [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id]);
       await this.subscriptions.activatePaidPlan(organizationId,item.code,interval,'stripe',
         subscription.rows[0].provider_customer_id,subscriptionId,client);
+      await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
+        VALUES ($1,$2,$3,'subscription_renewed',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
+        [randomUUID(),organizationId,'invoice:'+invoice.id,
+         JSON.stringify({planCode:item.code,paymentId,invoiceId:invoice.id})]);
       return { renewed: true };
     });
   }
@@ -256,9 +264,16 @@ export class PaymentsService {
     const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
     if (!subscriptionId) return { ignored: true };
     const result = await this.db.query(
-      `UPDATE organization_subscriptions SET status='past_due', updated_at=now()
-       WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'`,
-      [subscriptionId],
+      `WITH changed AS (
+        UPDATE organization_subscriptions SET status='past_due', updated_at=now()
+        WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'
+        RETURNING organization_id
+       )
+       INSERT INTO billing_notification_outbox(id,organization_id,event_key,kind,payload)
+       SELECT $2,organization_id,$3,'payment_failed',$4::jsonb FROM changed
+       ON CONFLICT (event_key) DO NOTHING`,
+      [subscriptionId,randomUUID(),'failed:'+String(invoice.id ?? event.id),
+       JSON.stringify({invoiceId:invoice.id ?? null})],
     );
     return { updated: Boolean(result.rowCount) };
   }
@@ -288,9 +303,17 @@ export class PaymentsService {
   private async handleStripeCancellation(event: any) {
     const subscription = event.data.object;
     if (!subscription.id) return { ignored: true };
-    await this.db.query(`UPDATE organization_subscriptions
+    await this.db.query(`WITH changed AS (
+      UPDATE organization_subscriptions
       SET status='canceled',cancel_at_period_end=false,updated_at=now()
-      WHERE provider='stripe' AND provider_subscription_id=$1`, [subscription.id]);
+      WHERE provider='stripe' AND provider_subscription_id=$1
+      RETURNING organization_id
+    )
+    INSERT INTO billing_notification_outbox(id,organization_id,event_key,kind,payload)
+    SELECT $2,organization_id,$3,'subscription_canceled',$4::jsonb FROM changed
+    ON CONFLICT (event_key) DO NOTHING`,
+    [subscription.id,randomUUID(),'canceled:'+subscription.id,
+     JSON.stringify({subscriptionId:subscription.id})]);
     return { canceled: true };
   }
 
