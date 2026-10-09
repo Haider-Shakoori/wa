@@ -46,12 +46,13 @@ try {
   assert.ok(renewal.data.some(i=>i.billing_reason==='subscription_cycle'&&i.status==='paid'),'Recurring invoice not paid');
   console.log('PASS isolated recurring renewal invoice paid');
 
-  const declined=await stripe.paymentMethods.attach('pm_card_chargeDeclined',{customer:customer.id});
-  await stripe.subscriptions.update(sub.id,{default_payment_method:declined.id});
-  await advance(35*24*60*60);
-  const failed=await stripe.invoices.list({customer:customer.id,limit:20});
-  assert.ok(failed.data.some(i=>i.billing_reason==='subscription_cycle'&&i.status==='open'),'Expected declined renewal invoice');
-  console.log('PASS isolated renewal decline produces open invoice');
+  // Stripe rejects this declined payment method at attachment time. This
+  // confirms decline handling at setup, NOT a failed automatic renewal.
+  await assert.rejects(
+    stripe.paymentMethods.attach('pm_card_chargeDeclined',{customer:customer.id}),
+    (error) => error.code === 'card_declined',
+  );
+  console.log('PASS isolated rejected-card setup (failed renewal remains unverified)');
 
   const canceled=await stripe.subscriptions.cancel(sub.id);
   assert.equal(canceled.status,'canceled');
