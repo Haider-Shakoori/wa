@@ -128,11 +128,19 @@ export class PaymentsService {
   }
 
   async handleStripeEvent(event: any) {
+    if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') {
+      return this.handleStripeRenewal(event);
+    }
+    if (event.type === 'customer.subscription.deleted') {
+      return this.handleStripeCancellation(event);
+    }
     if (event.type !== 'checkout.session.completed') return { ignored: true };
     const session = event.data.object;
     const paymentId = session.metadata?.relaywa_payment_id;
     if (!paymentId) throw new BadRequestException('Missing relayWA payment metadata');
-    if (session.payment_status !== 'paid') return { pending: true };
+    if (session.mode !== 'subscription' || session.payment_status !== 'paid' || !session.subscription) {
+      return { pending: true };
+    }
 
     // Webhooks can be replayed or delivered concurrently. Payment transition and
     // extension of subscription expiry MUST commit together, exactly once.
@@ -162,9 +170,66 @@ export class PaymentsService {
         SET status='paid',provider_payment_id=$2,paid_at=now(),updated_at=now()
         WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
       await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
-        payment.billing_interval,'stripe',session.customer??null,session.id,client);
+        payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client);
       return { activated:true };
     });
+  }
+
+  // Subscription renewals have their own invoices; never replay the initial
+  // subscription_create invoice, which is fulfilled by checkout.session.completed.
+  private async handleStripeRenewal(event: any) {
+    const invoice = event.data.object;
+    if (invoice.billing_reason !== 'subscription_cycle' || invoice.status !== 'paid') {
+      return { ignored: true };
+    }
+    const parentSubscription = invoice.parent?.subscription_details?.subscription;
+    const subscriptionId = typeof parentSubscription === 'string' ? parentSubscription : parentSubscription?.id;
+    if (!subscriptionId || !invoice.id || Number(invoice.amount_paid) <= 0) return { ignored: true };
+    return this.db.transaction(async client => {
+      const matched = await client.query<{organization_id:string}>(`
+        SELECT organization_id FROM organization_subscriptions
+        WHERE provider='stripe' AND provider_subscription_id=$1 LIMIT 1`, [subscriptionId]);
+      if (!matched.rows[0]) return { ignored: true };
+      const organizationId = matched.rows[0].organization_id;
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE', [organizationId]);
+      const subscription = await client.query<{
+        plan_code:string; provider_customer_id:string|null; provider_subscription_id:string;
+      }>(`SELECT plan_code,provider_customer_id,provider_subscription_id
+         FROM organization_subscriptions WHERE organization_id=$1 AND provider='stripe'
+         FOR UPDATE`, [organizationId]);
+      if (subscription.rows[0]?.provider_subscription_id !== subscriptionId) return { ignored: true };
+      const plan = await client.query<PlanRow>(`SELECT code,monthly_price_cents,annual_price_cents,currency
+        FROM subscription_plans WHERE code=$1`, [subscription.rows[0].plan_code]);
+      const item = plan.rows[0];
+      if (!item || invoice.currency?.toUpperCase() !== item.currency.toUpperCase()) {
+        throw new BadRequestException('Renewal invoice currency mismatch');
+      }
+      const monthly = Number(invoice.amount_paid) === Number(item.monthly_price_cents);
+      const annual = Number(invoice.amount_paid) === Number(item.annual_price_cents);
+      if (!monthly && !annual) throw new BadRequestException('Renewal invoice amount mismatch');
+      const existing = await client.query(`SELECT id FROM payments WHERE provider='stripe'
+        AND provider_payment_id=$1 LIMIT 1`, [invoice.id]);
+      if (existing.rows.length) return { duplicate: true };
+      const paymentId = randomUUID();
+      const interval = annual && !monthly ? 'annual' : 'monthly';
+      await client.query(`INSERT INTO payments
+        (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,
+         currency,provider_payment_id,paid_at)
+        VALUES ($1,$2,$3,'stripe',$4,'paid',$5,$6,$7,now())`,
+        [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id]);
+      await this.subscriptions.activatePaidPlan(organizationId,item.code,interval,'stripe',
+        subscription.rows[0].provider_customer_id,subscriptionId,client);
+      return { renewed: true };
+    });
+  }
+
+  private async handleStripeCancellation(event: any) {
+    const subscription = event.data.object;
+    if (!subscription.id) return { ignored: true };
+    await this.db.query(`UPDATE organization_subscriptions
+      SET status='canceled',cancel_at_period_end=false,updated_at=now()
+      WHERE provider='stripe' AND provider_subscription_id=$1`, [subscription.id]);
+    return { canceled: true };
   }
 
   async approveManual(paymentId: string) {
