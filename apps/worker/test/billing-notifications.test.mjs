@@ -22,14 +22,14 @@ test('pending billing event sends to an active organization owner and marks sent
  const f=fixture({row:event});
  await deliverBillingNotificationsOnce(f);
  assert.equal(f.calls.find(x=>x.mail)?.mail.to,'owner@example.test');
- assert.ok(f.calls.some(x=>x.sql.includes("SET status='sent'")));
+ assert.ok(f.calls.some(x=>x.sql?.includes("SET status='sent'")));
  assert.equal(f.calls.find(x=>x.mail)?.mail.messageId,'<relaywa-billing-'+event.id+'@relaywa.com>');
 });
 test('SMTP failure schedules retry and does not mark notification sent',async()=>{
  const f=fixture({row:event,deliveryFails:true});
  await deliverBillingNotificationsOnce(f);
  assert.equal(f.calls.some(x=>x.sql.includes("SET status='sent'")),false);
- assert.ok(f.calls.some(x=>x.sql.includes("next_attempt_at=now()")));
+ assert.ok(f.calls.some(x=>x.sql?.includes("next_attempt_at=now()")));
 });
 test('empty notification queue does not send messages',async()=>{
  const f=fixture();
