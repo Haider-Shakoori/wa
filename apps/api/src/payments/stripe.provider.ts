@@ -18,12 +18,13 @@ export class StripeProvider implements PaymentProvider {
     if (!successUrl || !cancelUrl) throw new Error('Stripe success/cancel URLs are required');
 
     const session = await this.client().checkout.sessions.create({
-      mode: 'payment',
+      mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
       line_items: [{
         quantity: 1,
         price_data: {
+          recurring: { interval: input.billingInterval === 'annual' ? 'year' : 'month' },
           currency: input.currency.toLowerCase(),
           unit_amount: input.amountCents,
           product_data: {
@@ -31,6 +32,14 @@ export class StripeProvider implements PaymentProvider {
           },
         },
       }],
+      client_reference_id: input.organizationId,
+      subscription_data: {
+        metadata: {
+          relaywa_organization_id: input.organizationId,
+          relaywa_plan_code: input.planCode,
+          relaywa_billing_interval: input.billingInterval,
+        },
+      },
       metadata: {
         relaywa_payment_id: input.paymentId,
         organization_id: input.organizationId,
