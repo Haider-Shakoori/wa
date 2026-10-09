@@ -9,6 +9,7 @@ import { recoverSessions, startRecoveryWatchdog } from './recovery.js';
 import { SESSION_LEASE_MS } from './session-runtime.js';
 import { SessionStore } from './session-store.js';
 import { OperationalAlertMailer } from './operational-alerts.js';
+import { startBillingNotificationWorker } from './billing-notifications.js';
 
 let activeAlertMailer = null;
 
@@ -34,9 +35,11 @@ export async function startWorker() {
   const sessions = new MessagingSessionManager({ store, baileys, chromium });
   const controller = new AbortController();
   const dispatch = await startDirectDispatch({store,sessions});
+  const stopBillingMailer = startBillingNotificationWorker({databaseUrl,signal:controller.signal});
 
   const shutdown = async () => {
     controller.abort();
+    stopBillingMailer();
     await dispatch.close();
     await sessions.close();
     await store.close();
