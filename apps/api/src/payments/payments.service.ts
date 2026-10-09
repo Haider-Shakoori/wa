@@ -264,9 +264,16 @@ export class PaymentsService {
     const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
     if (!subscriptionId) return { ignored: true };
     const result = await this.db.query(
-      `UPDATE organization_subscriptions SET status='past_due', updated_at=now()
-       WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'`,
-      [subscriptionId],
+      `WITH changed AS (
+        UPDATE organization_subscriptions SET status='past_due', updated_at=now()
+        WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'
+        RETURNING organization_id
+       )
+       INSERT INTO billing_notification_outbox(id,organization_id,event_key,kind,payload)
+       SELECT $2,organization_id,$3,'payment_failed',$4::jsonb FROM changed
+       ON CONFLICT (event_key) DO NOTHING`,
+      [subscriptionId,randomUUID(),'failed:'+String(invoice.id ?? event.id),
+       JSON.stringify({invoiceId:invoice.id ?? null})],
     );
     return { updated: Boolean(result.rowCount) };
   }
@@ -296,9 +303,17 @@ export class PaymentsService {
   private async handleStripeCancellation(event: any) {
     const subscription = event.data.object;
     if (!subscription.id) return { ignored: true };
-    await this.db.query(`UPDATE organization_subscriptions
+    await this.db.query(`WITH changed AS (
+      UPDATE organization_subscriptions
       SET status='canceled',cancel_at_period_end=false,updated_at=now()
-      WHERE provider='stripe' AND provider_subscription_id=$1`, [subscription.id]);
+      WHERE provider='stripe' AND provider_subscription_id=$1
+      RETURNING organization_id
+    )
+    INSERT INTO billing_notification_outbox(id,organization_id,event_key,kind,payload)
+    SELECT $2,organization_id,$3,'subscription_canceled',$4::jsonb FROM changed
+    ON CONFLICT (event_key) DO NOTHING`,
+    [subscription.id,randomUUID(),'canceled:'+subscription.id,
+     JSON.stringify({subscriptionId:subscription.id})]);
     return { canceled: true };
   }
 
