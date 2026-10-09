@@ -55,6 +55,15 @@ export class PaymentsService {
 
   async createStripeCheckout(organizationId: string, input: CreateCheckoutDto) {
     await this.assertProviderEnabled('stripe');
+    const activeStripe = await this.db.query(
+      `SELECT 1 FROM organization_subscriptions
+       WHERE organization_id=$1 AND provider='stripe' AND status IN ('active','past_due','paused')
+       AND provider_subscription_id IS NOT NULL LIMIT 1`,
+      [organizationId],
+    );
+    if (activeStripe.rows.length) {
+      throw new ConflictException('Manage your existing Stripe subscription; do not create another recurring charge');
+    }
     const plan = await this.plan(input.planCode);
     const interval = input.billingInterval ?? 'monthly';
     const amount = interval === 'annual' ? plan.annual_price_cents : plan.monthly_price_cents;
@@ -143,7 +152,7 @@ export class PaymentsService {
   }
 
   async handleStripeEvent(event: any) {
-    if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') {
+    if (event.type === 'invoice.paid') {
       return this.handleStripeRenewal(event);
     }
     if (event.type === 'invoice.payment_failed') return this.handleStripeFailure(event);
