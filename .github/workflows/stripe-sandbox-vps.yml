@@ -1,0 +1,67 @@
+name: Stripe Sandbox VPS Provisioning
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type PROVISION_TEST_ONLY to configure TEST credentials on the authorized VPS
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  provision:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm == 'PROVISION_TEST_ONLY' }}
+    runs-on: ubuntu-latest
+    environment: stripe-sandbox-vps
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ secrets.RELAYWA_DEPLOY_HOST }}
+      SSH_USER: ${{ secrets.RELAYWA_DEPLOY_USER }}
+      SSH_PORT: ${{ vars.RELAYWA_DEPLOY_PORT || '22' }}
+      SSH_KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+    steps:
+      - name: Assert secure test-only setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$SSH_PRIVATE_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          [[ "$STRIPE_SECRET_KEY" == sk_test_* ]] || { echo "Only sk_test credentials are allowed"; exit 1; }
+          [[ "$STRIPE_WEBHOOK_SECRET" == whsec_* ]] || { echo "Missing Stripe test webhook signature secret"; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || exit 1
+      - name: Configure trusted SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Provision API test keys (do not print secret values)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Stream only validated variables; remote script never echoes secret values.
+          {
+            printf '%s\n' "$STRIPE_SECRET_KEY"
+            printf '%s\n' "$STRIPE_WEBHOOK_SECRET"
+          } | ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'bash -c '\''set -euo pipefail
+            IFS= read -r stripe_key
+            IFS= read -r webhook_key
+            [[ "$stripe_key" == sk_test_* && "$webhook_key" == whsec_* ]] || exit 1
+            target=/home/devagent/services/relaywa-runtime/.env.production
+            test -f "$target"
+            umask 077
+            tmp=$(mktemp "${target}.stripe.XXXXXX")
+            trap '\''\''\''rm -f "$tmp"'\''\''\'' EXIT
+            awk '\''\''\''!/^STRIPE_SECRET_KEY=|^STRIPE_WEBHOOK_SECRET=|^STRIPE_PORTAL_RETURN_URL=/'\''\''\'' "$target" > "$tmp"
+            printf "STRIPE_SECRET_KEY=%s\\nSTRIPE_WEBHOOK_SECRET=%s\\nSTRIPE_PORTAL_RETURN_URL=https://relaywa.com/subscription\\n" "$stripe_key" "$webhook_key" >> "$tmp"
+            chmod 600 "$tmp"
+            mv "$tmp" "$target"
+            cd /home/devagent/services/relaywa-runtime
+            docker compose -f compose.yml up -d --no-deps --force-recreate api
+            docker exec deploy-api-1 node -e '\''\''\''if(!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")||!process.env.STRIPE_WEBHOOK_SECRET?.startsWith("whsec_"))process.exit(1);console.log("Sandbox Stripe credentials installed (values hidden)")'\''\''\''
+          '\'''
