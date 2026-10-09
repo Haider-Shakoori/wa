@@ -1,0 +1,28 @@
+name: Stripe Isolated Lifecycle Smoke
+on:
+  push:
+    branches: [feat/stripe-lifecycle-email-tests]
+    paths:
+      - 'apps/api/scripts/stripe-test-clock-smoke.mjs'
+      - '.github/workflows/stripe-lifecycle-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --no-frozen-lockfile
+      - name: Simulate isolated Stripe renewal, decline and cancellation
+        run: pnpm --filter @wa/api exec node scripts/stripe-test-clock-smoke.mjs
