@@ -1,0 +1,30 @@
+name: RelayWA VPS SSH Connectivity
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: stripe-sandbox-vps
+    timeout-minutes: 5
+    env:
+      SSH_HOST: ${{ secrets.RELAYWA_DEPLOY_HOST }}
+      SSH_USER: ${{ secrets.RELAYWA_DEPLOY_USER }}
+      SSH_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
+      SSH_PORT: ${{ vars.RELAYWA_DEPLOY_PORT || '22' }}
+    steps:
+      - name: Verify SSH without deployment or reading sensitive data
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in SSH_HOST SSH_USER SSH_KEY KNOWN_HOSTS; do
+            test -n "${!v}" || { echo "Missing required secret: $v"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/relaywa_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/relaywa_deploy ~/.ssh/known_hosts
+          ssh -T -i ~/.ssh/relaywa_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'test -f /home/devagent/services/relaywa-runtime/compose.yml && echo "VPS SSH connectivity and runtime directory: PASS"'
