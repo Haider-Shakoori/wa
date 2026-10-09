@@ -1,0 +1,57 @@
+name: Stripe Sandbox Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/stripe-sandbox-recurring-billing]
+    paths:
+      - '.github/workflows/stripe-sandbox-smoke.yml'
+      - 'apps/api/src/payments/**'
+      - 'apps/api/test/stripe-*.test.mjs'
+permissions:
+  contents: read
+jobs:
+  stripe-sandbox:
+    name: Verify test-mode Stripe Checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+    steps:
+      - name: Validate and create test Checkout session (no charge)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.parse, urllib.error
+          key = os.environ.get("STRIPE_SECRET_KEY", "")
+          if not key.startswith("sk_test_"):
+              raise SystemExit("A Stripe sandbox sk_test_ secret is required; no live API calls will be made.")
+          args = {
+              "mode": "subscription",
+              "success_url": "https://relaywa.com/subscription?stripe_test=success",
+              "cancel_url": "https://relaywa.com/subscription?stripe_test=cancel",
+              "line_items[0][price_data][currency]": "usd",
+              "line_items[0][price_data][unit_amount]": "100",
+              "line_items[0][price_data][recurring][interval]": "month",
+              "line_items[0][price_data][product_data][name]": "RelayWA CI Sandbox Smoke",
+              "line_items[0][quantity]": "1",
+          }
+          data = urllib.parse.urlencode(args).encode("utf8")
+          request = urllib.request.Request(
+              "https://api.stripe.com/v1/checkout/sessions", data=data,
+              headers={"Authorization": "Bearer " + key,
+                       "Content-Type": "application/x-www-form-urlencoded"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  session = json.load(response)
+          except urllib.error.HTTPError as error:
+              print("Stripe sandbox Checkout creation returned HTTP", error.code)
+              raise SystemExit(1)
+          assert session.get("livemode") is False, "Unexpected live Stripe session"
+          assert session.get("mode") == "subscription", "Not a subscription Checkout"
+          assert session.get("id", "").startswith("cs_test_"), "Expected a test Checkout session"
+          assert session.get("url", "").startswith("https://checkout.stripe.com/"), "Unexpected checkout host"
+          print("PASS: Stripe accepted an actual test-mode USD recurring Checkout session.")
+          print("No payment was made and no card was charged.")
+          PY
