@@ -84,6 +84,21 @@ export class PaymentsService {
     return { paymentId, checkoutUrl: checkout.url };
   }
 
+  async createStripeBillingPortal(organizationId: string) {
+    const result = await this.db.query<{
+      provider_customer_id: string | null;
+      provider_subscription_id: string | null;
+    }>(`SELECT provider_customer_id, provider_subscription_id
+       FROM organization_subscriptions
+       WHERE organization_id=$1 AND provider='stripe' LIMIT 1`, [organizationId]);
+    const subscription = result.rows[0];
+    if (!subscription?.provider_customer_id || !subscription.provider_subscription_id) {
+      throw new ConflictException('No active Stripe billing customer is linked to this workspace');
+    }
+    const url = await this.stripe.createBillingPortal(subscription.provider_customer_id);
+    return { url };
+  }
+
   async createManual(organizationId: string, input: CreateManualPaymentDto) {
     await this.assertProviderEnabled('manual');
     const plan = await this.plan(input.planCode);
