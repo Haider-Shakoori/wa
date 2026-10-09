@@ -52,6 +52,18 @@ export class StripeProvider implements PaymentProvider {
     return { checkoutId: session.id, url: session.url };
   }
 
+  async createBillingPortal(customerId: string) {
+    const returnUrl = process.env.STRIPE_PORTAL_RETURN_URL || process.env.STRIPE_SUCCESS_URL;
+    if (!returnUrl || !/^https:\/\//.test(returnUrl)) {
+      throw new Error('A secure Stripe billing portal return URL is required');
+    }
+    const session = await this.client().billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+    return session.url;
+  }
+
   constructEvent(rawBody: Buffer, signature: string) {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET is required');
