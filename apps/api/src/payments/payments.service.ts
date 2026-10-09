@@ -146,6 +146,9 @@ export class PaymentsService {
     if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') {
       return this.handleStripeRenewal(event);
     }
+    if (event.type === 'invoice.payment_failed') return this.handleStripeFailure(event);
+    if (event.type === 'customer.subscription.updated') return this.handleStripeStatus(event);
+    if (event.type === 'customer.subscription.created') return { ignored: true };
     if (event.type === 'customer.subscription.deleted') {
       return this.handleStripeCancellation(event);
     }
@@ -236,6 +239,41 @@ export class PaymentsService {
         subscription.rows[0].provider_customer_id,subscriptionId,client);
       return { renewed: true };
     });
+  }
+
+  private async handleStripeFailure(event: any) {
+    const invoice = event.data.object;
+    const ref = invoice.parent?.subscription_details?.subscription;
+    const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
+    if (!subscriptionId) return { ignored: true };
+    const result = await this.db.query(
+      `UPDATE organization_subscriptions SET status='past_due', updated_at=now()
+       WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'`,
+      [subscriptionId],
+    );
+    return { updated: Boolean(result.rowCount) };
+  }
+
+  private async handleStripeStatus(event: any) {
+    const subscription = event.data.object;
+    if (!subscription?.id) return { ignored: true };
+    // Only verified payments activate access; status notifications may restrict it.
+    const restricted = ['past_due', 'unpaid'].includes(subscription.status) ? 'past_due'
+      : subscription.status === 'paused' ? 'paused'
+      : ['canceled', 'incomplete_expired'].includes(subscription.status) ? 'canceled' : null;
+    if (restricted) {
+      await this.db.query(
+        `UPDATE organization_subscriptions SET status=$2, updated_at=now()
+         WHERE provider='stripe' AND provider_subscription_id=$1`,
+        [subscription.id, restricted],
+      );
+    }
+    await this.db.query(
+      `UPDATE organization_subscriptions SET cancel_at_period_end=$2, updated_at=now()
+       WHERE provider='stripe' AND provider_subscription_id=$1`,
+      [subscription.id, Boolean(subscription.cancel_at_period_end)],
+    );
+    return { synchronized: true };
   }
 
   private async handleStripeCancellation(event: any) {
