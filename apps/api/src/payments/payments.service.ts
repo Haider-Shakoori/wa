@@ -55,6 +55,15 @@ export class PaymentsService {
 
   async createStripeCheckout(organizationId: string, input: CreateCheckoutDto) {
     await this.assertProviderEnabled('stripe');
+    const activeStripe = await this.db.query(
+      `SELECT 1 FROM organization_subscriptions
+       WHERE organization_id=$1 AND provider='stripe' AND status IN ('active','past_due','paused')
+       AND provider_subscription_id IS NOT NULL LIMIT 1`,
+      [organizationId],
+    );
+    if (activeStripe.rows.length) {
+      throw new ConflictException('Manage your existing Stripe subscription; do not create another recurring charge');
+    }
     const plan = await this.plan(input.planCode);
     const interval = input.billingInterval ?? 'monthly';
     const amount = interval === 'annual' ? plan.annual_price_cents : plan.monthly_price_cents;
@@ -82,6 +91,21 @@ export class PaymentsService {
       [checkout.checkoutId, paymentId],
     );
     return { paymentId, checkoutUrl: checkout.url };
+  }
+
+  async createStripeBillingPortal(organizationId: string) {
+    const result = await this.db.query<{
+      provider_customer_id: string | null;
+      provider_subscription_id: string | null;
+    }>(`SELECT provider_customer_id, provider_subscription_id
+       FROM organization_subscriptions
+       WHERE organization_id=$1 AND provider='stripe' LIMIT 1`, [organizationId]);
+    const subscription = result.rows[0];
+    if (!subscription?.provider_customer_id || !subscription.provider_subscription_id) {
+      throw new ConflictException('No active Stripe billing customer is linked to this workspace');
+    }
+    const url = await this.stripe.createBillingPortal(subscription.provider_customer_id);
+    return { url };
   }
 
   async createManual(organizationId: string, input: CreateManualPaymentDto) {
@@ -128,11 +152,22 @@ export class PaymentsService {
   }
 
   async handleStripeEvent(event: any) {
+    if (event.type === 'invoice.paid') {
+      return this.handleStripeRenewal(event);
+    }
+    if (event.type === 'invoice.payment_failed') return this.handleStripeFailure(event);
+    if (event.type === 'customer.subscription.updated') return this.handleStripeStatus(event);
+    if (event.type === 'customer.subscription.created') return { ignored: true };
+    if (event.type === 'customer.subscription.deleted') {
+      return this.handleStripeCancellation(event);
+    }
     if (event.type !== 'checkout.session.completed') return { ignored: true };
     const session = event.data.object;
     const paymentId = session.metadata?.relaywa_payment_id;
     if (!paymentId) throw new BadRequestException('Missing relayWA payment metadata');
-    if (session.payment_status !== 'paid') return { pending: true };
+    if (session.mode !== 'subscription' || session.payment_status !== 'paid' || !session.subscription) {
+      return { pending: true };
+    }
 
     // Webhooks can be replayed or delivered concurrently. Payment transition and
     // extension of subscription expiry MUST commit together, exactly once.
@@ -162,9 +197,101 @@ export class PaymentsService {
         SET status='paid',provider_payment_id=$2,paid_at=now(),updated_at=now()
         WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
       await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
-        payment.billing_interval,'stripe',session.customer??null,session.id,client);
+        payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client);
       return { activated:true };
     });
+  }
+
+  // Subscription renewals have their own invoices; never replay the initial
+  // subscription_create invoice, which is fulfilled by checkout.session.completed.
+  private async handleStripeRenewal(event: any) {
+    const invoice = event.data.object;
+    if (invoice.billing_reason !== 'subscription_cycle' || invoice.status !== 'paid') {
+      return { ignored: true };
+    }
+    const parentSubscription = invoice.parent?.subscription_details?.subscription;
+    const subscriptionId = typeof parentSubscription === 'string' ? parentSubscription : parentSubscription?.id;
+    if (!subscriptionId || !invoice.id || Number(invoice.amount_paid) <= 0) return { ignored: true };
+    return this.db.transaction(async client => {
+      const matched = await client.query<{organization_id:string}>(`
+        SELECT organization_id FROM organization_subscriptions
+        WHERE provider='stripe' AND provider_subscription_id=$1 LIMIT 1`, [subscriptionId]);
+      if (!matched.rows[0]) return { ignored: true };
+      const organizationId = matched.rows[0].organization_id;
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE', [organizationId]);
+      const subscription = await client.query<{
+        plan_code:string; provider_customer_id:string|null; provider_subscription_id:string;
+      }>(`SELECT plan_code,provider_customer_id,provider_subscription_id
+         FROM organization_subscriptions WHERE organization_id=$1 AND provider='stripe'
+         FOR UPDATE`, [organizationId]);
+      if (subscription.rows[0]?.provider_subscription_id !== subscriptionId) return { ignored: true };
+      const plan = await client.query<PlanRow>(`SELECT code,monthly_price_cents,annual_price_cents,currency
+        FROM subscription_plans WHERE code=$1`, [subscription.rows[0].plan_code]);
+      const item = plan.rows[0];
+      if (!item || invoice.currency?.toUpperCase() !== item.currency.toUpperCase()) {
+        throw new BadRequestException('Renewal invoice currency mismatch');
+      }
+      const monthly = Number(invoice.amount_paid) === Number(item.monthly_price_cents);
+      const annual = Number(invoice.amount_paid) === Number(item.annual_price_cents);
+      if (!monthly && !annual) throw new BadRequestException('Renewal invoice amount mismatch');
+      const existing = await client.query(`SELECT id FROM payments WHERE provider='stripe'
+        AND provider_payment_id=$1 LIMIT 1`, [invoice.id]);
+      if (existing.rows.length) return { duplicate: true };
+      const paymentId = randomUUID();
+      const interval = annual && !monthly ? 'annual' : 'monthly';
+      await client.query(`INSERT INTO payments
+        (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,
+         currency,provider_payment_id,paid_at)
+        VALUES ($1,$2,$3,'stripe',$4,'paid',$5,$6,$7,now())`,
+        [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id]);
+      await this.subscriptions.activatePaidPlan(organizationId,item.code,interval,'stripe',
+        subscription.rows[0].provider_customer_id,subscriptionId,client);
+      return { renewed: true };
+    });
+  }
+
+  private async handleStripeFailure(event: any) {
+    const invoice = event.data.object;
+    const ref = invoice.parent?.subscription_details?.subscription;
+    const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
+    if (!subscriptionId) return { ignored: true };
+    const result = await this.db.query(
+      `UPDATE organization_subscriptions SET status='past_due', updated_at=now()
+       WHERE provider='stripe' AND provider_subscription_id=$1 AND status='active'`,
+      [subscriptionId],
+    );
+    return { updated: Boolean(result.rowCount) };
+  }
+
+  private async handleStripeStatus(event: any) {
+    const subscription = event.data.object;
+    if (!subscription?.id) return { ignored: true };
+    // Only verified payments activate access; status notifications may restrict it.
+    const restricted = ['past_due', 'unpaid'].includes(subscription.status) ? 'past_due'
+      : subscription.status === 'paused' ? 'paused'
+      : ['canceled', 'incomplete_expired'].includes(subscription.status) ? 'canceled' : null;
+    if (restricted) {
+      await this.db.query(
+        `UPDATE organization_subscriptions SET status=$2, updated_at=now()
+         WHERE provider='stripe' AND provider_subscription_id=$1`,
+        [subscription.id, restricted],
+      );
+    }
+    await this.db.query(
+      `UPDATE organization_subscriptions SET cancel_at_period_end=$2, updated_at=now()
+       WHERE provider='stripe' AND provider_subscription_id=$1`,
+      [subscription.id, Boolean(subscription.cancel_at_period_end)],
+    );
+    return { synchronized: true };
+  }
+
+  private async handleStripeCancellation(event: any) {
+    const subscription = event.data.object;
+    if (!subscription.id) return { ignored: true };
+    await this.db.query(`UPDATE organization_subscriptions
+      SET status='canceled',cancel_at_period_end=false,updated_at=now()
+      WHERE provider='stripe' AND provider_subscription_id=$1`, [subscription.id]);
+    return { canceled: true };
   }
 
   async approveManual(paymentId: string) {

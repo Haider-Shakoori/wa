@@ -1,0 +1,83 @@
+name: Stripe Sandbox VPS Provisioning
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type PROVISION_TEST_ONLY to install TEST credentials on the authorized VPS
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  provision:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm == 'PROVISION_TEST_ONLY' }}
+    environment: stripe-sandbox-vps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ secrets.RELAYWA_DEPLOY_HOST }}
+      SSH_USER: ${{ secrets.RELAYWA_DEPLOY_USER }}
+      SSH_PORT: ${{ vars.RELAYWA_DEPLOY_PORT || '22' }}
+      SSH_KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+    steps:
+      - name: Validate sandbox-only credentials and SSH configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$SSH_PRIVATE_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          [[ "$STRIPE_SECRET_KEY" == sk_test_* ]] || { echo 'A Stripe sk_test_ key is required'; exit 1; }
+          [[ "$STRIPE_WEBHOOK_SECRET" == whsec_* ]] || { echo 'A Stripe webhook signing secret is required'; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || exit 1
+      - name: Provision sandbox keys over verified SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          python3 - <<'PY'
+          import base64
+          import os
+          import subprocess
+          import textwrap
+          key = base64.b64encode(os.environ["STRIPE_SECRET_KEY"].encode()).decode()
+          hook = base64.b64encode(os.environ["STRIPE_WEBHOOK_SECRET"].encode()).decode()
+          remote = textwrap.dedent("""
+              import base64, os, pathlib, subprocess, tempfile
+              target = pathlib.Path('/home/devagent/services/relaywa-runtime/.env.production')
+              assert target.is_file()
+              key = base64.b64decode(KEY).decode()
+              hook = base64.b64decode(HOOK).decode()
+              assert key.startswith('sk_test_') and hook.startswith('whsec_')
+              lines = target.read_text().splitlines()
+              excluded = {'STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PORTAL_RETURN_URL'}
+              lines = [line for line in lines if line.split('=',1)[0] not in excluded]
+              lines.extend(['STRIPE_SECRET_KEY='+key, 'STRIPE_WEBHOOK_SECRET='+hook,
+                            'STRIPE_PORTAL_RETURN_URL=https://relaywa.com/subscription'])
+              fd, temp = tempfile.mkstemp(prefix='.env.stripe.',dir=str(target.parent))
+              try:
+                  os.fchmod(fd,0o600)
+                  with os.fdopen(fd,'w') as stream:
+                      stream.write('\\n'.join(lines)+'\\n')
+                  os.replace(temp,target)
+              finally:
+                  if os.path.exists(temp): os.unlink(temp)
+              subprocess.run(['docker','compose','-f','compose.yml','up','-d','--no-deps','--force-recreate','api'],
+                             cwd=str(target.parent),check=True)
+              result = subprocess.run(['docker','exec','deploy-api-1','node','-e',
+                  'if(!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")||!process.env.STRIPE_WEBHOOK_SECRET?.startsWith("whsec_"))process.exit(1)'],
+                  check=True)
+              print('Sandbox Stripe credentials installed and API restarted (values hidden)')
+          """)
+          remote = "KEY="+repr(key)+"\nHOOK="+repr(hook)+"\n"+remote
+          command = ["ssh","-T","-i",os.path.expanduser("~/.ssh/id_ed25519"),
+                     "-o","BatchMode=yes","-o","StrictHostKeyChecking=yes",
+                     "-p",os.environ["SSH_PORT"],
+                     os.environ["SSH_USER"]+"@"+os.environ["SSH_HOST"],"python3","-"]
+          subprocess.run(command,input=remote,text=True,check=True)
+          PY

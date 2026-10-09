@@ -18,12 +18,13 @@ export class StripeProvider implements PaymentProvider {
     if (!successUrl || !cancelUrl) throw new Error('Stripe success/cancel URLs are required');
 
     const session = await this.client().checkout.sessions.create({
-      mode: 'payment',
+      mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
       line_items: [{
         quantity: 1,
         price_data: {
+          recurring: { interval: input.billingInterval === 'annual' ? 'year' : 'month' },
           currency: input.currency.toLowerCase(),
           unit_amount: input.amountCents,
           product_data: {
@@ -31,6 +32,14 @@ export class StripeProvider implements PaymentProvider {
           },
         },
       }],
+      client_reference_id: input.organizationId,
+      subscription_data: {
+        metadata: {
+          relaywa_organization_id: input.organizationId,
+          relaywa_plan_code: input.planCode,
+          relaywa_billing_interval: input.billingInterval,
+        },
+      },
       metadata: {
         relaywa_payment_id: input.paymentId,
         organization_id: input.organizationId,
@@ -41,6 +50,18 @@ export class StripeProvider implements PaymentProvider {
 
     if (!session.url) throw new Error('Stripe Checkout did not return a URL');
     return { checkoutId: session.id, url: session.url };
+  }
+
+  async createBillingPortal(customerId: string) {
+    const returnUrl = process.env.STRIPE_PORTAL_RETURN_URL || process.env.STRIPE_SUCCESS_URL;
+    if (!returnUrl || !/^https:\/\//.test(returnUrl)) {
+      throw new Error('A secure Stripe billing portal return URL is required');
+    }
+    const session = await this.client().billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+    return session.url;
   }
 
   constructEvent(rawBody: Buffer, signature: string) {

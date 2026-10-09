@@ -46,6 +46,13 @@ export class PaymentsController {
     return this.payments.createStripeCheckout(request.auth.org, body);
   }
 
+  @Post('stripe/billing-portal')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
+  billingPortal(@Req() request: AuthenticatedRequest) {
+    return this.payments.createStripeBillingPortal(request.auth.org);
+  }
+
   @Post('manual')
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
