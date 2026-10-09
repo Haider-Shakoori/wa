@@ -22,3 +22,11 @@ test('initial checkout and renewal processing remain separate and atomic', async
   assert.match(source, /this\.subscriptions\.activatePaidPlan/);
   assert.match(source, /customer\.subscription\.deleted/);
 });
+
+test('failed invoices and subscription status changes have handlers', async () => {
+  const source = await readFile(new URL('../src/payments/payments.service.ts', import.meta.url), 'utf8');
+  assert.match(source, /invoice\.payment_failed/);
+  assert.match(source, /customer\.subscription\.updated/);
+  assert.match(source, /handleStripeFailure/);
+  assert.match(source, /handleStripeStatus/);
+});
