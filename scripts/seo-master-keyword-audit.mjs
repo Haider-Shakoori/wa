@@ -30,7 +30,7 @@ export const countries = Object.freeze({
   GB:{name:'United Kingdom',ideas:1606,source:'image(20261010-220551).png'},
 });
 const intents=new Set(['commercial','pricing','developer','comparison','informational','official_api']);
-const fits=new Set(['direct','conditional','comparison_only','official_only']);
+const fits=new Set(['direct','conditional','comparison_only','official_only','unsupported_unverified']);
 const priorities=new Set(['P1','P2','P3','Hold']);
 const kd=new Set(['Easy','Medium','Hard','N/A','not_shown','signup_gated']);
 const buckets=new Set(['>10000','>1000','>100','<100']);
@@ -59,8 +59,8 @@ export function validateMasterCsv(csv){
     assert.ok(fits.has(item.relaywa_product_fit),'Unknown product compatibility');
     assert.ok(approvedEnglishPaths.includes(item.existing_english_target),'No new or translated landing pages');
     assert.ok(priorities.has(item.editorial_priority),'Editorial priority outside rubric');
-    if(item.relaywa_product_fit==='official_only'){
-      assert.equal(item.editorial_priority,'Hold','Official API-specific searches are not direct product landing targets');
+    if(['official_only','unsupported_unverified'].includes(item.relaywa_product_fit)){
+      assert.equal(item.editorial_priority,'Hold','Official-only or unsupported/unverified capabilities must stay on editorial hold');
     }
     const key=item.country_iso+'|'+item.keyword.toLocaleLowerCase('en');
     assert.ok(!unique.has(key),'Duplicate market keyword '+key);
