@@ -3,6 +3,13 @@
 **Status:** strategy and repository audit; **not** a production crawl, keyword-volume report, deployment, or rankings certification.  
 **Issue:** https://github.com/Haider-Shakoori/wa/issues/78
 
+## Batch 10 QR troubleshooting and publishing checks — additional delivery (2026-10-11)
+
+- [Read-only QR-session diagnostic example](../../examples/relaywa-session-diagnostics/diagnose.mjs) and published English `/blog/whatsapp-api-qr-session-troubleshooting` article: real backend statuses and API routes, no automatic reconnect/logout, never logging QR secrets.
+- [Deterministic QR/session tests](../../apps/web/test/seo-qr-session-diagnostics.test.mjs) and [editorial publishing tests](../../apps/web/test/seo-editorial-publishing.test.mjs) verify route/author/source alignment and prevent unpublished drafts becoming SEO routes.
+- [Editorial calendar](editorial-calendar.csv) records keyword, locale, real validation limitations and missing named human signoff for existing articles; [publishing and maintenance checklist](batch-10-editorial-publishing-gates.md) defines future gates.
+- **Batch 10 remains open** for source-tested original Python/.NET integrations and actual consuming-app/worker smoke checks. Website language English, no VPS deployment.
+
 ## Batch 09 SERP sample and English pricing clarification — pending country gate (2026-10-11)
 
 - [14-country public search-result samples](batch-09-country-serp-evidence.csv): exact research queries, one representative observed URL each and official/local provider intent observations, **not** a top-ten ranking crawl.
