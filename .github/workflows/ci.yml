@@ -35,6 +35,14 @@ jobs:
         run: node --check scripts/production-canary.mjs
       - name: Build
         run: pnpm build
+      - name: Public SEO rendering and asset budget
+        run: |
+          pnpm --filter @wa/web exec next start -p 3000 > /tmp/relaywa-next.log 2>&1 &
+          for i in $(seq 1 35); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/seo-perf-budget.mjs
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Validate production Docker Compose

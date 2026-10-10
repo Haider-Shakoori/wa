@@ -27,7 +27,18 @@ export default function CodeShowcase({ examples }: { examples: Record<string,str
       <Link className="rw-code-doc-link" href="/api-docs">Read the quickstart <FaArrowRight/></Link>
     </div>
     <div className="rw-editor"><header className="rw-editor-top"><span className="rw-editor-dots"><i/><i/><i/></span><span><FaTerminal/> API playground</span><span className="rw-editor-label">REST API</span></header>
-      <div className="rw-editor-languages" role="tablist" aria-label="Example language">{Object.keys(examples).map(name=><button role="tab" aria-selected={language===name} aria-controls="rw-example-code" key={name} className={language===name?'active':''} onClick={()=>{setLanguage(name);setCopied(false);setCopyError(false);}}><LanguageIcon name={name}/>{name}</button>)}</div>
+      <div className="rw-editor-languages" role="tablist" aria-label="Example language" onKeyDown={event=>{
+        if (!['ArrowRight','ArrowLeft','Home','End'].includes(event.key)) return;
+        const tabs=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+        const current=tabs.indexOf(document.activeElement as HTMLButtonElement);
+        if (current===-1) return;
+        event.preventDefault();
+        const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:
+          (current+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+        setLanguage(Object.keys(examples)[next]);
+        setCopied(false);setCopyError(false);
+        tabs[next]?.focus();
+      }}>{Object.keys(examples).map(name=><button role="tab" aria-selected={language===name} tabIndex={language===name?0:-1} aria-controls="rw-example-code" key={name} className={language===name?'active':''} onClick={()=>{setLanguage(name);setCopied(false);setCopyError(false);}}><LanguageIcon name={name}/>{name}</button>)}</div>
       <div className="rw-editor-file"><span>{extensions[language]}</span><button onClick={()=>void copy()} aria-label="Copy code">{copied?<FaCheck/>:<FaCopy/>}{copied?'Copied':'Copy'}</button></div>
       <pre className="rw-editor-code" id="rw-example-code" role="tabpanel" aria-label={language+' example'}><code>{examples[language].split('\n').map((line,index)=><span className="rw-editor-line" key={index}><span className="rw-line-number" aria-hidden="true">{index+1}</span><span><Highlight source={line}/>{!line&&' '}</span></span>)}</code></pre>
       <footer><span className="rw-editor-status"><i/> Session-scoped authentication</span><span>{copyError?'Select the code to copy manually.':'Local example · use your deployment URL'}</span></footer>

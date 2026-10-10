@@ -28,7 +28,7 @@
 .rw-docs h3{font-size:19px;color:#f4f7f5}.rw-docs h4{font-size:15px}
 .rw-docs p,.rw-docs li{font-size:14px;color:#aab8ae}
 .rw-docs .docs-info-card,.rw-docs .docs-step,.rw-docs .docs-field,.rw-docs .trouble-card,.rw-docs .production-checklist>div{background:#111a14;border-color:var(--docs-border);border-radius:10px;padding:18px}
-.rw-docs .docs-info-card h4,.rw-docs .docs-step strong,.rw-docs .trouble-card strong{font-size:15px}
+.rw-docs .docs-info-card h3,.rw-docs .docs-step strong,.rw-docs .trouble-card strong{font-size:15px}
 .rw-docs .docs-info-card p,.rw-docs .docs-step p,.rw-docs .docs-field p,.rw-docs .trouble-card p,.rw-docs .production-checklist p{font-size:13px;line-height:1.65;color:#aab8ae}
 .rw-docs .docs-step>span,.rw-docs .production-checklist span{background:#173821;color:#25d366;font-size:12px}
 .rw-docs .docs-base-url{background:#111a14;border-color:var(--docs-border);flex-wrap:wrap}.rw-docs .docs-base-url span{font-size:11px}.rw-docs .docs-base-url code{font-size:13px;overflow-wrap:anywhere}.rw-docs .docs-base-url button{font-size:12px;background:#183321;color:#25d366;border-color:#2a4c35}
@@ -60,7 +60,7 @@
 .rw-docs .docs-two,.rw-docs .docs-three,.rw-docs .docs-four,.rw-docs .docs-hero-cards,.rw-docs .docs-step-grid,.rw-docs .docs-field-grid,.rw-docs .media-limit-grid,.rw-docs .error-doc-grid,.rw-docs .production-checklist{gap:16px;margin:24px 0;align-items:stretch}
 .rw-docs .docs-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .rw-docs .docs-info-card,.rw-docs .docs-step,.rw-docs .docs-field,.rw-docs .trouble-card,.rw-docs .production-checklist>div{padding:22px;min-width:0}
-.rw-docs .docs-info-card h4{margin:0 0 12px;line-height:1.4}.rw-docs .docs-info-card strong{display:block;margin-bottom:10px;font-size:17px;line-height:1.4}
+.rw-docs .docs-info-card h3{margin:0 0 12px;line-height:1.4}.rw-docs .docs-info-card strong{display:block;margin-bottom:10px;font-size:17px;line-height:1.4}
 .rw-docs .docs-info-card p,.rw-docs .docs-field p,.rw-docs .trouble-card p{margin:10px 0 0}.rw-docs .docs-info-card>p:first-child{margin-top:0}
 .rw-docs .docs-step{grid-template-columns:36px minmax(0,1fr);gap:16px}.rw-docs .docs-step>span{width:36px;height:36px}.rw-docs .docs-step p{margin-top:10px}
 .rw-docs .docs-note{display:flex;flex-direction:column;gap:10px;padding:22px;margin:24px 0 0}.rw-docs .docs-note p{margin:0}

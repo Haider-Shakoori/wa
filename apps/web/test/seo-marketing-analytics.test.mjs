@@ -62,7 +62,7 @@ test('analytics loads only after explicit consent; private routes cannot emit co
   assert.match(source,/marketingEventNames\.includes/);
   assert.doesNotMatch(source,/relaywa_access_token|messages\.send|customer_phone/);
   assert.match(read('components/relay-home.tsx'),/trackMarketingEvent\('trial_cta_click'/);
-  assert.match(read('components/relay-workspace.tsx'),/trackMarketingEvent\('plan_select'/);
+  assert.match(read('components/marketing-primitives.tsx'),/trackMarketingEvent\('plan_select'/);
   assert.match(read('components/relay-home.tsx'),/ANALYTICS_SETTINGS_CHANNEL/);
 });
 

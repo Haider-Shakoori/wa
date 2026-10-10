@@ -1,0 +1,58 @@
+name: RelayWA Mobile Lighthouse
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'scripts/seo-perf-budget.mjs'
+      - '.lighthouserc.json'
+      - '.github/workflows/seo-lighthouse.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build public Next.js app
+        run: pnpm --filter @wa/web build
+      - name: Start local production build
+        run: |
+          pnpm --filter @wa/web exec next start -p 3000 > /tmp/relaywa-lighthouse-next.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:3000/pricing > /dev/null
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        id: chrome
+      - name: Lighthouse mobile audit (2 runs per page)
+        uses: treosh/lighthouse-ci-action@v12
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        with:
+          urls: |
+            http://127.0.0.1:3000/
+            http://127.0.0.1:3000/pricing
+            http://127.0.0.1:3000/api-docs
+            http://127.0.0.1:3000/help
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: false
+      - name: Summarize mobile performance and accessibility
+        if: always()
+        run: node scripts/seo-lighthouse-summary.mjs
