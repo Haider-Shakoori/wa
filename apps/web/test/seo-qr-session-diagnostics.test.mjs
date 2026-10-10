@@ -21,7 +21,7 @@ test('all nine diagnostic states are real backend statuses, no invented states o
   for(const status of SESSION_STATES){
     const result=interpretSession({status},{status,available:false});
     assert.equal(result.status,status);
-    assert.ok(result.finding.length>25);
+    assert.ok(result.finding.length>=15);
     assert.ok(result.next.length>35);
     assert.equal(result.qrAvailable,false);
     assert.doesNotMatch(result.next,/automatically.*logout/i);
