@@ -54,9 +54,9 @@ test('code example tab navigation provides keyboard arrows, home/end and roving 
 test('docs search controls only reference mounted results, with sequential info card headings',()=>{
   const docs=read('app/docs/page.tsx');
   const css=read('app/docs/docs-theme.css');
-  assert.match(docs,/aria-controls=\\{query \\? "docs-search-results" : undefined\\}/);
-  assert.match(docs,/<h3>\\{title\\}<\\/h3>/);
-  assert.doesNotMatch(docs,/<h4>\\{title\\}<\\/h4>/);
+  assert.match(docs,/aria-controls=\{query \? "docs-search-results" : undefined\}/);
+  assert.match(docs,/<h3>\{title\}<\/h3>/);
+  assert.doesNotMatch(docs,/<h4>\{title\}<\/h4>/);
   assert.match(css,/docs-info-card h3/);
 });
 
