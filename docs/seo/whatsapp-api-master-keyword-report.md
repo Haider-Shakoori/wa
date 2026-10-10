@@ -118,4 +118,4 @@ This checks **98 rows, 14 markets, 7 records per screenshot, provenance referenc
 
 **Metadata limitations:** Ahrefs “Updated” timestamps visible in screenshots differ by row. These are a time-of-capture snapshot; the report does not claim a single updated-at date for the entire dataset. The screenshots are the user-supplied evidence, not independently audited by Ahrefs's paid API. All SEO conclusions are provisional until native-language SERP and Google Search Console/analytics validation.
 
-**Release boundary:** This report is a research artifact. It changes no production marketing page, indexable content, sitemaps, billing, API, or user data. **No VPS deployment.**
+**No new country pages** or other indexable content are authorized by this keyword research.\n\n**Release boundary:** This report is a research artifact. It changes no production marketing page, indexable content, sitemaps, billing, API, or user data. **No VPS deployment.**
