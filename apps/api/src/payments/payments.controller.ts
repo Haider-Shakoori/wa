@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
@@ -72,7 +72,7 @@ export class PaymentsController {
     @Req() request: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature?: string,
   ) {
-    if (!signature || !request.rawBody) throw new Error('Missing Stripe webhook signature/body');
+    if (!signature || !request.rawBody) throw new BadRequestException('Missing Stripe webhook signature or body');
     const event = this.stripe.constructEvent(request.rawBody, signature);
     return this.payments.handleStripeEvent(event);
   }
