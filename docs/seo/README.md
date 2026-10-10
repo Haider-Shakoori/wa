@@ -3,6 +3,14 @@
 **Status:** strategy and repository audit; **not** a production crawl, keyword-volume report, deployment, or rankings certification.  
 **Issue:** https://github.com/Haider-Shakoori/wa/issues/78
 
+## Batch 08 decision — multilingual keyword research ONLY (2026-10-11)
+The public website and all SEO metadata remain **English only**. However, it is permitted and useful to research *local-language search queries*, their English meanings and intent for every studied market, **without publishing foreign-language pages**. Native-language terms must not be stuffed into metadata or hidden on site to claim rankings.
+
+- [Batch 08 method, measurement gates and GSC access blocker](batch-08-local-language-research-english-site.md)
+- [41 local-language keyword hypotheses for 13 countries](local-language-keyword-hypotheses.csv) — all candidates unmeasured and pending native-speaker/SERP validation.
+- [Read-only research audit and optional offline GSC query comparison](../../scripts/seo-keyword-research-audit.mjs). The actual Search Console data are not connected/confirmed.
+- Existing [English keyword research](english-country-keyword-candidates.csv) remains relevant; neither dataset authorizes publishing duplicate or translated pages.
+
 ## Superseding decision — English only (2026-10-11)
 RelayWA will remain **English-only** for all thirteen researched markets. The earlier local-language/translation/locale and `hreflang` plans in this **historical Batch 01 research snapshot** are **not implementation requirements**. Do not create translated pages or language selectors. Research language and locale columns remain archived evidence, not selected content direction.
 
