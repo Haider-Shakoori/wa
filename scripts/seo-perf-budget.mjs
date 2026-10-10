@@ -9,9 +9,9 @@ import { gzipSync } from 'node:zlib';
 const ORIGIN = process.env.SEO_SMOKE_ORIGIN || 'http://127.0.0.1:3000';
 const routes = ['/', '/pricing', '/api-docs', '/help'];
 const budgets = {
-  maxHtmlGzipBytes: 350_000,
-  maxJavascriptGzipBytes: 1_200_000,
-  maxCssGzipBytes: 300_000,
+  maxHtmlGzipBytes: 60_000,
+  maxJavascriptGzipBytes: 320_000,
+  maxCssGzipBytes: 75_000,
 };
 const assets = new Map();
 async function visit(route) {
