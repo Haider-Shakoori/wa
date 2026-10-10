@@ -15,7 +15,7 @@ test('renewal is invoice-deduplicated and must be a paid subscription cycle',asy
  const src=await service();
  assert.match(src,/invoice\.billing_reason !== 'subscription_cycle'/);
  assert.match(src,/invoice\.status !== 'paid'/);
- assert.match(src,/provider_payment_id=\$1 LIMIT 1/);
+ assert.match(src,/provider_payment_id=\$1 AND stripe_livemode=\$2 LIMIT 1/);
  assert.match(src,/SELECT id FROM organizations WHERE id=\$1 FOR UPDATE/);
 });
 test('unknown subscription events cannot update other tenants',async()=>{

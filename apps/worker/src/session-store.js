@@ -708,11 +708,12 @@ export class SessionStore {
       AND o.id=m.organization_id AND o.suspended_at IS NULL
       AND sub.organization_id=m.organization_id
       AND sub.status IN ('trialing','active')
+      AND (sub.provider IS DISTINCT FROM 'stripe' OR sub.stripe_livemode=$3)
       AND sub.current_period_end>now()
       AND (sub.status<>'trialing' OR sub.trial_ends_at IS NULL OR sub.trial_ends_at>now())
       AND m.direction='outbound' AND m.status='queued'
       AND s.deleted_at IS NULL AND s.status='connected'
-      AND s.worker_id=$1 AND s.worker_lease_expires_at>now() RETURNING m.*`,[this.workerId,messageId]);
+      AND s.worker_id=$1 AND s.worker_lease_expires_at>now() RETURNING m.*`,[this.workerId,messageId,process.env.STRIPE_MODE === 'live']);
     return result.rows[0]??null;
   }
 

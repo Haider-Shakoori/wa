@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
 import type { CheckoutRequest, CheckoutResult, PaymentProvider } from './payment-provider';
 
@@ -6,10 +6,23 @@ import type { CheckoutRequest, CheckoutResult, PaymentProvider } from './payment
 export class StripeProvider implements PaymentProvider {
   readonly name = 'stripe';
 
+  isLiveMode(): boolean {
+    const secret = process.env.STRIPE_SECRET_KEY || '';
+    const configured = (process.env.STRIPE_MODE || 'test').trim().toLowerCase();
+    if (configured !== 'test' && configured !== 'live') throw new Error('STRIPE_MODE must be test or live');
+    const keyMode = secret.startsWith('sk_live_') ? 'live' : secret.startsWith('sk_test_') ? 'test' : null;
+    if (!keyMode || configured !== keyMode) {
+      throw new Error('Stripe key mode differs from STRIPE_MODE; checkout is disabled until configured correctly');
+    }
+    if (configured === 'live' && !process.env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_')) {
+      throw new Error('Live Stripe webhook signing secret must be configured before charging customers');
+    }
+    return configured === 'live';
+  }
+
   private client() {
-    const secret = process.env.STRIPE_SECRET_KEY;
-    if (!secret) throw new Error('STRIPE_SECRET_KEY is required');
-    return new Stripe(secret);
+    this.isLiveMode();
+    return new Stripe(process.env.STRIPE_SECRET_KEY!);
   }
 
   async createCheckout(input: CheckoutRequest): Promise<CheckoutResult> {
@@ -67,6 +80,15 @@ export class StripeProvider implements PaymentProvider {
   constructEvent(rawBody: Buffer, signature: string) {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET is required');
-    return this.client().webhooks.constructEvent(rawBody, signature, secret);
+    let event: Stripe.Event;
+    try {
+      event = this.client().webhooks.constructEvent(rawBody, signature, secret);
+    } catch {
+      throw new BadRequestException('Invalid Stripe webhook signature');
+    }
+    if (event.livemode !== this.isLiveMode()) {
+      throw new BadRequestException('Stripe webhook event mode does not match server mode');
+    }
+    return event;
   }
 }

@@ -9,6 +9,8 @@ type SubscriptionRow = {
   current_period_start: string;
   current_period_end: string;
   trial_ends_at: string | null;
+  provider: string | null;
+  stripe_livemode: boolean;
   cancel_at_period_end: boolean;
   max_sessions: number;
   daily_messages: number | null;
@@ -36,6 +38,7 @@ export class SubscriptionsService {
 
   async summary(organizationId: string) {
     const subscription = await this.getSubscription(organizationId);
+    const environmentMatches = this.stripeEnvironmentMatches(subscription);
     const usage = await this.db.query<{ metric: string; quantity: string }>(
       `SELECT metric, quantity::text
        FROM subscription_usage
@@ -59,9 +62,9 @@ export class SubscriptionsService {
 
     return {
       subscription,
-      effectiveStatus: (['trialing','active'].includes(subscription.status) &&
+      effectiveStatus: !environmentMatches ? 'expired' : (['trialing','active'].includes(subscription.status) &&
         new Date(subscription.current_period_end).getTime() <= Date.now()) ? 'expired' : subscription.status,
-      canSendMessages: ['trialing','active'].includes(subscription.status) &&
+      canSendMessages: environmentMatches && ['trialing','active'].includes(subscription.status) &&
         new Date(subscription.current_period_end).getTime()>Date.now() &&
         (subscription.status!=='trialing' || !subscription.trial_ends_at ||
           new Date(subscription.trial_ends_at).getTime()>Date.now()),
@@ -87,6 +90,7 @@ export class SubscriptionsService {
     providerCustomerId: string | null,
     providerSubscriptionId: string | null,
     tx?: PoolClient,
+    stripeLivemode = false,
   ) {
     // This must run in the same transaction that marks the payment paid.
     // Start renewals at the later of the current expiry and payment time, so
@@ -97,23 +101,28 @@ export class SubscriptionsService {
         `INSERT INTO organization_subscriptions
           (organization_id, plan_code, status, current_period_start, current_period_end,
            trial_ends_at, cancel_at_period_end, provider, provider_customer_id,
-           provider_subscription_id)
+           provider_subscription_id,stripe_livemode)
          VALUES ($6, $1, 'active', now(), now() + ($2 * interval '1 month'),
-                 NULL, false, $3, $4, $5)
+                 NULL, false, $3, $4, $5, $7)
          ON CONFLICT (organization_id)
          DO UPDATE SET
            plan_code = EXCLUDED.plan_code,
            status = 'active',
            current_period_start = now(),
-           current_period_end = GREATEST(organization_subscriptions.current_period_end, now()) +
-             ($2 * interval '1 month'),
+           current_period_end = CASE
+             WHEN EXCLUDED.provider='stripe' AND organization_subscriptions.provider='stripe'
+               AND organization_subscriptions.stripe_livemode IS DISTINCT FROM EXCLUDED.stripe_livemode
+             THEN now() + ($2 * interval '1 month')
+             ELSE GREATEST(organization_subscriptions.current_period_end, now()) + ($2 * interval '1 month')
+           END,
            trial_ends_at = NULL,
            cancel_at_period_end = false,
            provider = EXCLUDED.provider,
            provider_customer_id = EXCLUDED.provider_customer_id,
            provider_subscription_id = EXCLUDED.provider_subscription_id,
+           stripe_livemode = EXCLUDED.stripe_livemode,
            updated_at = now()`,
-        [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId],
+        [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId, stripeLivemode],
       );
       await client.query(`UPDATE organizations
         SET selected_plan_code=$2,selected_billing_interval=$3,
@@ -223,7 +232,7 @@ export class SubscriptionsService {
 
   private async getSubscription(organizationId: string) {
     const result = await this.db.query<SubscriptionRow>(
-      `SELECT s.organization_id, s.plan_code, s.status,
+      `SELECT s.organization_id, s.plan_code, s.status, s.provider, s.stripe_livemode,
               s.current_period_start, s.current_period_end, s.trial_ends_at,
               s.cancel_at_period_end, p.max_sessions, p.daily_messages,
               p.monthly_messages, p.max_api_keys
@@ -239,8 +248,18 @@ export class SubscriptionsService {
     return subscription;
   }
 
+  private stripeEnvironmentMatches(subscription: SubscriptionRow) {
+    if (subscription.provider !== 'stripe') return true;
+    const secret = process.env.STRIPE_SECRET_KEY || '';
+    return (secret.startsWith('sk_live_') && subscription.stripe_livemode) ||
+      (secret.startsWith('sk_test_') && !subscription.stripe_livemode);
+  }
+
   private async getActiveSubscription(organizationId: string) {
     const subscription = await this.getSubscription(organizationId);
+    if (!this.stripeEnvironmentMatches(subscription)) {
+      throw new ConflictException('Test subscriptions do not provide access in live billing mode. Choose a live plan.');
+    }
     const active = ['trialing', 'active'].includes(subscription.status);
     const expired = new Date(subscription.current_period_end).getTime() <= Date.now() ||
       (subscription.status==='trialing' && subscription.trial_ends_at !== null &&
