@@ -27,7 +27,7 @@ test('webhook and manual approvals atomically mark payments paid and extend the 
    assert.match(block,/status==='paid'/);
    assert.match(block,/status='paid'/);
    assert.match(block,/activatePaidPlan\(/);
-   assert.match(block,/,client\);/);
+   assert.match(block,/,client(?:,event\.livemode)?\);/);
  }
  assert.match(stripe,/session\.payment_status !== 'paid'/);
  assert.match(stripe,/provider_checkout_id!==session\.id/);
