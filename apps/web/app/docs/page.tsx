@@ -212,7 +212,7 @@ export default function DocsPage() {
   return <main className="docs-v2 rw-docs" id="main-content">
     <header className="docs-v2-topbar">
       <Brand/>
-      <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls="docs-search-results" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
+      <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls={query ? "docs-search-results" : undefined} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
       <nav><a href="/">Product</a><a href="/#pricing">Pricing</a>{signedIn?<a className="public-cta" href="/dashboard">Back to dashboard</a>:<><a href="/login">Sign in</a><a className="public-cta" href="/register">Start free</a></>}</nav>
     </header>
 
@@ -411,7 +411,7 @@ function Step({number,title,children}:{number:string;title:string;children:React
   return <div className="docs-step"><span>{number}</span><div><strong>{title}</strong><p>{children}</p></div></div>;
 }
 function InfoCard({title,children}:{title:string;children:React.ReactNode}) {
-  return <div className="docs-info-card"><h4>{title}</h4>{children}</div>;
+  return <div className="docs-info-card"><h3>{title}</h3>{children}</div>;
 }
 function Field({name,required=false,children}:{name:string;required?:boolean;children:React.ReactNode}) {
   return <div className="docs-field"><div><code>{name}</code>{required && <span>required</span>}</div><p>{children}</p></div>;
