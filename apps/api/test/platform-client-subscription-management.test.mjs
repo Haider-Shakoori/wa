@@ -42,7 +42,7 @@ test('activation fixes an already expired billing period instead of simply setti
 
 test('tenant billing details remain visible after expiration but message access is gated',async()=>{
   const subscription=await read('../src/subscriptions/subscriptions.service.ts');
-  assert.match(subscription,/const subscription = await this\.getSubscription\(organizationId\);\s+const usage/);
+  assert.match(subscription,/const subscription = await this\.getSubscription\(organizationId\);\s+const environmentMatches = this\.stripeEnvironmentMatches\(subscription\);\s+const usage/);
   assert.match(subscription,/effectiveStatus:/);
   assert.match(subscription,/canSendMessages:/);
   assert.match(subscription,/async assertCanSendMessage\(/);
