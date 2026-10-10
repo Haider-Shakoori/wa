@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 
 const ORIGIN = process.env.SEO_SMOKE_ORIGIN || 'http://127.0.0.1:3000';
-const routes = ['/', '/pricing', '/api-docs', '/help', '/blog', '/blog/nodejs-whatsapp-api-send-webhooks', '/blog/laravel-whatsapp-api-order-notifications'];
+const routes = ['/', '/pricing', '/api-docs', '/help', '/blog', '/blog/nodejs-whatsapp-api-send-webhooks', '/blog/laravel-whatsapp-api-order-notifications', '/blog/whatsapp-api-qr-session-troubleshooting'];
 const budgets = {
   maxHtmlGzipBytes: 60_000,
   maxJavascriptGzipBytes: 320_000,
