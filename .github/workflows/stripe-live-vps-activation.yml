@@ -1,0 +1,131 @@
+name: RelayWA Stripe Live Activation
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type ACTIVATE_RELAYWA_LIVE. Existing sandbox subscriptions will not grant live access.'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  activate:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm == 'ACTIVATE_RELAYWA_LIVE' }}
+    # Reuses the already-protected VPS deployment environment and SSH secrets.
+    # Add STRIPE_LIVE_SECRET_KEY and STRIPE_LIVE_WEBHOOK_SECRET there.
+    environment: stripe-sandbox-vps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SSH_HOST: ${{ secrets.RELAYWA_DEPLOY_HOST }}
+      SSH_USER: ${{ secrets.RELAYWA_DEPLOY_USER }}
+      SSH_PORT: ${{ vars.RELAYWA_DEPLOY_PORT || '22' }}
+      SSH_KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      STRIPE_LIVE_SECRET_KEY: ${{ secrets.STRIPE_LIVE_SECRET_KEY }}
+      STRIPE_LIVE_WEBHOOK_SECRET: ${{ secrets.STRIPE_LIVE_WEBHOOK_SECRET }}
+    steps:
+      - name: Validate live keys and Stripe account without charging anyone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request
+          key=os.environ.get('STRIPE_LIVE_SECRET_KEY','')
+          hook=os.environ.get('STRIPE_LIVE_WEBHOOK_SECRET','')
+          assert key.startswith('sk_live_'), 'STRIPE_LIVE_SECRET_KEY must be a live Stripe secret key'
+          assert hook.startswith('whsec_'), 'STRIPE_LIVE_WEBHOOK_SECRET must be a webhook signing secret'
+          for name in ('SSH_HOST','SSH_USER','SSH_PRIVATE_KEY','SSH_KNOWN_HOSTS'):
+              assert os.environ.get(name), f'Missing {name}'
+          assert os.environ.get('SSH_PORT','').isdigit(), 'Invalid SSH_PORT'
+          headers={'Authorization':'Bearer '+key}
+          for path,expected in (('/v1/account','account'),('/v1/webhook_endpoints?limit=100','webhooks')):
+              with urllib.request.urlopen(urllib.request.Request('https://api.stripe.com'+path,headers=headers), timeout=20) as response:
+                  data=json.load(response)
+              if expected=='account':
+                  assert data.get('id')=='acct_1UO1JBARStEVSEF9', 'Live key belongs to a different Stripe account'
+                  assert data.get('charges_enabled') and data.get('payouts_enabled'), 'Live payments or payouts disabled'
+              else:
+                  entries=[e for e in data.get('data',[]) if e.get('url')=='https://relaywa.com/api/billing/stripe/webhook' and e.get('livemode') and e.get('status')=='enabled']
+                  assert entries, 'Live Stripe webhook destination is missing'
+                  events=set(entries[0].get('enabled_events',[]))
+                  needed={'checkout.session.completed','invoice.paid','invoice.payment_failed','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'}
+                  assert needed.issubset(events), 'Live webhook does not subscribe to required events'
+          print('Live Stripe account, payout capability, webhook destination and SSH inputs validated.')
+          PY
+      - name: Activate via SSH with automatic environment rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          python3 - <<'PY'
+          import base64,os,subprocess,textwrap
+          key=base64.b64encode(os.environ['STRIPE_LIVE_SECRET_KEY'].encode()).decode()
+          hook=base64.b64encode(os.environ['STRIPE_LIVE_WEBHOOK_SECRET'].encode()).decode()
+          script=textwrap.dedent("""
+            import base64,datetime,os,pathlib,shutil,subprocess,tempfile,time,urllib.request
+            key=base64.b64decode(KEY).decode()
+            hook=base64.b64decode(HOOK).decode()
+            if not key.startswith('sk_live_') or not hook.startswith('whsec_'):
+                raise RuntimeError('Invalid live credentials')
+            root=pathlib.Path('/home/devagent/services/relaywa-runtime')
+            envfile=root/'.env.production'
+            compose=root/'compose.yml'
+            if not envfile.is_file() or not compose.is_file():
+                raise RuntimeError('Missing RelayWA runtime')
+            image=subprocess.check_output(['docker','inspect','deploy-api-1','--format','{{.Config.Image}}'],text=True).strip()
+            if image!='relaywa-app:d3d392c':
+                raise RuntimeError('Unexpected API image; deploy and verify d3d392c before live activation')
+            migration=subprocess.check_output(['docker','exec','deploy-postgres-1','psql','-U','relaywa','-d','relaywa','-Atc',"select name from relaywa_schema_migrations where name='044_stripe_environment_separation.sql'"],text=True)
+            if '044_stripe_environment_separation.sql' not in migration:
+                raise RuntimeError('Stripe environment migration is missing')
+            oldlines=envfile.read_text().splitlines()
+            oldenv=dict(x.split('=',1) for x in oldlines if '=' in x and not x.startswith('#'))
+            if oldenv.get('STRIPE_MODE','test')!='test' or not oldenv.get('STRIPE_SECRET_KEY','').startswith('sk_test_'):
+                raise RuntimeError('VPS is not in expected sandbox mode; refusing live activation')
+            stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+            backup=root/('.env.production.pre-live-'+stamp)
+            shutil.copy2(envfile,backup)
+            os.chmod(backup,0o600)
+            excluded={'STRIPE_MODE','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PORTAL_RETURN_URL'}
+            lines=[x for x in oldlines if x.split('=',1)[0] not in excluded]
+            lines += ['STRIPE_MODE=live','STRIPE_SECRET_KEY='+key,'STRIPE_WEBHOOK_SECRET='+hook,'STRIPE_PORTAL_RETURN_URL=https://relaywa.com/subscription']
+            def compose_run():
+                return subprocess.run(['docker','compose','-p','deploy','--env-file',str(envfile),'-f',str(compose),'up','-d','--force-recreate','--no-deps','api','web','worker'],check=True,timeout=180)
+            def gateway():
+                return subprocess.run(['docker','compose','-p','deploy','--env-file',str(envfile),'-f',str(compose),'restart','gateway'],check=True,timeout=60)
+            fd,tmp=tempfile.mkstemp(prefix='.env.live.',dir=str(root))
+            try:
+                os.fchmod(fd,0o600)
+                with os.fdopen(fd,'w') as f:f.write('\n'.join(lines)+'\n')
+                os.replace(tmp,envfile)
+            finally:
+                if os.path.exists(tmp):os.unlink(tmp)
+            try:
+                compose_run()
+                gateway()
+                time.sleep(8)
+                with urllib.request.urlopen('https://relaywa.com/api/health',timeout=15) as r:
+                    if r.status!=200:raise RuntimeError('API health check failed')
+                state=subprocess.check_output(['docker','exec','deploy-api-1','node','-e','console.log(process.env.STRIPE_MODE==="live"&&process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")?"LIVE_VALID":"INVALID")'],text=True).strip()
+                if state!='LIVE_VALID':raise RuntimeError('Running API is not using live credentials')
+                print('LIVE_STRIPE_CONFIG_DEPLOYED; verification passed. No charge was created.')
+            except Exception:
+                shutil.copy2(backup,envfile)
+                os.chmod(envfile,0o600)
+                try:
+                    compose_run()
+                    gateway()
+                    print('ROLLED_BACK_TO_SANDBOX')
+                except Exception:
+                    print('AUTOMATIC_ROLLBACK_FAILED; urgent manual review required')
+                raise RuntimeError('Live activation failed; attempted to restore sandbox credentials')
+          """)
+          remote="KEY="+repr(key)+"\nHOOK="+repr(hook)+"\n"+script
+          argv=['ssh','-T','-i',os.path.expanduser('~/.ssh/id_ed25519'),'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-p',os.environ['SSH_PORT'],os.environ['SSH_USER']+'@'+os.environ['SSH_HOST'],'python3','-']
+          subprocess.run(argv,input=remote,text=True,check=True)
+          PY
