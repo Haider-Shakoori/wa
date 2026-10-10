@@ -79,7 +79,7 @@ jobs:
             if not envfile.is_file() or not compose.is_file():
                 raise RuntimeError('Missing RelayWA runtime')
             image=subprocess.check_output(['docker','inspect','deploy-api-1','--format','{{.Config.Image}}'],text=True).strip()
-            if image!='relaywa-app:d3d392c':
+            if image!='relaywa-app:8a16a78':
                 raise RuntimeError('Unexpected API image; deploy and verify d3d392c before live activation')
             migration=subprocess.check_output(['docker','exec','deploy-postgres-1','psql','-U','relaywa','-d','relaywa','-Atc',"select name from relaywa_schema_migrations where name='044_stripe_environment_separation.sql'"],text=True)
             if '044_stripe_environment_separation.sql' not in migration:
