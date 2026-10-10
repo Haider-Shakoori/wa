@@ -39,11 +39,14 @@ const sitemap = loadTypescript('app/sitemap.ts', {
 }).default;
 const robots = loadTypescript('app/robots.ts', { '../lib/seo': seo }).default;
 
-test('only four approved public pages are indexable, with normalized paths', () => {
+test('the original four marketing pages plus reviewed developer articles are indexable, with normalized paths', () => {
   assert.deepEqual(Array.from(registry.publicPages, (x) => x.path),
     ['/', '/pricing', '/api-docs', '/help']);
   assert.equal(registry.isIndexablePublicPath('/pricing/'), true);
   assert.equal(registry.isIndexablePublicPath('/pricing?utm_campaign=x'), true);
+  assert.equal(registry.isIndexablePublicPath('/blog'),true);
+  assert.equal(registry.isIndexablePublicPath('/blog/nodejs-whatsapp-api-send-webhooks'),true);
+  assert.equal(registry.isIndexablePublicPath('/blog/draft-tutorial'),false);
   for (const route of ['/login', '/register', '/dashboard', '/checkout', '/subscription',
     '/settings', '/whatsapp', '/platform', '/docs', '/api/private', '/admin']) {
     assert.equal(registry.isIndexablePublicPath(route), false, route);
@@ -64,8 +67,8 @@ test('canonical URLs are HTTPS, normalized, and have no queries or fragments', (
 
 test('sitemap is registry-driven without private routes, query strings, or unapproved locales', () => {
   const rows = sitemap();
-  assert.equal(rows.length, registry.publicPages.length);
-  assert.deepEqual(Array.from(rows, row => row.url), Array.from(registry.publicPages, page => seo.canonicalUrl(page.path)));
+  assert.equal(rows.length, registry.allPublishedPages.length);
+  assert.deepEqual(Array.from(rows, row => row.url), Array.from(registry.allPublishedPages, page => seo.canonicalUrl(page.path)));
   for (const row of rows) {
     assert.match(row.url, /^https:\/\/relaywa\.com\//);
     assert.ok(!/[?#]/.test(row.url));
@@ -73,7 +76,7 @@ test('sitemap is registry-driven without private routes, query strings, or unapp
   }
   registry.publicPages.push({ path:'/approved-test',title:'Test',description:'Test content',changeFrequency:'weekly',priority:0.2 });
   try {
-    assert.equal(sitemap().at(-1).url, 'https://relaywa.com/approved-test');
+    assert.ok(sitemap().some(row=>row.url==='https://relaywa.com/approved-test'));
   } finally { registry.publicPages.pop(); }
 });
 
