@@ -16,6 +16,9 @@ type ReadyReport = {
   sources: Entry[];
   pages: Entry[];
   devices: Entry[];
+  conversionEvents: Entry[];
+  organicCountries: Entry[];
+  organicLandingPages: Entry[];
 };
 type Report = ReadyReport | {
   status: 'not_configured' | 'error';
@@ -23,6 +26,7 @@ type Report = ReadyReport | {
   days: number;
   message: string;
 };
+type Funnel = { days:number; newWorkspaces:number; paidTransactions:number; firstTimePayingWorkspaces:number; attribution:string; note:string };
 const count = (value: number) => Number(value).toLocaleString();
 
 function Ranking({ title, items, empty }: { title: string; items: Entry[]; empty: string }) {
@@ -42,6 +46,7 @@ function Ranking({ title, items, empty }: { title: string; items: Entry[]; empty
 export function PlatformGoogleAnalytics({ token }: { token: string }) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [report, setReport] = useState<Report | null>(null);
+  const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
