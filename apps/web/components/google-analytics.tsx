@@ -38,6 +38,7 @@ export default function GoogleAnalytics() {
   useEffect(() => {
     // Never report admin, tenant, authentication or checkout page views.
     (window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = !isPublic || consent !== 'granted';
+    if (!isPublic || consent !== 'granted') lastViewed.current = '';
   }, [isPublic, consent]);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export default function GoogleAnalytics() {
           maxWidth: 640, margin: '0 auto', padding: 16, borderRadius: 14,
           background: '#161e24', color: '#fff', border: '1px solid #445563',
           boxShadow: '0 10px 32px rgba(0,0,0,.4)' }}>
-        <p style={{margin:'0 0 10px'}}>Help improve RelayWA: allow optional analytics on public pages?
+        <p style={{margin:'0 0 10px'}}>Help improve RelayWA: allow optional Google Analytics on public pages?
           No WhatsApp messages, customer details or private workspace URLs are shared.</p>
         <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
           <button type="button" onClick={() => choose('granted')} className="rw-button">Allow analytics</button>
