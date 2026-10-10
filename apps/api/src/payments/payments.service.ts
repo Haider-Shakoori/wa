@@ -55,11 +55,12 @@ export class PaymentsService {
 
   async createStripeCheckout(organizationId: string, input: CreateCheckoutDto) {
     await this.assertProviderEnabled('stripe');
+    const stripeLivemode = this.stripe.isLiveMode();
     const activeStripe = await this.db.query(
       `SELECT 1 FROM organization_subscriptions
        WHERE organization_id=$1 AND provider='stripe' AND status IN ('active','past_due','paused')
-       AND provider_subscription_id IS NOT NULL LIMIT 1`,
-      [organizationId],
+       AND provider_subscription_id IS NOT NULL AND stripe_livemode=$2 LIMIT 1`,
+      [organizationId,stripeLivemode],
     );
     if (activeStripe.rows.length) {
       throw new ConflictException('Manage your existing Stripe subscription; do not create another recurring charge');
@@ -72,9 +73,9 @@ export class PaymentsService {
     const paymentId = randomUUID();
     await this.db.query(
       `INSERT INTO payments
-        (id, organization_id, plan_code, provider, billing_interval, status, amount_cents, currency)
-       VALUES ($1,$2,$3,'stripe',$4,'pending',$5,$6)`,
-      [paymentId, organizationId, plan.code, interval, amount, plan.currency],
+        (id, organization_id, plan_code, provider, billing_interval, status, amount_cents, currency, stripe_livemode)
+       VALUES ($1,$2,$3,'stripe',$4,'pending',$5,$6,$7)`,
+      [paymentId, organizationId, plan.code, interval, amount, plan.currency,stripeLivemode],
     );
 
     const checkout = await this.stripe.createCheckout({
@@ -99,7 +100,8 @@ export class PaymentsService {
       provider_subscription_id: string | null;
     }>(`SELECT provider_customer_id, provider_subscription_id
        FROM organization_subscriptions
-       WHERE organization_id=$1 AND provider='stripe' LIMIT 1`, [organizationId]);
+       WHERE organization_id=$1 AND provider='stripe' AND stripe_livemode=$2 LIMIT 1`,
+       [organizationId,this.stripe.isLiveMode()]);
     const subscription = result.rows[0];
     if (!subscription?.provider_customer_id || !subscription.provider_subscription_id) {
       throw new ConflictException('No active Stripe billing customer is linked to this workspace');
@@ -173,14 +175,14 @@ export class PaymentsService {
     // extension of subscription expiry MUST commit together, exactly once.
     return this.db.transaction(async client => {
       const identity = await client.query<{organization_id:string}>(`SELECT organization_id
-        FROM payments WHERE id=$1 AND provider='stripe' LIMIT 1`,[paymentId]);
+        FROM payments WHERE id=$1 AND provider='stripe' AND stripe_livemode=$2 LIMIT 1`,[paymentId,event.livemode]);
       if (!identity.rows[0]) throw new NotFoundException('Checkout payment not found');
       await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[identity.rows[0].organization_id]);
       const selected = await client.query<{
         organization_id:string;plan_code:string;billing_interval:'monthly'|'annual';
         amount_cents:number;currency:string;status:string;provider_checkout_id:string|null;
       }>(`SELECT organization_id,plan_code,billing_interval,amount_cents,currency,
-        status,provider_checkout_id FROM payments WHERE id=$1 AND provider='stripe' FOR UPDATE`,[paymentId]);
+        status,provider_checkout_id FROM payments WHERE id=$1 AND provider='stripe' AND stripe_livemode=$2 FOR UPDATE`,[paymentId,event.livemode]);
       const payment=selected.rows[0];
       if (!payment) throw new NotFoundException('Checkout payment not found');
       if (payment.status==='paid') return { duplicate:true };
@@ -197,7 +199,7 @@ export class PaymentsService {
         SET status='paid',provider_payment_id=$2,paid_at=now(),updated_at=now()
         WHERE id=$1 AND status='pending'`,[paymentId,session.payment_intent??session.id]);
       await this.subscriptions.activatePaidPlan(payment.organization_id,payment.plan_code,
-        payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client);
+        payment.billing_interval,'stripe',session.customer??null,typeof session.subscription === 'string' ? session.subscription : session.subscription.id,client,event.livemode);
       await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
         VALUES ($1,$2,$3,'subscription_activated',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
         [randomUUID(),payment.organization_id,'checkout:'+session.id,
@@ -219,15 +221,15 @@ export class PaymentsService {
     return this.db.transaction(async client => {
       const matched = await client.query<{organization_id:string}>(`
         SELECT organization_id FROM organization_subscriptions
-        WHERE provider='stripe' AND provider_subscription_id=$1 LIMIT 1`, [subscriptionId]);
+        WHERE provider='stripe' AND provider_subscription_id=$1 AND stripe_livemode=$2 LIMIT 1`, [subscriptionId,event.livemode]);
       if (!matched.rows[0]) return { ignored: true };
       const organizationId = matched.rows[0].organization_id;
       await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE', [organizationId]);
       const subscription = await client.query<{
         plan_code:string; provider_customer_id:string|null; provider_subscription_id:string;
       }>(`SELECT plan_code,provider_customer_id,provider_subscription_id
-         FROM organization_subscriptions WHERE organization_id=$1 AND provider='stripe'
-         FOR UPDATE`, [organizationId]);
+         FROM organization_subscriptions WHERE organization_id=$1 AND provider='stripe' AND stripe_livemode=$2
+         FOR UPDATE`, [organizationId,event.livemode]);
       if (subscription.rows[0]?.provider_subscription_id !== subscriptionId) return { ignored: true };
       const plan = await client.query<PlanRow>(`SELECT code,monthly_price_cents,annual_price_cents,currency
         FROM subscription_plans WHERE code=$1`, [subscription.rows[0].plan_code]);
@@ -239,17 +241,17 @@ export class PaymentsService {
       const annual = Number(invoice.amount_paid) === Number(item.annual_price_cents);
       if (!monthly && !annual) throw new BadRequestException('Renewal invoice amount mismatch');
       const existing = await client.query(`SELECT id FROM payments WHERE provider='stripe'
-        AND provider_payment_id=$1 LIMIT 1`, [invoice.id]);
+        AND provider_payment_id=$1 AND stripe_livemode=$2 LIMIT 1`, [invoice.id,event.livemode]);
       if (existing.rows.length) return { duplicate: true };
       const paymentId = randomUUID();
       const interval = annual && !monthly ? 'annual' : 'monthly';
       await client.query(`INSERT INTO payments
         (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,
-         currency,provider_payment_id,paid_at)
-        VALUES ($1,$2,$3,'stripe',$4,'paid',$5,$6,$7,now())`,
-        [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id]);
+         currency,provider_payment_id,paid_at,stripe_livemode)
+        VALUES ($1,$2,$3,'stripe',$4,'paid',$5,$6,$7,now(),$8)`,
+        [paymentId,organizationId,item.code,interval,invoice.amount_paid,item.currency,invoice.id,event.livemode]);
       await this.subscriptions.activatePaidPlan(organizationId,item.code,interval,'stripe',
-        subscription.rows[0].provider_customer_id,subscriptionId,client);
+        subscription.rows[0].provider_customer_id,subscriptionId,client,event.livemode);
       await client.query(`INSERT INTO billing_notification_outbox (id,organization_id,event_key,kind,payload)
         VALUES ($1,$2,$3,'subscription_renewed',$4::jsonb) ON CONFLICT (event_key) DO NOTHING`,
         [randomUUID(),organizationId,'invoice:'+invoice.id,
