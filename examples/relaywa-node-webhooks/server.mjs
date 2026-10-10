@@ -7,6 +7,8 @@
  */
 import { createServer } from 'node:http';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 
 export const PUBLIC_API_BASE = 'https://relaywa.com/api';
 
@@ -79,7 +81,7 @@ export function createWebhookListener({secret, onEvent, maxBytes=1_000_000, nowS
   };
 }
 
-if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1]).href) {
+if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
   const secret=process.env.RELAYWA_WEBHOOK_SECRET;
   if(!secret)throw new Error('Set RELAYWA_WEBHOOK_SECRET (from RelayWA webhook creation)');
   const onEvent=async(event)=>{
