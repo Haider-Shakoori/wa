@@ -14,7 +14,7 @@ export const columns=[
 ];
 const langs=new Set(['en','pt','id','es','de']);
 const resultLangs=new Set(['english','portuguese','indonesian','spanish','german']);
-const categories=new Set(['official-meta','official-bsp','local-provider']);
+const categories=new Set(['official-meta','official-platform-coverage','regional-provider']);
 const root=new URL('../',import.meta.url);
 
 export function validateEvidence(csv) {
