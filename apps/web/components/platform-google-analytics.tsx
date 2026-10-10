@@ -53,8 +53,13 @@ export function PlatformGoogleAnalytics({ token }: { token: string }) {
     if (!token) return;
     setLoading(true);
     try {
-      const result = await api<Report>(`/platform/google-analytics?days=${days}`, token);
-      setReport(result);
+      const [ga, verified] = await Promise.allSettled([
+        api<Report>(`/platform/google-analytics?days=${days}`, token),
+        api<Funnel>(`/platform/seo-conversions?days=${days}`, token),
+      ]);
+      if (ga.status === 'fulfilled') setReport(ga.value);
+      else setReport({status:'error',days,propertyId:'558119248',message:'Unable to retrieve GA4 report.'});
+      setFunnel(verified.status === 'fulfilled' ? verified.value : null);
       setError('');
     } catch {
       setError('Unable to retrieve Google Analytics reporting status.');
