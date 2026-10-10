@@ -3,6 +3,14 @@
 **Status:** strategy and repository audit; **not** a production crawl, keyword-volume report, deployment, or rankings certification.  
 **Issue:** https://github.com/Haider-Shakoori/wa/issues/78
 
+## Batch 09 SERP sample and English pricing clarification — pending country gate (2026-10-11)
+
+- [14-country public search-result samples](batch-09-country-serp-evidence.csv): exact research queries, one representative observed URL each and official/local provider intent observations, **not** a top-ten ranking crawl.
+- [Decision, country matrix and five original content briefs](batch-09-serp-intent-and-publishing-gates.md): hold all thin country pages until local buyer/GSC evidence and verified regional differentiators exist; prioritize honest **English** pricing and original technical workflows.
+- [Read-only observation audit](../../scripts/seo-country-serp-audit.mjs) and [tests](../../apps/web/test/seo-country-serp-pricing-intent.test.mjs).
+- Existing `/pricing` now distinguishes RelayWA's QR-linked session subscription from the **official Meta WhatsApp Business Platform**, links to the actual Meta pricing reference and existing RelayWA session/retry docs. No live plan/pricing data or subscription logic was changed.
+- **Batch 09 remains open**: no local GSC data, verified buyer-region need or fully examined localized organic result pages. Zero country pages published, **no foreign-language website content** and no VPS deployment.
+
 ## 14-country Ahrefs master keyword report — screenshot evidence (2026-10-11)
 The user shared Ahrefs Keyword Generator screenshots for 13 previously studied markets **plus the USA**. An audited [98-record country-keyword master file](whatsapp-api-ahrefs-14-market-master.csv) and [analysis report](whatsapp-api-master-keyword-report.md) now map the exact reported **volume thresholds** and difficulty labels to commercial/developer search intent and **existing English pages only**.
 

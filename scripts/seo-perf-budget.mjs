@@ -46,6 +46,17 @@ async function visit(route) {
         `${route} must link to existing documentation section #${id}`);
     }
   }
+  // Country-intent SEO clarifies plan models on an existing canonical English page.
+  if (route === '/pricing') {
+    assert.ok(html.includes('id="pricing-model-heading"'),
+      'Pricing model difference must be present in SSR HTML');
+    assert.ok(html.includes('QR-linked API subscription vs.'),
+      'Pricing must distinguish QR-linked sessions from official Meta Cloud API');
+    assert.ok(html.includes('https://whatsappbusiness.com/products/platform-pricing/'),
+      'Pricing must link to official Meta fee information');
+    assert.ok(html.includes('href="/api-docs#queue"'),
+      'Pricing should link directly to accurate outbound send/retry documentation');
+  }
   // Framework-specific search intent resolves to server-rendered headings
   // and code inside the ONE existing indexable /api-docs document.
   const frameworkGuides=['integration-nodejs','integration-laravel',
