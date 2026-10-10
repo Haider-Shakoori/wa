@@ -41,6 +41,8 @@ test('official-only terms remain editorial hold, and local-language research can
   assert.equal(find('BR','whatsapp api oficial').relaywa_product_fit,'official_only');
   assert.equal(find('BR','whatsapp api oficial').editorial_priority,'Hold');
   assert.equal(find('CO','whatsapp api cloud').editorial_priority,'Hold');
+  assert.equal(find('MX','whatsapp api call').editorial_priority,'Hold');
+  assert.equal(find('AE','whatsapp api call').relaywa_product_fit,'unsupported_unverified');
   for(const r of records){
     assert.ok(approvedEnglishPaths.includes(r.existing_english_target));
     assert.equal(r.evidence_status,'user_screenshot_bucket_only');
@@ -58,7 +60,7 @@ test('country, provenance and bucket validator rejects silent volume/SEO fabrica
   assert.throws(()=>validateMasterCsv(replaceOnce('"user_screenshot_bucket_only"','"verified_search_volume"')),/Never imply verified exact search counts/);
   assert.throws(()=>validateMasterCsv(replaceOnce('"/pricing"','"/countries/india"')),/No new or translated landing pages/);
   assert.throws(()=>validateMasterCsv(replaceOnce('"US"','"XX"')),/Unsupported country/);
-  assert.throws(()=>validateMasterCsv(replaceOnce('"official_only","/help","Hold"','"official_only","/help","P1"')),/Official API-specific searches/);
+  assert.throws(()=>validateMasterCsv(replaceOnce('"official_only","/help","Hold"','"official_only","/help","P1"')),/Official-only or unsupported\/unverified capabilities must stay on editorial hold/);
 });
 
 test('CSV and report are independent of country pages and previous unverified keyword hypotheses',()=>{
