@@ -87,6 +87,7 @@ export class SubscriptionsService {
     providerCustomerId: string | null,
     providerSubscriptionId: string | null,
     tx?: PoolClient,
+    stripeLivemode = false,
   ) {
     // This must run in the same transaction that marks the payment paid.
     // Start renewals at the later of the current expiry and payment time, so
@@ -97,23 +98,28 @@ export class SubscriptionsService {
         `INSERT INTO organization_subscriptions
           (organization_id, plan_code, status, current_period_start, current_period_end,
            trial_ends_at, cancel_at_period_end, provider, provider_customer_id,
-           provider_subscription_id)
+           provider_subscription_id,stripe_livemode)
          VALUES ($6, $1, 'active', now(), now() + ($2 * interval '1 month'),
-                 NULL, false, $3, $4, $5)
+                 NULL, false, $3, $4, $5, $7)
          ON CONFLICT (organization_id)
          DO UPDATE SET
            plan_code = EXCLUDED.plan_code,
            status = 'active',
            current_period_start = now(),
-           current_period_end = GREATEST(organization_subscriptions.current_period_end, now()) +
-             ($2 * interval '1 month'),
+           current_period_end = CASE
+             WHEN EXCLUDED.provider='stripe' AND organization_subscriptions.provider='stripe'
+               AND organization_subscriptions.stripe_livemode IS DISTINCT FROM EXCLUDED.stripe_livemode
+             THEN now() + ($2 * interval '1 month')
+             ELSE GREATEST(organization_subscriptions.current_period_end, now()) + ($2 * interval '1 month')
+           END,
            trial_ends_at = NULL,
            cancel_at_period_end = false,
            provider = EXCLUDED.provider,
            provider_customer_id = EXCLUDED.provider_customer_id,
            provider_subscription_id = EXCLUDED.provider_subscription_id,
+           stripe_livemode = EXCLUDED.stripe_livemode,
            updated_at = now()`,
-        [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId],
+        [planCode, months, provider, providerCustomerId, providerSubscriptionId, organizationId, stripeLivemode],
       );
       await client.query(`UPDATE organizations
         SET selected_plan_code=$2,selected_billing_interval=$3,
