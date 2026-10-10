@@ -5,7 +5,7 @@ import './docs-theme.css';
 import { FeatherIcon } from '../../components/feather-icon';
 import CodeShowcase from '../../components/code-showcase';
 import { integrationExamples } from '../../lib/integration-examples';
-import { Brand } from '../../components/relay-workspace';
+import { Brand } from '../../components/marketing-primitives';
 
 import { API_BASE } from '../../lib/api';
 
@@ -209,7 +209,7 @@ export default function DocsPage() {
     });
   },[query,contentIndex]);
 
-  return <main className="docs-v2 rw-docs">
+  return <main className="docs-v2 rw-docs" id="main-content">
     <header className="docs-v2-topbar">
       <Brand/>
       <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls="docs-search-results" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
