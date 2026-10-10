@@ -143,6 +143,17 @@ export function PlatformGoogleAnalytics({ token }: { token: string }) {
         <p className="muted">Marketing events represent pricing views and CTA clicks, not confirmed account creations or purchases.</p>
         <p className="website-traffic-disclaimer">Updated {new Date(ready.updatedAt).toLocaleString()}. Realtime and historical metrics come from Google's API, not synthetic data. Conversion metrics can be added once signup and purchase events are configured.</p>
       </>}
+      <div className="panel website-traffic-panel">
+        <h3>Verified platform conversion totals — all channels</h3>
+        {funnel ? <>
+          <div className="website-traffic-stats">
+            <div className="panel"><span>New workspaces</span><strong>{count(funnel.newWorkspaces)}</strong></div>
+            <div className="panel"><span>First-time paying workspaces</span><strong>{count(funnel.firstTimePayingWorkspaces)}</strong></div>
+            <div className="panel"><span>Paid transactions</span><strong>{count(funnel.paidTransactions)}</strong></div>
+          </div>
+          <p className="muted">{funnel.note}</p>
+        </> : <p className="muted">Verified subscription data is unavailable; no values have been estimated.</p>}
+      </div>
       {!report && loading && <p className="muted">Loading Google Analytics reports…</p>}
     </section>
   );
