@@ -44,7 +44,7 @@ export function interpretSession(session, qr) {
     reconnecting:['Runtime is attempting to restore an existing session.',
       'Allow reconnection time and inspect worker/network health; avoid automatic logout or repeated restart loops.'],
     logged_out:['Account authentication has ended.',
-      'Ask the authorized account owner to initiate pairing again; scan a newly issued QR if available.'],
+      'Ask the authorized account owner to re-pair by scanning a newly issued QR if available.'],
     expired:['Session is expired.',
       'Check account/subscription state and logs; re-pair only if the runtime actually requires it.'],
     error:['The session reports an error.',
