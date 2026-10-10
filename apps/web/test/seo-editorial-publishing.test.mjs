@@ -89,6 +89,6 @@ test('article content, publication dates and internal documentation are not fabr
     assert.match(article.sourcePath,/^examples\/relaywa-/);
     assert.ok(repoRead(article.sourcePath).length>700);
     assert.ok(article.blocks.some(b=>(b.paragraphs.join(' ')+' '+(b.bullets||[]).join(' ')).includes('not Meta') ||
-      (b.paragraphs.join(' ')+' '+(b.bullets||[]).join(' ')).includes('not Meta’s')));
+      (b.paragraphs.join(' ')+' '+(b.bullets||[]).join(' ')).includes('different from Meta’s')));
   }
 });
