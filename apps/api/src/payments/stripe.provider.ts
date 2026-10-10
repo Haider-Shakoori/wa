@@ -10,7 +10,7 @@ export class StripeProvider implements PaymentProvider {
     const secret = process.env.STRIPE_SECRET_KEY || '';
     const configured = (process.env.STRIPE_MODE || 'test').trim().toLowerCase();
     if (configured !== 'test' && configured !== 'live') throw new Error('STRIPE_MODE must be test or live');
-    const keyMode = secret.startsWith('sk_live_') ? 'live' : secret.startsWith('sk_test_') ? 'test' : null;
+    const keyMode = /^(sk|rk)_live_/.test(secret) ? 'live' : /^(sk|rk)_test_/.test(secret) ? 'test' : null;
     if (!keyMode || configured !== keyMode) {
       throw new Error('Stripe key mode differs from STRIPE_MODE; checkout is disabled until configured correctly');
     }

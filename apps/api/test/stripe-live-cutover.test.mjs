@@ -37,3 +37,15 @@ test('migration defaults historic Stripe rows to test mode',async()=>{
  assert.match(sql,/payments ADD COLUMN IF NOT EXISTS stripe_livemode boolean NOT NULL DEFAULT false/);
  assert.match(sql,/organization_subscriptions ADD COLUMN IF NOT EXISTS stripe_livemode boolean NOT NULL DEFAULT false/);
 });
+
+test('restricted and standard keys are accepted for matching live/test Stripe mode',async()=>{
+ const stripe=await read('../src/payments/stripe.provider.ts');
+ assert.match(stripe,/\(sk\|rk\)_live_/);
+ assert.match(stripe,/\(sk\|rk\)_test_/);
+ assert.match(stripe,/configured !== keyMode/);
+ const workflow=await read('../../../.github/workflows/stripe-live-vps-activation.yml');
+ assert.match(workflow,/key\.startswith\(\('sk_live_', 'rk_live_'\)\)/);
+ assert.match(workflow,/STRIPE_LIVE_SECRET_KEY/);
+ assert.match(workflow,/\/\^\(sk\|rk\)_live_\//);
+ assert.doesNotMatch(workflow,/key\.startswith\('sk_live_'\)/);
+});
