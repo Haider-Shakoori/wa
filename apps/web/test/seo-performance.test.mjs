@@ -51,6 +51,15 @@ test('code example tab navigation provides keyboard arrows, home/end and roving 
   assert.match(source,/tabIndex=\{language===name\?0:-1\}/);
 });
 
+test('docs search controls only reference mounted results, with sequential info card headings',()=>{
+  const docs=read('app/docs/page.tsx');
+  const css=read('app/docs/docs-theme.css');
+  assert.match(docs,/aria-controls=\\{query \\? "docs-search-results" : undefined\\}/);
+  assert.match(docs,/<h3>\\{title\\}<\\/h3>/);
+  assert.doesNotMatch(docs,/<h4>\\{title\\}<\\/h4>/);
+  assert.match(css,/docs-info-card h3/);
+});
+
 test('CI enforces server HTML and asset budgets while Lighthouse saves mobile reports',()=>{
   const workflow=readFileSync(new URL('../../../.github/workflows/ci.yml',import.meta.url),'utf8');
   const audit=readFileSync(new URL('../../../.github/workflows/seo-lighthouse.yml',import.meta.url),'utf8');
