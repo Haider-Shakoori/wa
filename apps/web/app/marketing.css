@@ -21,3 +21,14 @@ body.relay-dark,.rw-site,.rw-app,.rw-auth,.platform-shell,.docs-v2{font-family:'
 .rw-site-nav a,.rw-site-nav button,.rw-editor-languages button{min-height:40px}
 @media (pointer:coarse){.rw-site-nav a,.rw-site-nav button,.rw-editor-languages button{min-height:44px}}
 @media (prefers-reduced-motion:reduce){.rw-site *, .rw-site *::before,.rw-site *::after,.docs-v2 *, .docs-v2 *::before,.docs-v2 *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Batch 06: internal links into the single canonical English API documentation. */
+.rw-developer-topic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:16px;max-width:1200px;margin:28px auto}
+.rw-developer-topic-grid article{border:1px solid #2a3a3b;border-radius:16px;padding:22px;background:#101b1a;display:flex;flex-direction:column;min-width:0}
+.rw-developer-topic-grid h3{font-size:18px;line-height:1.45;margin:0 0 10px}
+.rw-developer-topic-grid h3 a{color:#e8fff4;text-decoration:none}
+.rw-developer-topic-grid h3 a:hover,.rw-developer-topic-grid .rw-topic-more:hover{text-decoration:underline}
+.rw-developer-topic-grid p{font-size:14px;line-height:1.65;color:#bfceca;margin:0 0 20px}
+.rw-developer-topic-grid .rw-topic-more{margin-top:auto;color:#72e6ad;font-size:14px;font-weight:650;text-decoration:none}
+.rw-topic-disclosure{font-size:13px;max-width:850px;text-align:center;margin:16px auto 0;color:#c2d0c9;line-height:1.6}
+@media (prefers-reduced-motion:reduce){.rw-developer-topic-grid *{scroll-behavior:auto!important}}

@@ -29,6 +29,23 @@ async function visit(route) {
   assert.match(html, /<meta[^>]+name="description"/i, `${route}: missing server-rendered description`);
   assert.ok(html.includes(`rel="canonical"`) && html.includes(`https://relaywa.com${route==='/'?'/':route}`),
     `${route}: missing correct canonical`);
+  // The existing documentation anchors and trial CTA must be visible in
+  // server-rendered HTML, not just after client-side hydration.
+  const docAnchors = ['quickstart', 'sessions', 'messages', 'webhooks', 'queue'];
+  if (route === '/api-docs') {
+    for (const id of docAnchors) {
+      assert.ok(html.includes(`id="${id}"`), `Missing canonical docs section #${id}`);
+      assert.ok(html.includes(`href="#${id}"`), `Missing in-document navigation to #${id}`);
+    }
+    assert.ok(html.includes('href="/register"'), 'Docs trial CTA must lead to registration');
+  } else {
+    const required = route === '/' ? docAnchors : route === '/pricing' ?
+      ['sessions', 'webhooks', 'queue'] : ['quickstart', 'sessions', 'webhooks'];
+    for (const id of required) {
+      assert.ok(html.includes(`href="/api-docs#${id}"`),
+        `${route} must link to existing documentation section #${id}`);
+    }
+  }
   const refs = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)];
   for (const [, pathname] of refs) assets.set(pathname, pathname.endsWith('.css')?'css':'js');
   return { path:route, status:response.status, htmlGzipBytes:htmlBytes, assetRefs:refs.length };
