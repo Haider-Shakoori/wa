@@ -135,6 +135,12 @@ export function PlatformGoogleAnalytics({ token }: { token: string }) {
           <Ranking title="Most viewed pages" items={ready.pages} empty="No page data yet." />
           <Ranking title="Devices by active users" items={ready.devices} empty="No device data yet." />
         </div>
+        <div className="website-traffic-grid">
+          <Ranking title="Organic-search countries (sessions)" items={ready.organicCountries ?? []} empty="No organic-search country data yet." />
+          <Ranking title="Organic-search landing pages (sessions)" items={ready.organicLandingPages ?? []} empty="No organic-search landing pages yet." />
+          <Ranking title="Consented marketing actions" items={ready.conversionEvents ?? []} empty="No marketing events yet." />
+        </div>
+        <p className="muted">Marketing events represent pricing views and CTA clicks, not confirmed account creations or purchases.</p>
         <p className="website-traffic-disclaimer">Updated {new Date(ready.updatedAt).toLocaleString()}. Realtime and historical metrics come from Google's API, not synthetic data. Conversion metrics can be added once signup and purchase events are configured.</p>
       </>}
       {!report && loading && <p className="muted">Loading Google Analytics reports…</p>}
