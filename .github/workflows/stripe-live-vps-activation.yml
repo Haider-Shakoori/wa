@@ -22,6 +22,7 @@ jobs:
       SSH_PORT: ${{ vars.RELAYWA_DEPLOY_PORT || '22' }}
       SSH_KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
       SSH_PRIVATE_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      # Accepts standard sk_live_ or permissioned restricted rk_live_ keys.
       STRIPE_LIVE_SECRET_KEY: ${{ secrets.STRIPE_LIVE_SECRET_KEY }}
       STRIPE_LIVE_WEBHOOK_SECRET: ${{ secrets.STRIPE_LIVE_WEBHOOK_SECRET }}
     steps:
@@ -33,7 +34,7 @@ jobs:
           import json, os, urllib.request
           key=os.environ.get('STRIPE_LIVE_SECRET_KEY','')
           hook=os.environ.get('STRIPE_LIVE_WEBHOOK_SECRET','')
-          assert key.startswith('sk_live_'), 'STRIPE_LIVE_SECRET_KEY must be a live Stripe secret key'
+          assert key.startswith(('sk_live_', 'rk_live_')), 'STRIPE_LIVE_SECRET_KEY must be a live Stripe API key (sk_live_ or rk_live_)'
           assert hook.startswith('whsec_'), 'STRIPE_LIVE_WEBHOOK_SECRET must be a webhook signing secret'
           for name in ('SSH_HOST','SSH_USER','SSH_PRIVATE_KEY','SSH_KNOWN_HOSTS'):
               assert os.environ.get(name), f'Missing {name}'
@@ -70,7 +71,7 @@ jobs:
             import base64,datetime,os,pathlib,shutil,subprocess,tempfile,time,urllib.request
             key=base64.b64decode(KEY).decode()
             hook=base64.b64decode(HOOK).decode()
-            if not key.startswith('sk_live_') or not hook.startswith('whsec_'):
+            if not key.startswith(('sk_live_', 'rk_live_')) or not hook.startswith('whsec_'):
                 raise RuntimeError('Invalid live credentials')
             root=pathlib.Path('/home/devagent/services/relaywa-runtime')
             envfile=root/'.env.production'
@@ -111,7 +112,7 @@ jobs:
                 time.sleep(8)
                 with urllib.request.urlopen('https://relaywa.com/api/health',timeout=15) as r:
                     if r.status!=200:raise RuntimeError('API health check failed')
-                state=subprocess.check_output(['docker','exec','deploy-api-1','node','-e','console.log(process.env.STRIPE_MODE==="live"&&process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")?"LIVE_VALID":"INVALID")'],text=True).strip()
+                state=subprocess.check_output(['docker','exec','deploy-api-1','node','-e','console.log(process.env.STRIPE_MODE==="live"&&/^(sk|rk)_live_/.test(process.env.STRIPE_SECRET_KEY||"")?"LIVE_VALID":"INVALID")'],text=True).strip()
                 if state!='LIVE_VALID':raise RuntimeError('Running API is not using live credentials')
                 print('LIVE_STRIPE_CONFIG_DEPLOYED; verification passed. No charge was created.')
             except Exception:
