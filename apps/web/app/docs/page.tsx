@@ -6,6 +6,7 @@ import { FeatherIcon } from '../../components/feather-icon';
 import CodeShowcase from '../../components/code-showcase';
 import { integrationExamples } from '../../lib/integration-examples';
 import { Brand } from '../../components/marketing-primitives';
+import { developerTopics } from '../../lib/seo-topic-map';
 
 import { API_BASE } from '../../lib/api';
 
@@ -236,8 +237,10 @@ export default function DocsPage() {
       <article ref={articleRef} className="docs-v2-content">
         <section className="docs-v2-hero" id="overview">
           <span className="public-kicker">RelayWA API</span>
-          <h1>Build reliable WhatsApp messaging into your product.</h1>
-          <p>Everything needed to connect sessions, send and track messages, receive inbound events, manage webhooks, understand direct sending and operate RelayWA safely.</p>
+          <h1>WhatsApp REST API documentation: QR sessions, messages and webhooks</h1>
+          <p>Integrate RelayWA from your server: pair an existing WhatsApp account via QR, send text and media with a session API key, inspect delivery states, and verify signed webhook events.</p>
+          <p className="docs-platform-note">RelayWA is a QR-linked WhatsApp Web session API, not Meta's official WhatsApp Cloud API. Outbound sends are direct; your application handles scheduling, pacing and send retries.</p>
+          <nav className="docs-topic-shortcuts" aria-label="Popular WhatsApp API guides">{developerTopics.map(topic=><a key={topic.id} href={'#'+topic.id}>{topic.title}</a>)}</nav>
           <div className="docs-base-url"><span>Base URL</span><code>{API_BASE}</code><button onClick={()=>void navigator.clipboard.writeText(API_BASE)}>Copy</button></div>
           <div className="docs-hero-cards">
             <InfoCard title="REST API"><strong>JSON over HTTPS</strong><p>Use scoped Bearer credentials from your backend.</p></InfoCard>
@@ -393,7 +396,7 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <section id="language-examples"><h2>Languages &amp; frameworks</h2><p>Use your session API key with POST /api/send-message. The Bearer key identifies the number; no session ID is needed in the URL. These HTTP examples connect directly to RelayWA.</p><CodeShowcase examples={integrationExamples}/></section><section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="/login">Start 7-day trial</a></section>
+        <section id="language-examples"><h2>Languages &amp; frameworks</h2><p>Use your session API key with POST /api/send-message. The Bearer key identifies the number; no session ID is needed in the URL. These HTTP examples connect directly to RelayWA.</p><CodeShowcase examples={integrationExamples}/></section><section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="/register">Start 7-day trial</a></section>
       </article>
 
       <aside className="docs-v2-toc">
