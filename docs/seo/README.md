@@ -3,6 +3,11 @@
 **Status:** strategy and repository audit; **not** a production crawl, keyword-volume report, deployment, or rankings certification.  
 **Issue:** https://github.com/Haider-Shakoori/wa/issues/78
 
+## 14-country Ahrefs master keyword report — screenshot evidence (2026-10-11)
+The user shared Ahrefs Keyword Generator screenshots for 13 previously studied markets **plus the USA**. An audited [98-record country-keyword master file](whatsapp-api-ahrefs-14-market-master.csv) and [analysis report](whatsapp-api-master-keyword-report.md) now map the exact reported **volume thresholds** and difficulty labels to commercial/developer search intent and **existing English pages only**.
+
+The screenshot-based estimates are **not** exact/global monthly volumes, not rankings, and do not justify auto-generated country pages or foreign-language site copy. Source provenance filenames, missing KD labels and unverified Meta-only intent are preserved. [Reproducible audit](../../scripts/seo-master-keyword-audit.mjs). This is **Batch 09 pre-publication research**, not completion of country landing pages or live deployment.
+
 ## Batch 08 decision — multilingual keyword research ONLY (2026-10-11)
 The public website and all SEO metadata remain **English only**. However, it is permitted and useful to research *local-language search queries*, their English meanings and intent for every studied market, **without publishing foreign-language pages**. Native-language terms must not be stuffed into metadata or hidden on site to claim rankings.
 
