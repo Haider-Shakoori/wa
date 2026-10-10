@@ -74,9 +74,16 @@ export function createWebhookListener({secret, onEvent, maxBytes=1_000_000, nowS
     let event;
     try {event=JSON.parse(raw.toString('utf8'));}
     catch{response.writeHead(400);response.end('Malformed JSON');return;}
+    if(typeof event?.id!=='string' || typeof event?.type!=='string'){
+      response.writeHead(400);response.end('Missing event id/type');return;
+    }
     // In production, store event.id with a UNIQUE constraint and handle duplicates
     // durably. This example only demonstrates authenticated webhook ingestion.
-    await onEvent(event);
+    try { await onEvent(event); }
+    catch {
+      // Do not acknowledge processing failure: RelayWA may retry webhook delivery.
+      response.writeHead(503);response.end('Event processing unavailable');return;
+    }
     response.writeHead(204);response.end();
   };
 }
