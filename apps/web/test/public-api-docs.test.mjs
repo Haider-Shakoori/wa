@@ -12,7 +12,8 @@ test('public website links to RelayWA documentation and uses real API route shap
 
 test('public docs cover authentication sessions messages webhooks and safety', async () => {
   const source = await readFile(new URL('../app/docs/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /import \{ integrationExamples, exampleApiBase \}/);\n  assert.match(source, /const endpoint = exampleApiBase/);
+  assert.match(source, /import \{ integrationExamples, exampleApiBase \}/);
+  assert.match(source, /const endpoint = exampleApiBase/);
   assert.match(source, /Authorization/);
   assert.match(source, /rw_session_/);
   assert.match(source, /sessions\.read/);
