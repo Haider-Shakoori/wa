@@ -8,9 +8,16 @@ export class StripeProvider implements PaymentProvider {
 
   isLiveMode(): boolean {
     const secret = process.env.STRIPE_SECRET_KEY || '';
-    if (secret.startsWith('sk_live_')) return true;
-    if (secret.startsWith('sk_test_')) return false;
-    throw new Error('A valid Stripe secret key (sk_test_ or sk_live_) is required');
+    const configured = (process.env.STRIPE_MODE || 'test').trim().toLowerCase();
+    if (configured !== 'test' && configured !== 'live') throw new Error('STRIPE_MODE must be test or live');
+    const keyMode = secret.startsWith('sk_live_') ? 'live' : secret.startsWith('sk_test_') ? 'test' : null;
+    if (!keyMode || configured !== keyMode) {
+      throw new Error('Stripe key mode differs from STRIPE_MODE; checkout is disabled until configured correctly');
+    }
+    if (configured === 'live' && !process.env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_')) {
+      throw new Error('Live Stripe webhook signing secret must be configured before charging customers');
+    }
+    return configured === 'live';
   }
 
   private client() {
