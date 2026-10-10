@@ -81,7 +81,7 @@ export const publishedArticles: readonly PublishedArticle[] = [
     blocks: [
       {id:'setup',heading:'Configure Laravel without exposing API keys',
         paragraphs:[
-          'Create a RelayWA workspace and connect a WhatsApp session by QR code. Create a session API key and add RELAYWA_API_BASE=https://relaywa.com/api and RELAYWA_SESSION_KEY to a server-only .env file. In config/services.php, define a relaywa array for URL, session key, and webhook secret.',
+          'RelayWA is a QR-linked WhatsApp Web API, not Meta’s official Cloud API. Create a RelayWA workspace and connect a WhatsApp session by QR code. Create a session API key and add RELAYWA_API_BASE=https://relaywa.com/api and RELAYWA_SESSION_KEY to a server-only .env file. In config/services.php, define a relaywa array for URL, session key, and webhook secret.',
           'Do not invoke RelayWA directly from a Blade template or a public frontend. A service class makes the HTTP behavior auditable and testable. Laravel 11/12 HTTP clients can use the built-in Illuminate HTTP facade without an unofficial RelayWA PHP SDK.',
         ],
         code: "'relaywa' => [\n  'url' => env('RELAYWA_API_BASE', 'https://relaywa.com/api'),\n  'session_key' => env('RELAYWA_SESSION_KEY'),\n  'webhook_secret' => env('RELAYWA_WEBHOOK_SECRET'),\n],",
