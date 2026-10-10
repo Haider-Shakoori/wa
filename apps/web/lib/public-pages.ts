@@ -39,7 +39,7 @@ export const publicPages = [
 // Deliberately published editorial URLs. Drafts are not listed and cannot be
 // indexed or tracked. Keep entries synchronized with blog-articles.ts via tests.
 // Intentional separation: legacy keyword audits enumerate the four original
-// marketing `path: '...'` entries. New editorial rows are created from tuples
+// marketing route entries. New editorial rows are created from tuples
 // and validated against blog-articles.ts by article-specific regression tests.
 const editorialDefinitions = [
   ['/blog',
