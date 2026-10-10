@@ -5,6 +5,8 @@ import type { PoolClient } from 'pg';
 type SubscriptionRow = {
   organization_id: string;
   plan_code: string;
+  provider: string;
+  stripe_livemode: boolean;
   status: 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'expired';
   current_period_start: string;
   current_period_end: string;
@@ -229,7 +231,7 @@ export class SubscriptionsService {
 
   private async getSubscription(organizationId: string) {
     const result = await this.db.query<SubscriptionRow>(
-      `SELECT s.organization_id, s.plan_code, s.status,
+      `SELECT s.organization_id, s.plan_code, s.status, s.provider, s.stripe_livemode,
               s.current_period_start, s.current_period_end, s.trial_ends_at,
               s.cancel_at_period_end, p.max_sessions, p.daily_messages,
               p.monthly_messages, p.max_api_keys
