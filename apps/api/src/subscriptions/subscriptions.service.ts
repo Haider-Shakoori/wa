@@ -234,7 +234,6 @@ export class SubscriptionsService {
     const result = await this.db.query<SubscriptionRow>(
       `SELECT s.organization_id, s.plan_code, s.status, s.provider, s.stripe_livemode,
               s.current_period_start, s.current_period_end, s.trial_ends_at,
-              s.provider,s.stripe_livemode,
               s.cancel_at_period_end, p.max_sessions, p.daily_messages,
               p.monthly_messages, p.max_api_keys
        FROM organization_subscriptions s
