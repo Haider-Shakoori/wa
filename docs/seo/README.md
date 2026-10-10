@@ -3,6 +3,14 @@
 **Status:** strategy and repository audit; **not** a production crawl, keyword-volume report, deployment, or rankings certification.  
 **Issue:** https://github.com/Haider-Shakoori/wa/issues/78
 
+## Superseding decision — English only (2026-10-11)
+RelayWA will remain **English-only** for all thirteen researched markets. The earlier local-language/translation/locale and `hreflang` plans in this **historical Batch 01 research snapshot** are **not implementation requirements**. Do not create translated pages or language selectors. Research language and locale columns remain archived evidence, not selected content direction.
+
+- **Active implementation:** [Batch 05 English-only architecture](batch-05-english-only-architecture.md)
+- **Active English keywords:** [26 English candidate phrases for thirteen markets](english-country-keyword-candidates.csv)
+- **Later batches:** global English feature/docs first; country-specific English pages only with verified distinct value (Batches 08–09).
+- **SEO rules:** single global English canonical per topic; no `hreflang` if no true regional alternates; no auto redirects; preserve private-route protections and opt-in GA4.
+
 ## Decision
 Position RelayWA as a **developer-focused WhatsApp-linked-session messaging API**: pair an existing number via QR, send and receive supported message types via REST, manage multiple sessions, receive webhooks, and use subscription-controlled workspaces. The implementation currently uses Baileys and Chromium/whatsapp-web.js, **not the official Meta WhatsApp Cloud API**. No promise of official partnership, verified business account, guaranteed deliverability, zero ban risk, unlimited safe messaging, or country-specific regulatory compliance.
 
@@ -37,7 +45,7 @@ Position RelayWA as a **developer-focused WhatsApp-linked-session messaging API*
 ## Release dependencies
 **Batch 02:** technical SEO, sitemap and metadata.  
 **Batch 03:** GA4 conversion tracking + GSC/Bing baseline.  
-**Batch 05:** locales, reciprocal hreflang and human-reviewed language switch.  
+**Batch 05:** single-English-site country research architecture, canonical/sitemap guards and no auto geo-language redirects.  
 **Batches 06–11:** feature, integrations, country and editorial pages after evidence/copy review.  
 **Batch 12:** production crawl + regression suite, then deployment through authorized server push/pull workflow.
 
