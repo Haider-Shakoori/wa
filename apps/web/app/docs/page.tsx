@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import './docs-theme.css';
 import { FeatherIcon } from '../../components/feather-icon';
 import CodeShowcase from '../../components/code-showcase';
-import { integrationExamples } from '../../lib/integration-examples';
+import { integrationExamples, exampleApiBase } from '../../lib/integration-examples';
+import { integrationGuides } from '../../lib/integration-guides';
 import { Brand } from '../../components/marketing-primitives';
 import { developerTopics } from '../../lib/seo-topic-map';
 
-import { API_BASE } from '../../lib/api';
 
 const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
   {
@@ -37,6 +37,16 @@ const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
       ['webhooks','Webhooks'],
       ['safety','Application responsibilities'],
       ['errors','Errors & status'],
+    ],
+  },
+  {
+    label:'Framework guides',
+    items: [
+      ['integration-nodejs', 'Node.js / JavaScript'],
+      ['integration-laravel', 'Laravel / PHP'],
+      ['integration-python', 'Python'],
+      ['integration-dotnet', 'C# / .NET'],
+      ['integration-n8n', 'n8n HTTP Request'],
     ],
   },
   {
@@ -101,7 +111,7 @@ const languages = ['cURL','JavaScript','Laravel / PHP','Python','C# / .NET'] as 
 type Language = typeof languages[number];
 
 function buildSnippet(language:Language) {
-  const endpoint = API_BASE + '/send-message';
+  const endpoint = exampleApiBase + '/send-message';
   if (language === 'JavaScript') return `const response = await fetch(
   "${endpoint}",
   {
@@ -231,7 +241,7 @@ export default function DocsPage() {
           {navGroups.map((group)=><div className="docs-nav-group" key={group.label}><span>{group.label}</span>{group.items.map(([id,title])=><a key={id} href={'#'+id} onClick={()=>setNavigationOpen(false)}>{title}</a>)}</div>)}
         </nav>}
 
-        <div className="docs-api-status"><span className="live-dot"/><div><strong>API endpoint</strong><code>{API_BASE}</code></div></div>
+        <div className="docs-api-status"><span className="live-dot"/><div><strong>API endpoint</strong><code>{exampleApiBase}</code></div></div>
       </aside>
 
       <article ref={articleRef} className="docs-v2-content">
@@ -241,7 +251,7 @@ export default function DocsPage() {
           <p>Integrate RelayWA from your server: pair an existing WhatsApp account via QR, send text and media with a session API key, inspect delivery states, and verify signed webhook events.</p>
           <p className="docs-platform-note">RelayWA is a QR-linked WhatsApp Web session API, not Meta's official WhatsApp Cloud API. Outbound sends are direct; your application handles scheduling, pacing and send retries.</p>
           <nav className="docs-topic-shortcuts" aria-label="Popular WhatsApp API guides">{developerTopics.map(topic=><a key={topic.id} href={'#'+topic.id}>{topic.title}</a>)}</nav>
-          <div className="docs-base-url"><span>Base URL</span><code>{API_BASE}</code><button onClick={()=>void navigator.clipboard.writeText(API_BASE)}>Copy</button></div>
+          <div className="docs-base-url"><span>Base URL</span><code>{exampleApiBase}</code><button onClick={()=>void navigator.clipboard.writeText(exampleApiBase)}>Copy</button></div>
           <div className="docs-hero-cards">
             <InfoCard title="REST API"><strong>JSON over HTTPS</strong><p>Use scoped Bearer credentials from your backend.</p></InfoCard>
             <InfoCard title="Realtime"><strong>SSE + webhooks</strong><p>Watch session events and receive outbound callbacks.</p></InfoCard>
@@ -396,7 +406,22 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <section id="language-examples"><h2>Languages &amp; frameworks</h2><p>Use your session API key with POST /api/send-message. The Bearer key identifies the number; no session ID is needed in the URL. These HTTP examples connect directly to RelayWA.</p><CodeShowcase examples={integrationExamples}/></section><section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="/register">Start 7-day trial</a></section>
+        <section id="language-examples">
+          <h2>Integrate RelayWA with your existing developer tools</h2>
+          <p>Send a message from your application server using POST /api/send-message and a scoped Bearer session key. The examples use the public API endpoint <code>{exampleApiBase}</code>; never put the key into browser JavaScript or a distributable app. The API uses QR-linked WhatsApp Web sessions, not Meta's official WhatsApp Cloud API.</p>
+          <nav className="docs-framework-shortcuts" aria-label="Jump to framework examples">{integrationGuides.map((guide)=><a key={guide.id} href={'#'+guide.id}>{guide.name}</a>)}</nav>
+          <CodeShowcase examples={integrationExamples}/>
+          <div className="docs-framework-guides">
+            {integrationGuides.map((guide)=><section key={guide.id} id={guide.id} className="docs-framework-guide">
+              <h3>{guide.name} integration guide</h3>
+              <p>{guide.summary}</p>
+              <p><strong>Setup:</strong> {guide.requirements}</p>
+              <pre><code>{integrationExamples[guide.codeKey]}</code></pre>
+              <p><strong>Receiving events:</strong> {guide.webhook}</p>
+              <p className="docs-framework-links"><a href="#quickstart">API quickstart</a><a href="#webhooks">Webhook signatures</a><a href="#queue">Scheduling and retries</a></p>
+            </section>)}
+          </div>
+        </section><section className="docs-v2-cta"><div><span className="public-kicker">Ready to integrate?</span><h2>Connect a number and send your first API message.</h2><p>Start with the trial, create a scoped key and use the examples above.</p></div><a className="primary-button" href="/register">Start 7-day trial</a></section>
       </article>
 
       <aside className="docs-v2-toc">

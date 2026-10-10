@@ -20,6 +20,9 @@ test('browser-facing API sources never embed localhost production endpoints', as
 
   assert.match(api, /NEXT_PUBLIC_API_BASE_URL/);
   assert.match(api, /\?\? '\/api'/);
-  assert.match(docs, /import \{ API_BASE \}/);
-  assert.match(examples, /NEXT_PUBLIC_API_BASE_URL/);
+  assert.match(docs, /import \{ integrationExamples, exampleApiBase \}/);
+  assert.match(docs, /const endpoint = exampleApiBase/);
+  assert.match(examples, /NEXT_PUBLIC_SITE_URL/);
+  assert.match(examples, /exampleApiBase/);
+  assert.match(examples, /https:\/\/relaywa\.com/);
 });

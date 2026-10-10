@@ -46,6 +46,24 @@ async function visit(route) {
         `${route} must link to existing documentation section #${id}`);
     }
   }
+  // Framework-specific search intent resolves to server-rendered headings
+  // and code inside the ONE existing indexable /api-docs document.
+  const frameworkGuides=['integration-nodejs','integration-laravel',
+    'integration-python','integration-dotnet','integration-n8n'];
+  if(route==='/api-docs'){
+    for(const id of frameworkGuides){
+      assert.ok(html.includes(`id="${id}"`),`Missing published framework anchor #${id}`);
+      assert.ok(html.includes(`href="#${id}"`),`Missing framework navigation #${id}`);
+    }
+    assert.ok(html.includes('https://relaywa.com/api/send-message'),
+      'Developer examples must show public absolute API origin');
+  }
+  if(route==='/'){
+    for(const id of ['integration-nodejs','integration-laravel','integration-python','integration-n8n']){
+      assert.ok(html.includes(`href="/api-docs#${id}"`),
+        `Homepage framework card does not reach published docs #${id}`);
+    }
+  }
   const refs = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)];
   for (const [, pathname] of refs) assets.set(pathname, pathname.endsWith('.css')?'css':'js');
   return { path:route, status:response.status, htmlGzipBytes:htmlBytes, assetRefs:refs.length };
@@ -75,6 +93,12 @@ async function run() {
     assert.equal(missing.status, 404, `${route} must stay unpublished (HTTP 404)`);
     assert.match(missing.headers.get('x-robots-tag')||'',/noindex/,
       `${route} should stay nonindexable`);
+  }
+  // Draft /integrations/ routes must not compete with the existing API docs.
+  for(const route of ['/integrations/laravel','/integrations/python','/integrations/n8n']){
+    const response=await fetch(new URL(route,ORIGIN),{redirect:'manual'});
+    assert.equal(response.status,404,`Do not publish duplicate framework doorway page ${route}`);
+    assert.match(response.headers.get('x-robots-tag')||'',/noindex/);
   }
   const localizedHome = await fetch(new URL('/', ORIGIN), { redirect:'manual',
     headers: { accept:'text/html', 'accept-language':'es-MX,es;q=0.8' } });

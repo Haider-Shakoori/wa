@@ -99,3 +99,16 @@
 .rw-docs .docs-topic-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 14px}
 .rw-docs .docs-topic-shortcuts a{display:inline-flex;align-items:center;min-height:44px;padding:10px 13px;border-radius:9px;background:#17281c;border:1px solid #416749;color:#cef4d9;font-size:13px;line-height:1.4}
 .rw-docs .docs-topic-shortcuts a:hover,.rw-docs .docs-topic-shortcuts a:focus-visible{background:#234c31;color:#fff}
+
+/* Batch 07: readable, indexable developer recipes on the canonical API docs. */
+.rw-docs .docs-framework-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 24px}
+.rw-docs .docs-framework-shortcuts a{display:inline-flex;align-items:center;min-height:44px;border:1px solid #44644c;padding:9px 13px;border-radius:9px;background:#16291c;color:#d3f5dc;font-weight:600}
+.rw-docs .docs-framework-guides{display:grid;gap:18px;margin:26px 0 0}
+.rw-docs .docs-framework-guide{border:1px solid var(--docs-border);background:#0d1711;border-radius:12px;padding:24px;min-width:0;scroll-margin-top:108px}
+.rw-docs .docs-framework-guide h3{margin:0 0 14px;line-height:1.4}
+.rw-docs .docs-framework-guide p{margin:12px 0;line-height:1.7}
+.rw-docs .docs-framework-guide pre{max-width:100%;white-space:pre;overflow:auto;border:1px solid var(--docs-border);background:#060b08;border-radius:9px;font-size:12px}
+.rw-docs .docs-framework-guide code{overflow-wrap:normal}
+.rw-docs .docs-framework-links{display:flex;flex-wrap:wrap;gap:12px 18px}
+.rw-docs .docs-framework-links a{color:#85ebad;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:760px){.rw-docs .docs-framework-guide{padding:16px}.rw-docs .docs-framework-guide pre{padding:16px}}
