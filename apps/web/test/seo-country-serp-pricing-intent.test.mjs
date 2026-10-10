@@ -47,7 +47,7 @@ test('pricing clarifies differences in *existing* server-rendered page, keeps tr
   const docs=read('apps/web/app/docs/page.tsx');
   assert.match(pricing,/<PricingSection standalone/);
   assert.match(pricing,/id="pricing-model-heading"/);
-  assert.match(pricing,/Meta's official WhatsApp Business Platform/);
+  assert.match(pricing,/Meta's official Cloud API/);
   assert.match(pricing,/links an existing WhatsApp account by QR code/);
   assert.match(pricing,/RelayWA does not supply official Cloud API access/);
   assert.match(pricing,/href="https:\/\/whatsappbusiness.com\/products\/platform-pricing\/"/);
@@ -66,6 +66,6 @@ test('research is explicit about sampling limitations, not a fake Google top-ten
   assert.match(brief,/Batch 09 remains open/);
   assert.match(brief,/Laravel transactional messaging workflow/);
   assert.match(brief,/Node\.js \+ webhook integration/);
-  assert.match(brief,/Official Meta Cloud API versus QR-linked sessions/);
+  assert.match(brief,/official Meta Cloud API versus QR-linked sessions/i);
   assert.match(brief,/14-country/i);
 });
