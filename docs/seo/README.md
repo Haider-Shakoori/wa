@@ -6,6 +6,12 @@
 ## Decision
 Position RelayWA as a **developer-focused WhatsApp-linked-session messaging API**: pair an existing number via QR, send and receive supported message types via REST, manage multiple sessions, receive webhooks, and use subscription-controlled workspaces. The implementation currently uses Baileys and Chromium/whatsapp-web.js, **not the official Meta WhatsApp Cloud API**. No promise of official partnership, verified business account, guaranteed deliverability, zero ban risk, unlimited safe messaging, or country-specific regulatory compliance.
 
+## Five-market research extension (October 2026)
+- [expansion-five-markets.md](expansion-five-markets.md): research assessment for Saudi Arabia, South Africa, Spain, Germany and the UK; includes source URLs, observed competitors and differentiated launch gates.
+- [expansion-markets.csv](expansion-markets.csv): five additional **research-only** countries with internet reach, suggested locales and all API demand/conversion values explicitly unknown.
+- [expansion-keywords.csv](expansion-keywords.csv): 25 **unverified** additional local keyword candidates mapped to proposed content, not automatically approved for publishing.
+- Wave 1 remains **eight countries**; expansion makes **13 countries in the research matrix**, not 13 country landing pages nor proven commercial markets.
+
 ## Deliverables
 - [technical-audit.md](technical-audit.md): file-grounded Next.js SEO inventory, missing pieces, and severity.
 - [markets.csv](markets.csv): 8 first-wave markets; locales and reasons are **strategic hypotheses**, not verified API-user statistics.
