@@ -17,10 +17,13 @@ test('GA4 is mounted once and uses the provided RelayWA measurement ID', async (
 
 test('GA4 only reports selected public pages, without private URL query data', async () => {
   const tracker = await read('../components/google-analytics.tsx');
-  assert.match(tracker, /trackedPublicPaths/);
-  assert.match(tracker, /'\/pricing'/);
-  assert.match(tracker, /'\/api-docs'/);
-  assert.match(tracker, /'\/help'/);
+  // Read approved public routes from the shared sitemap/GA4 registry.
+  const registry = await read('../lib/public-pages.ts');
+  assert.match(tracker, /isIndexablePublicPath/);
+  assert.doesNotMatch(tracker, /trackedPublicPaths/);
+  assert.ok(registry.includes("path: '/pricing'"));
+  assert.ok(registry.includes("path: '/api-docs'"));
+  assert.ok(registry.includes("path: '/help'"));
   assert.match(tracker, /if \(!isPublic\) return null/);
   assert.match(tracker, /ga-disable-/);
   assert.match(tracker, /send_page_view: false/);
