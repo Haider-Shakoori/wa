@@ -22,6 +22,8 @@ async function visit(route) {
   const htmlBytes = gzipSync(html).length;
   assert.ok(htmlBytes <= budgets.maxHtmlGzipBytes, `${route}: HTML gzip size ${htmlBytes} exceeds budget`);
   assert.match(html, /<html[^>]+lang="en"/i, `${route}: wrong HTML language`);
+  assert.doesNotMatch(html, /<link\\b[^>]*\\bhreflang\\s*=/i,
+    `${route}: no localized alternates exist; do not advertise fake hreflang`);
   assert.match(html, /<h1[\s>]/i, `${route}: missing server-rendered H1`);
   assert.match(html, /<main[\s>]/i, `${route}: missing server-rendered main landmark`);
   assert.match(html, /<meta[^>]+name="description"/i, `${route}: missing server-rendered description`);
@@ -47,6 +49,19 @@ async function run() {
   const docsRedirect=await fetch(new URL('/docs',ORIGIN),{redirect:'manual'});
   assert.ok([301,308].includes(docsRedirect.status),'Legacy docs should permanently redirect');
   assert.match(docsRedirect.headers.get('location')||'',/\/api-docs$/);
+  // English-only country candidates are research, never indexable placeholders.
+  // Do not silently redirect based on browser language or country selection.
+  const nonPublished = ['/countries/india', '/countries/brazil', '/pt-br', '/es', '/ar'];
+  for (const route of nonPublished) {
+    const missing = await fetch(new URL(route, ORIGIN), { redirect:'manual',
+      headers: { accept:'text/html', 'accept-language':'pt-BR,pt;q=0.9' } });
+    assert.equal(missing.status, 404, `${route} must stay unpublished (HTTP 404)`);
+    assert.match(missing.headers.get('x-robots-tag')||'',/noindex/,
+      `${route} should stay nonindexable`);
+  }
+  const localizedHome = await fetch(new URL('/', ORIGIN), { redirect:'manual',
+    headers: { accept:'text/html', 'accept-language':'es-MX,es;q=0.8' } });
+  assert.equal(localizedHome.status, 200, 'Do not redirect the global English homepage by locale');
   const privateResponse=await fetch(new URL('/dashboard',ORIGIN),{redirect:'manual'});
   assert.match(privateResponse.headers.get('x-robots-tag')||'',/noindex/,'Private page must stay noindex');
   console.log(JSON.stringify({kind:'seo-lab-build-asset-budget',budgets,pages,totalUniqueAssets:assets.size,
