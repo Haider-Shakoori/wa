@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { NextFetchEvent, NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { isIndexablePublicPath } from './lib/public-pages';
 
 // Runs for document navigations, including JavaScript-disabled search crawlers.
 // Never blocks, delays or changes the page response when analytics fails.
@@ -59,7 +60,7 @@ function referrerHost(request: NextRequest) {
 function trackable(request: NextRequest) {
   if (request.method!=='GET') return false;
   const path=request.nextUrl.pathname;
-  if (!path.startsWith('/') || exclusions.test(path) || /\.[a-z0-9]{2,6}$/i.test(path)) return false;
+  if (!isIndexablePublicPath(path) || exclusions.test(path) || /\.[a-z0-9]{2,6}$/i.test(path)) return false;
   // Router prefetches and React server-component fetches aren't page views.
   if (request.headers.has('rsc') || request.headers.has('next-router-prefetch') ||
       request.headers.has('next-router-state-tree')) return false;
@@ -70,6 +71,11 @@ function trackable(request: NextRequest) {
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   const response=NextResponse.next();
+  // Preserve existing privacy-safe website analytics; do not let crawlers
+  // index private account, session, checkout, or dashboard pages.
+  if (!isIndexablePublicPath(request.nextUrl.pathname)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  }
   const secret=process.env.WEBSITE_ANALYTICS_INGEST_KEY;
   if (!secret || secret.length<32 || !trackable(request)) return response;
 
