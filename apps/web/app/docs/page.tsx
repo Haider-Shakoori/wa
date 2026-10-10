@@ -389,6 +389,7 @@ export default function DocsPage() {
             <Trouble title="Webhook keeps failing" answer="Confirm public HTTPS reachability, verify your endpoint returns 2xx quickly, validate HMAC using the raw body and inspect recent delivery attempts."/>
             <Trouble title="403 from API" answer="Check the key type, scopes and session binding. Dashboard-only management operations are not available to ordinary API keys."/>
           </div>
+          <p>For a step-by-step, read-only diagnosis of QR availability and all nine session states, see our <a href="/blog/whatsapp-api-qr-session-troubleshooting">QR session troubleshooting tutorial</a>. The session endpoints above remain the canonical API reference.</p>
         </DocSection>
 
         <DocSection id="production" eyebrow="Launch readiness" title="Production checklist" intro="Use this before putting a customer integration into production.">
