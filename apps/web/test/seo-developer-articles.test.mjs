@@ -20,10 +20,10 @@ function evaluate(path){
 }
 const {publishedArticles,getPublishedArticle}=evaluate('lib/blog-articles.ts');
 
-test('published English collection has only two genuinely distinct developer tutorials',()=>{
-  assert.equal(publishedArticles.length,2);
+test('published English collection contains three distinct source-backed developer tutorials',()=>{
+  assert.equal(publishedArticles.length,3);
   assert.deepEqual(Array.from(publishedArticles,x=>x.slug),
-    ['nodejs-whatsapp-api-send-webhooks','laravel-whatsapp-api-order-notifications']);
+    ['nodejs-whatsapp-api-send-webhooks','laravel-whatsapp-api-order-notifications','whatsapp-api-qr-session-troubleshooting']);
   for(const x of publishedArticles){
     assert.ok(x.blocks.length>=4);
     assert.ok(x.title.length>=45);
@@ -39,6 +39,7 @@ test('published English collection has only two genuinely distinct developer tut
   assert.equal(getPublishedArticle('not-published'),undefined);
   assert.ok(getPublishedArticle('nodejs-whatsapp-api-send-webhooks'));
   assert.ok(getPublishedArticle('laravel-whatsapp-api-order-notifications'));
+  assert.ok(getPublishedArticle('whatsapp-api-qr-session-troubleshooting'));
 });
 
 test('Node sending uses HTTPS, server credentials, stable clientMessageId and parsed API data',async()=>{

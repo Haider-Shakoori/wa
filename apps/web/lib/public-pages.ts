@@ -54,6 +54,10 @@ const editorialDefinitions = [
     'Laravel WhatsApp API: Transactional Order Notifications | RelayWA',
     'Integrate Laravel with RelayWA session-based WhatsApp API for order updates, stable message IDs and raw-body signed webhook handling.',
     'monthly', 0.7],
+  ['/blog/whatsapp-api-qr-session-troubleshooting',
+    'WhatsApp API QR Code and Session Troubleshooting Guide | RelayWA',
+    'Diagnose QR pairing, expired codes, disconnected sessions and reconnecting WhatsApp Web APIs using verified RelayWA session states and read-only checks.',
+    'monthly', 0.7],
 ] as const;
 
 export const editorialPages = editorialDefinitions.map(([path,title,description,changeFrequency,priority])=>({
