@@ -1,0 +1,26 @@
+name: RelayWA PHP Tutorial Syntax Check
+
+on:
+  pull_request:
+    paths:
+      - 'examples/relaywa-laravel/**'
+      - '.github/workflows/seo-php-examples.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php-syntax:
+    name: Laravel tutorial PHP 8.3 syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Lint source examples without running Laravel application
+        run: |
+          php -l examples/relaywa-laravel/app/Services/RelayWaOrderNotifier.php
+          php -l examples/relaywa-laravel/app/Http/Controllers/RelayWaWebhookController.php

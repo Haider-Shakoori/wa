@@ -36,6 +36,33 @@ export const publicPages = [
   },
 ] as const;
 
+// Deliberately published editorial URLs. Drafts are not listed and cannot be
+// indexed or tracked. Keep entries synchronized with blog-articles.ts via tests.
+// Intentional separation: legacy keyword audits enumerate the four original
+// marketing route entries. New editorial rows are created from tuples
+// and validated against blog-articles.ts by article-specific regression tests.
+const editorialDefinitions = [
+  ['/blog',
+    'RelayWA Developer Guides — WhatsApp REST API Tutorials',
+    'Original developer tutorials for RelayWA QR-linked WhatsApp sessions, Node.js webhooks, Laravel notifications and secure API integrations.',
+    'weekly', 0.75],
+  ['/blog/nodejs-whatsapp-api-send-webhooks',
+    'Node.js WhatsApp API: Send Messages and Verify Webhooks | RelayWA',
+    'Build a Node.js WhatsApp API integration with QR-linked sessions, Bearer auth, idempotent sends and signed webhook verification.',
+    'monthly', 0.7],
+  ['/blog/laravel-whatsapp-api-order-notifications',
+    'Laravel WhatsApp API: Transactional Order Notifications | RelayWA',
+    'Integrate Laravel with RelayWA session-based WhatsApp API for order updates, stable message IDs and raw-body signed webhook handling.',
+    'monthly', 0.7],
+] as const;
+
+export const editorialPages = editorialDefinitions.map(([path,title,description,changeFrequency,priority])=>({
+  path, title, description, changeFrequency, priority,
+}));
+
+// Sitemaps, metadata and public-only analytics must agree on published paths.
+export const allPublishedPages = [...publicPages, ...editorialPages];
+
 export function normalizePublicPath(pathname: string): string {
   const withoutQueryOrHash = pathname.split(/[?#]/, 1)[0] || '/';
   const cleaned = '/' + withoutQueryOrHash.replace(/^\/+|\/+$/g, '');
@@ -44,7 +71,7 @@ export function normalizePublicPath(pathname: string): string {
 
 export function getPublicPage(pathname: string) {
   const path = normalizePublicPath(pathname);
-  return publicPages.find((page) => page.path === path);
+  return allPublishedPages.find((page) => page.path === path);
 }
 
 export function isIndexablePublicPath(pathname: string): boolean {

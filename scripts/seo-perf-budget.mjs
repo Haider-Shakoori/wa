@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 
 const ORIGIN = process.env.SEO_SMOKE_ORIGIN || 'http://127.0.0.1:3000';
-const routes = ['/', '/pricing', '/api-docs', '/help'];
+const routes = ['/', '/pricing', '/api-docs', '/help', '/blog', '/blog/nodejs-whatsapp-api-send-webhooks', '/blog/laravel-whatsapp-api-order-notifications'];
 const budgets = {
   maxHtmlGzipBytes: 60_000,
   maxJavascriptGzipBytes: 320_000,
@@ -38,7 +38,7 @@ async function visit(route) {
       assert.ok(html.includes(`href="#${id}"`), `Missing in-document navigation to #${id}`);
     }
     assert.ok(html.includes('href="/register"'), 'Docs trial CTA must lead to registration');
-  } else {
+  } else if (['/', '/pricing', '/help'].includes(route)) {
     const required = route === '/' ? docAnchors : route === '/pricing' ?
       ['sessions', 'webhooks', 'queue'] : ['quickstart', 'sessions', 'webhooks'];
     for (const id of required) {
@@ -56,6 +56,18 @@ async function visit(route) {
       'Pricing must link to official Meta fee information');
     assert.ok(html.includes('href="/api-docs#queue"'),
       'Pricing should link directly to accurate outbound send/retry documentation');
+  }
+  if (route === '/blog') {
+    for (const slug of ['nodejs-whatsapp-api-send-webhooks','laravel-whatsapp-api-order-notifications']) {
+      assert.ok(html.includes(`href="/blog/${slug}"`), 'Unlinked tutorial '+slug);
+    }
+  }
+  if (route.startsWith('/blog/')) {
+    assert.ok(html.includes('application/ld+json'), 'Published tutorial needs structured data');
+    assert.ok(html.includes('TechArticle') && html.includes('BreadcrumbList'), 'Article and breadcrumbs not rendered');
+    assert.ok(html.includes('not Meta') || html.includes('not Meta'), 'Missing correct product-model disclosure');
+    assert.ok(html.includes('Last verified'), 'Article needs source verification date');
+    assert.ok(html.includes('href="/api-docs#webhooks"'), 'Tutorial must link to existing webhook docs');
   }
   // Framework-specific search intent resolves to server-rendered headings
   // and code inside the ONE existing indexable /api-docs document.
