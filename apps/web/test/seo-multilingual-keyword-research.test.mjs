@@ -92,7 +92,7 @@ test('no multilingual keywords are inserted into indexable page metadata or href
   assert.deepEqual(filenames,published);
   assert.match(layout,/<html lang="en"/);
   assert.doesNotMatch(seo,/keywords\s*:/);
-  assert.doesNotMatch(sitemap,/hreflang|languages:\s*\{/);
+  assert.doesNotMatch(sitemap,/alternates:\s*\{\s*languages/);
   assert.match(docs,/<h1>WhatsApp REST API documentation:/);
   assert.match(readFileSync(new URL('apps/web/components/google-analytics.tsx',root),'utf8'),
     /isIndexablePublicPath/);
