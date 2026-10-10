@@ -1,5 +1,13 @@
 import type { MetadataRoute } from 'next';
-import { siteUrl } from '../lib/seo';
+import { publicPages } from '../lib/public-pages';
+import { canonicalUrl } from '../lib/seo';
+
+// Only registered, published public pages appear here. Future locale pages
+// should be added to the registry only after review and with real hreflang.
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ['', '/pricing', '/api-docs', '/help'].map(path => ({ url: siteUrl + path }));
+  return publicPages.map((page) => ({
+    url: canonicalUrl(page.path),
+    changeFrequency: page.changeFrequency,
+    priority: page.priority,
+  }));
 }
