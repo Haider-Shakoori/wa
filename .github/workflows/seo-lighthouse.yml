@@ -53,3 +53,6 @@ jobs:
           configPath: ./.lighthouserc.json
           uploadArtifacts: true
           temporaryPublicStorage: false
+      - name: Summarize mobile performance and accessibility
+        if: always()
+        run: node scripts/seo-lighthouse-summary.mjs
