@@ -31,7 +31,7 @@ test('published English collection has only two genuinely distinct developer tut
     assert.match(x.publishedAt,/^\d{4}-\d{2}-\d{2}$/);
     assert.match(x.verifiedAt,/^\d{4}-\d{2}-\d{2}$/);
     assert.ok(x.sourcePath.startsWith('examples/relaywa-'));
-    assert.ok(readFileSync(new URL('../../..//'+x.sourcePath,root),'utf8').length>250);
+    assert.ok(readFileSync(new URL('../../'+x.sourcePath,root),'utf8').length>250);
     const headings=new Set(x.blocks.map(b=>b.id));
     assert.equal(headings.size,x.blocks.length,'Unique section anchors');
     assert.ok(x.blocks.every(b=>b.paragraphs.every(p=>p.length>60)));
