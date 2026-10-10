@@ -1,6 +1,6 @@
 import RelayHome from '../components/relay-home';
-import { publicMetadata, siteUrl } from '../lib/seo';
-export const metadata = publicMetadata('RelayWA — WhatsApp API for Developers', 'Connect WhatsApp to your app with isolated sessions, REST API messaging, and real-time webhooks. Start a free 7-day RelayWA trial.', '/');
+import { marketingPageMetadata, siteUrl } from '../lib/seo';
+export const metadata = marketingPageMetadata('/');
 export default function Page(){
   const schema = {'@context':'https://schema.org','@graph':[
     {'@type':'Organization','@id':siteUrl+'/#organization',name:'RelayWA',url:siteUrl,logo:siteUrl+'/brand/relaywa-icon-web.png'},
