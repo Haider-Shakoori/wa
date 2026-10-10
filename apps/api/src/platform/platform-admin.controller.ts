@@ -36,6 +36,11 @@ export class PlatformAdminController {
     return this.googleAnalytics.report(days);
   }
 
+  @Get('seo-conversions')
+  seoConversionReport(@Query('days') days?: string) {
+    return this.platform.seoConversionSummary(days);
+  }
+
   @Get('monitoring/overview')
   monitoringOverview() { return this.platform.monitoringOverview(); }
 

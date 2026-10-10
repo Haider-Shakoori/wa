@@ -27,6 +27,9 @@ test('GA4 only reports selected public pages, without private URL query data', a
   assert.match(tracker, /if \(!isPublic\) return null/);
   assert.match(tracker, /ga-disable-/);
   assert.match(tracker, /send_page_view: false/);
-  assert.match(tracker, /window\.location\.origin \+ normalizedPath/);
-  assert.doesNotMatch(tracker, /window\.location\.search|useSearchParams|document\.cookie|localStorage/);
+  assert.match(tracker, /consent === 'granted'/);
+  assert.match(tracker, /ANALYTICS_CONSENT_KEY/);
+  assert.match(tracker, /marketingEventNames/);
+  assert.match(tracker, /safeMarketingPageLocation\(window\.location\)/);
+  assert.doesNotMatch(tracker, /window\\.location\\.search|useSearchParams|document\\.cookie|relaywa_access_token/);
 });

@@ -1315,6 +1315,37 @@ export class PlatformAdminService {
     return result;
   }
 
+  /**
+   * Verified first-party subscription funnel totals. All acquisition sources
+   * are included; without an audited org-level attribution model these MUST
+   * NOT be represented as paid conversions from organic search.
+   */
+  async seoConversionSummary(daysInput?: string) {
+    const days = Number(daysInput ?? 30);
+    if (![7, 30, 90].includes(days)) {
+      throw new BadRequestException('Days must be 7, 30, or 90');
+    }
+    const [workspaces, payments, paidCustomers] = await Promise.all([
+      this.db.query<{ total: string }>(`SELECT count(*)::text AS total FROM organizations
+        WHERE created_at >= (now() AT TIME ZONE 'UTC')::date - ($1::int - 1)`, [days]),
+      this.db.query<{ total: string }>(`SELECT count(*)::text AS total FROM payments
+        WHERE status='paid' AND provider <> 'demo'
+          AND paid_at >= (now() AT TIME ZONE 'UTC')::date - ($1::int - 1)`, [days]),
+      this.db.query<{ total: string }>(`SELECT count(*)::text AS total FROM (
+          SELECT organization_id, min(paid_at) AS first_paid_at FROM payments
+          WHERE status='paid' AND provider <> 'demo' AND paid_at IS NOT NULL
+          GROUP BY organization_id
+        ) firsts WHERE first_paid_at >= (now() AT TIME ZONE 'UTC')::date - ($1::int - 1)`, [days]),
+    ]);
+    return {
+      days, newWorkspaces: Number(workspaces.rows[0]?.total ?? 0),
+      paidTransactions: Number(payments.rows[0]?.total ?? 0),
+      firstTimePayingWorkspaces: Number(paidCustomers.rows[0]?.total ?? 0),
+      attribution: 'all_channels_unattributed' as const,
+      note: 'Verified platform database aggregates across ALL acquisition channels, not organic-search conversions. New workspaces may include administratively created accounts. Excludes demo payments and counts first-time paying workspaces separately from all paid transactions.',
+    };
+  }
+
   private async count(sql: string) {
     const result = await this.db.query<{ count: string }>(sql);
     return Number(result.rows[0]?.count ?? 0);

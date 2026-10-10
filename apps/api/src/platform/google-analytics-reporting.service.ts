@@ -28,6 +28,9 @@ type ReadyReport = {
   sources: Entry[];
   pages: Entry[];
   devices: Entry[];
+  conversionEvents: Entry[];
+  organicCountries: Entry[];
+  organicLandingPages: Entry[];
 };
 type Report = ReadyReport | {
   status: 'not_configured' | 'error';
@@ -100,7 +103,9 @@ export class GoogleAnalyticsReportingService {
         limit: String(limit),
       });
 
-    const [summary, trend, countries, sources, pages, devices, realtime] = await Promise.all([
+    const organicFilter = { filter: { fieldName: 'sessionDefaultChannelGroup', stringFilter: { value: 'Organic Search', matchType: 'EXACT' } } };
+    const conversionNames = ['pricing_view', 'trial_cta_click', 'plan_select', 'docs_cta_click'];
+    const [summary, trend, countries, sources, pages, devices, realtime, conversions, organicCountries, organicLandingPages] = await Promise.all([
       run(['activeUsers', 'screenPageViews', 'sessions', 'engagementRate']),
       run(['activeUsers', 'screenPageViews'], ['date'], days),
       run(['activeUsers'], ['country']),
@@ -109,6 +114,20 @@ export class GoogleAnalyticsReportingService {
       run(['activeUsers'], ['deviceCategory']),
       this.googlePost<Ga4Data>(`${DATA_ENDPOINT}:runRealtimeReport`, token, {
         metrics: [{ name: 'activeUsers' }],
+      }),
+      this.googlePost<Ga4Data>(`${DATA_ENDPOINT}:runReport`, token, {
+        dateRanges, metrics: [{ name: 'eventCount' }],
+        dimensions: [{ name: 'eventName' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: conversionNames } } },
+        limit: '10',
+      }),
+      this.googlePost<Ga4Data>(`${DATA_ENDPOINT}:runReport`, token, {
+        dateRanges, metrics: [{ name: 'sessions' }], dimensions: [{ name: 'country' }],
+        dimensionFilter: organicFilter, limit: '30',
+      }),
+      this.googlePost<Ga4Data>(`${DATA_ENDPOINT}:runReport`, token, {
+        dateRanges, metrics: [{ name: 'sessions' }], dimensions: [{ name: 'landingPage' }],
+        dimensionFilter: organicFilter, limit: '30',
       }),
     ]);
     const total = summary.rows?.[0];
@@ -136,6 +155,9 @@ export class GoogleAnalyticsReportingService {
       sources: entries(sources),
       pages: entries(pages),
       devices: entries(devices),
+      conversionEvents: entries(conversions, 10),
+      organicCountries: entries(organicCountries, 30),
+      organicLandingPages: entries(organicLandingPages, 30),
     };
   }
 

@@ -16,6 +16,9 @@ type ReadyReport = {
   sources: Entry[];
   pages: Entry[];
   devices: Entry[];
+  conversionEvents: Entry[];
+  organicCountries: Entry[];
+  organicLandingPages: Entry[];
 };
 type Report = ReadyReport | {
   status: 'not_configured' | 'error';
@@ -23,6 +26,7 @@ type Report = ReadyReport | {
   days: number;
   message: string;
 };
+type Funnel = { days:number; newWorkspaces:number; paidTransactions:number; firstTimePayingWorkspaces:number; attribution:string; note:string };
 const count = (value: number) => Number(value).toLocaleString();
 
 function Ranking({ title, items, empty }: { title: string; items: Entry[]; empty: string }) {
@@ -42,14 +46,20 @@ function Ranking({ title, items, empty }: { title: string; items: Entry[]; empty
 export function PlatformGoogleAnalytics({ token }: { token: string }) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [report, setReport] = useState<Report | null>(null);
+  const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const result = await api<Report>(`/platform/google-analytics?days=${days}`, token);
-      setReport(result);
+      const [ga, verified] = await Promise.allSettled([
+        api<Report>(`/platform/google-analytics?days=${days}`, token),
+        api<Funnel>(`/platform/seo-conversions?days=${days}`, token),
+      ]);
+      if (ga.status === 'fulfilled') setReport(ga.value);
+      else setReport({status:'error',days,propertyId:'558119248',message:'Unable to retrieve GA4 report.'});
+      setFunnel(verified.status === 'fulfilled' ? verified.value : null);
       setError('');
     } catch {
       setError('Unable to retrieve Google Analytics reporting status.');
@@ -125,8 +135,25 @@ export function PlatformGoogleAnalytics({ token }: { token: string }) {
           <Ranking title="Most viewed pages" items={ready.pages} empty="No page data yet." />
           <Ranking title="Devices by active users" items={ready.devices} empty="No device data yet." />
         </div>
+        <div className="website-traffic-grid">
+          <Ranking title="Organic-search countries (sessions)" items={ready.organicCountries ?? []} empty="No organic-search country data yet." />
+          <Ranking title="Organic-search landing pages (sessions)" items={ready.organicLandingPages ?? []} empty="No organic-search landing pages yet." />
+          <Ranking title="Consented marketing actions" items={ready.conversionEvents ?? []} empty="No marketing events yet." />
+        </div>
+        <p className="muted">Marketing events represent pricing views and CTA clicks, not confirmed account creations or purchases.</p>
         <p className="website-traffic-disclaimer">Updated {new Date(ready.updatedAt).toLocaleString()}. Realtime and historical metrics come from Google's API, not synthetic data. Conversion metrics can be added once signup and purchase events are configured.</p>
       </>}
+      <div className="panel website-traffic-panel">
+        <h3>Verified platform conversion totals — all channels</h3>
+        {funnel ? <>
+          <div className="website-traffic-stats">
+            <div className="panel"><span>New workspaces</span><strong>{count(funnel.newWorkspaces)}</strong></div>
+            <div className="panel"><span>First-time paying workspaces</span><strong>{count(funnel.firstTimePayingWorkspaces)}</strong></div>
+            <div className="panel"><span>Paid transactions</span><strong>{count(funnel.paidTransactions)}</strong></div>
+          </div>
+          <p className="muted">{funnel.note}</p>
+        </> : <p className="muted">Verified subscription data is unavailable; no values have been estimated.</p>}
+      </div>
       {!report && loading && <p className="muted">Loading Google Analytics reports…</p>}
     </section>
   );
