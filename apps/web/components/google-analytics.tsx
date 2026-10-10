@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Script from 'next/script';
+import { isIndexablePublicPath } from '../lib/public-pages';
 
 // GA4 measurement IDs are public identifiers, not credentials.
 // Reports require a separate, authenticated GA4 Data API integration.
 const measurementId = 'G-61Z26DFM1V';
 
-// Match the public marketing pages in app/sitemap.ts. Do not report
-// platform admin, tenant dashboards, authentication or customer data to GA4.
-const trackedPublicPaths = new Set(['/', '/pricing', '/api-docs', '/help']);
+// Share the exact published-page allowlist with the XML sitemap and proxy.
+// Private workspaces, auth, billing and message data must never be reported.
 
 type GtagWindow = Window & {
   dataLayer?: unknown[][];
@@ -24,7 +24,7 @@ export default function GoogleAnalytics() {
   const normalizedPath = pathname && pathname.length > 1
     ? pathname.replace(/\/+$/, '')
     : pathname;
-  const isPublic = Boolean(normalizedPath && trackedPublicPaths.has(normalizedPath));
+  const isPublic = Boolean(normalizedPath && isIndexablePublicPath(normalizedPath));
 
   // Google's documented disable switch is a second guard in case the
   // browser retains the tag after client-side navigation to private routes.
