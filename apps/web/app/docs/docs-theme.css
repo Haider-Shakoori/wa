@@ -93,3 +93,9 @@
 .rw-docs .docs-code-card .docs-code-foot{padding:16px 22px;background:#0d1510;align-items:center}
 @media(max-width:1100px){.rw-docs .docs-code-card .docs-code-head{flex-direction:column;align-items:flex-start}.rw-docs .docs-code-card .docs-code-head>div{max-width:100%}}
 @media(max-width:760px){.rw-docs .docs-code-card .docs-code-head{padding:18px;gap:14px}.rw-docs .docs-code-card .docs-code-head>div{width:100%}.rw-docs .docs-code-card .docs-code-head button{padding:8px 10px;font-size:11px}.rw-docs .docs-code-card pre{padding:20px 18px}.rw-docs .docs-code-card pre code{font-size:12px}.rw-docs .docs-code-card .docs-code-foot{padding:16px 18px}}
+
+/* Batch 06: concise topical navigation on the existing canonical API docs page. */
+.rw-docs .docs-platform-note{font-size:13px;line-height:1.7;color:#b9d1bf;border-left:3px solid #45cd7a;padding:10px 14px;background:rgba(48,150,87,.10);margin:16px 0}
+.rw-docs .docs-topic-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 14px}
+.rw-docs .docs-topic-shortcuts a{display:inline-flex;align-items:center;min-height:44px;padding:10px 13px;border-radius:9px;background:#17281c;border:1px solid #416749;color:#cef4d9;font-size:13px;line-height:1.4}
+.rw-docs .docs-topic-shortcuts a:hover,.rw-docs .docs-topic-shortcuts a:focus-visible{background:#234c31;color:#fff}
