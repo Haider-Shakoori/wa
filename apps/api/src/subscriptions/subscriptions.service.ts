@@ -5,8 +5,6 @@ import type { PoolClient } from 'pg';
 type SubscriptionRow = {
   organization_id: string;
   plan_code: string;
-  provider: string;
-  stripe_livemode: boolean;
   status: 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'expired';
   current_period_start: string;
   current_period_end: string;
