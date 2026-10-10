@@ -214,7 +214,7 @@ export default function DocsPage() {
     <header className="docs-v2-topbar">
       <Brand/>
       <div className="docs-search"><FeatherIcon name="search" size={17}/><input ref={searchRef} aria-label="Search all documentation" aria-controls={query ? "docs-search-results" : undefined} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search endpoints, guides, and code…"/>{query?<button type="button" onClick={()=>{setQuery('');searchRef.current?.focus();}} aria-label="Clear search">×</button>:<kbd>Ctrl K</kbd>}</div>
-      <nav><a href="/">Product</a><a href="/#pricing">Pricing</a>{signedIn?<a className="public-cta" href="/dashboard">Back to dashboard</a>:<><a href="/login">Sign in</a><a className="public-cta" href="/register">Start free</a></>}</nav>
+      <nav><a href="/">Product</a><a href="/pricing">Pricing</a>{signedIn?<a className="public-cta" href="/dashboard">Back to dashboard</a>:<><a href="/login">Sign in</a><a className="public-cta" href="/register">Start free</a></>}</nav>
     </header>
 
     <div className="docs-v2-layout">
