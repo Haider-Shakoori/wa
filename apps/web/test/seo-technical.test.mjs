@@ -65,7 +65,7 @@ test('canonical URLs are HTTPS, normalized, and have no queries or fragments', (
 test('sitemap is registry-driven without private routes, query strings, or unapproved locales', () => {
   const rows = sitemap();
   assert.equal(rows.length, registry.publicPages.length);
-  assert.deepEqual(Array.from(rows, row => row.url), registry.publicPages.map(page => seo.canonicalUrl(page.path)));
+  assert.deepEqual(Array.from(rows, row => row.url), Array.from(registry.publicPages, page => seo.canonicalUrl(page.path)));
   for (const row of rows) {
     assert.match(row.url, /^https:\/\/relaywa\.com\//);
     assert.ok(!/[?#]/.test(row.url));
