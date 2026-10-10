@@ -7,11 +7,11 @@ export const languageIcons = { JavaScript: SiJavascript, TypeScript: SiTypescrip
 export function LanguageIcon({name}:{name:string}) { const Symbol=languageIcons[name as keyof typeof languageIcons];return Symbol?<Symbol className="rw-language-icon" aria-hidden="true"/>:<Icon name="code"/>; }
 function Tile({icon,title,children}:{icon:FeatherName;title:string;children:React.ReactNode}){return <article className="rw-rich-tile"><span className="rw-icon-tile"><Icon name={icon} size={24}/></span><h3>{title}</h3><p>{children}</p></article>;}
 export function DeveloperPlatforms(){return <section className="rw-site-section" id="integrations"><div className="rw-section-intro"><p className="rw-kicker">YOUR STACK, YOUR CHOICE</p><h2>Built to fit the tools<br/><em>you already use.</em></h2><p>A standard HTTP API works across languages. Keep your application architecture and add WhatsApp where it belongs.</p></div><div className="rw-platform-grid">{[
- ['Node.js','Use fetch in your Node.js service, then route incoming events to your application.'],
- ['Python','Connect with requests or your preferred HTTP client. Build background jobs and event handlers.'],
- ['Laravel','Use Laravel’s HTTP client and queues to send notifications from your existing application.'],
- ['n8n','Connect an HTTP Request node for sending and a Webhook node for receiving events.']
-].map(([name,description])=><article key={name}><span className="rw-platform-icon"><LanguageIcon name={name}/></span><h3>{name}</h3><p>{description}</p><Link href="/api-docs">Explore HTTP integration <Icon name="right" size={16}/></Link></article>)}</div><p className="rw-section-note">HTTP integration examples · published RelayWa SDK packages are not required.</p></section>;}
+ ['Node.js','Use fetch in your Node.js service, then route incoming events to your application.', '/api-docs#integration-nodejs'],
+ ['Python','Connect with requests or your preferred HTTP client. Build background jobs and event handlers.', '/api-docs#integration-python'],
+ ['Laravel','Use Laravel’s HTTP client and queues to send notifications from your existing application.', '/api-docs#integration-laravel'],
+ ['n8n','Configure a standard HTTP Request node. This is a manual recipe, not an official packaged RelayWA node.', '/api-docs#integration-n8n']
+].map(([name,description,guideHref])=><article key={name}><span className="rw-platform-icon"><LanguageIcon name={name}/></span><h3>{name}</h3><p>{description}</p><Link href={guideHref}>Explore HTTP integration <Icon name="right" size={16}/></Link></article>)}</div><p className="rw-section-note">HTTP integration examples · published RelayWa SDK packages are not required.</p></section>;}
 export function ConnectionSteps(){const steps=[
  {icon:'qr',title:'Connect your number',text:'Create a session and scan the QR code from WhatsApp’s Linked devices.',detail:'Your number, linked securely'},
  {icon:'key',title:'Copy your API key',text:'Your session key is created automatically after connection. Copy it to your application server.',detail:'One key for each session'},
