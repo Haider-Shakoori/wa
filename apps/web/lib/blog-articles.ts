@@ -109,6 +109,80 @@ export const publishedArticles: readonly PublishedArticle[] = [
       },
     ],
   },
+  {
+    slug: 'whatsapp-api-qr-session-troubleshooting',
+    title: 'WhatsApp API QR Code and Session Troubleshooting Guide',
+    description: 'Diagnose QR pairing, expired codes, disconnected sessions and reconnecting WhatsApp Web APIs using verified RelayWA session states and read-only checks.',
+    summary: 'A practical QR pairing and reconnection decision tree tied to RelayWA session states, API results and safe operational recovery.',
+    keyword: 'whatsapp api qr code',
+    audience: 'Backend engineers and operators supporting connected WhatsApp numbers',
+    publishedAt: '2026-10-11',
+    verifiedAt: '2026-10-11',
+    readingMinutes: 10,
+    sourcePath: 'examples/relaywa-session-diagnostics/diagnose.mjs',
+    blocks: [
+      {
+        id:'check-state',
+        heading:'First read the real session status, not yesterday’s QR',
+        paragraphs:[
+          'A QR-linked WhatsApp Web session is different from Meta’s official Cloud API. Start with GET /whatsapp-sessions/:sessionId and inspect status and last connection information using a scoped server-side key that has sessions.read permission. The response is specific to your organization and selected session.',
+          'RelayWA currently defines nine possible states: pending, need_scan, connecting, connected, disconnected, reconnecting, logged_out, expired and error. These describe the session, not a guaranteed delivery state for an outbound message. A session can be connected even after an old QR code expires.',
+        ],
+        code:'GET /api/whatsapp-sessions/SESSION_UUID\nAuthorization: Bearer SERVER_SIDE_KEY_WITH_SESSIONS_READ\n\n# Use /api-docs#sessions for the complete authenticated reference.',
+      },
+      {
+        id:'qr-expiry',
+        heading:'QR missing, expired or awaiting a new scan',
+        paragraphs:[
+          'GET /whatsapp-sessions/:sessionId/qrcode returns status, available and expiresAt. When a fresh QR exists it can also return qr and dataUrl. Treat those values as secrets: show them only to the authorized WhatsApp account owner and do not store them in analytics, server logs or public screenshots.',
+          'available: false means the QR is missing or its stored expiry has passed. It does not by itself prove a broken worker or demand immediate session deletion. If status is need_scan, inspect connection events and wait for the next authorized QR. Have the account owner scan it from WhatsApp Linked devices, then read the session status again.',
+        ],
+        bullets:[
+          'pending: session exists but connection may not have been requested; use the authorized Connect action first.',
+          'need_scan: pairing needed; securely display a CURRENT available QR.',
+          'connecting: pairing or transport is in progress; wait and monitor events rather than forcefully logging out.',
+          'connected: no further QR action should be necessary solely because a previous QR expired.',
+        ],
+        code:'GET /api/whatsapp-sessions/SESSION_UUID/qrcode\n# Example when QR unavailable:\n{\n  "sessionId": "SESSION_UUID",\n  "status": "need_scan",\n  "available": false,\n  "expiresAt": null\n}',
+      },
+      {
+        id:'reconnect',
+        heading:'Recover a disconnected or reconnecting session carefully',
+        paragraphs:[
+          'disconnected and reconnecting are different states. Reconnecting indicates restoration is in progress, so give the runtime time and inspect event history first. A deliberate POST /whatsapp-sessions/:sessionId/restart queues a worker command; it is NOT proof that the connection restarted or succeeded.',
+          'For logged_out, the WhatsApp account is no longer authenticated and requires the authorized account owner to re-pair. Avoid repeatedly issuing disconnect/logout: it can destroy recoverable authentication. For expired or error, inspect subscription/session diagnostics before choosing an action. Session deletion is restricted to pending or logged_out, and session-scoped keys can be revoked when deleting a session.',
+        ],
+        bullets:[
+          'Review GET /whatsapp-sessions/:sessionId/logs (sessions.read) for recent events, without copying sensitive tokens.',
+          'Watch GET /whatsapp-sessions/:sessionId/events (SSE) for changes; do not mistake a heartbeat for a connection confirmation.',
+          'Use the Connect, Restart or Disconnect commands only as an authorized operator. Their immediate response has status queued.',
+          'If the session remains in error, check worker reachability and network health before escalating.',
+        ],
+      },
+      {
+        id:'message-errors',
+        heading:'Connected session but a message still fails',
+        paragraphs:[
+          'A connected session only verifies the transport connection. Sending requires a valid Bearer credential, messages.send scope, subscription eligibility and a valid international recipient number. A 401 indicates invalid credentials; 403 indicates authorization/scope restrictions; 409 can mean the session is not connected.',
+          'RelayWA dispatches outbound sends immediately. It does not automatically schedule or retry messages in an outbound Redis queue. If a worker transport request times out, the send outcome may be uncertain; inspect the returned message ID and delivery state before resending and reuse the same clientMessageId when appropriate. A successful API send response does not prove the recipient read the message.',
+        ],
+        bullets:[
+          'Never create a fresh clientMessageId merely because the HTTP response timed out.',
+          'Do not confuse a webhook delivery retry with an outbound message retry.',
+          'Respect opt-in and platform rules; this diagnostic workflow cannot prevent WhatsApp account restrictions.',
+        ],
+      },
+      {
+        id:'read-only-diagnostic',
+        heading:'Run the safe read-only session diagnostic',
+        paragraphs:[
+          'The source-linked Node.js 20+ example requests session details and QR availability metadata only. It never sends lifecycle commands, messages, QR data, secrets or access tokens to stdout. Supply RELAYWA_API_KEY with sessions.read permission and RELAYWA_SESSION_ID in a trusted server environment.',
+          'The diagnostic is an offline-testable illustration and does not guarantee that a live worker is reachable, that an account can be paired or that a given network configuration is correct. Follow the canonical REST reference for endpoint permissions and the original Node.js sending tutorial for HMAC-signed event handling.',
+        ],
+        code:'RELAYWA_API_KEY=SERVER_SIDE_KEY_WITH_SESSIONS_READ \\\nRELAYWA_SESSION_ID=YOUR_SESSION_UUID \\\nnode examples/relaywa-session-diagnostics/diagnose.mjs',
+      },
+    ],
+  },
 ];
 
 export function getPublishedArticle(slug:string):PublishedArticle | undefined {
