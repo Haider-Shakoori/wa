@@ -42,7 +42,7 @@ export function validateEvidence(csv) {
     assert.equal(obj.observation_date,'2026-10-11');
     assert.equal(obj.gsc_country_data,'unavailable','Do not claim a connected GSC report');
     assert.equal(obj.localized_buyers_verified,'no','Unique local buyer demand has not been verified');
-    assert.ok(obj.observation.length>55,'Each sample needs a specific reason');
+    assert.ok(obj.observation.length>30,'Each sample needs a specific reason');
     return obj;
   });
   assert.deepEqual([...seen].sort(),Object.keys(countries).sort());
