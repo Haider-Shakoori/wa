@@ -1,0 +1,25 @@
+{
+  # HTTP/2 and HTTP/3 are supported automatically by Caddy over TLS.
+  # Keep TLS automatic; do not configure certificates or private keys in Git.
+  servers {
+    protocols h1 h2 h3
+  }
+}
+
+relaywa.com {
+  encode zstd gzip
+
+  # NestJS already uses the /api prefix: DO NOT strip it.
+  @api path /api /api/*
+  handle @api {
+    reverse_proxy 127.0.0.1:3001
+  }
+  handle {
+    reverse_proxy 127.0.0.1:3000
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+}
