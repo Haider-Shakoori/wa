@@ -1,5 +1,30 @@
 const { test, expect } = require('@playwright/test');
 
+async function inspectConsentHitbox(page, phase) {
+  const geometry = await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Decline');
+    const banner = document.querySelector('.rw-analytics-consent');
+    if (!button || !banner) return { error: 'missing banner or Decline' };
+    const rect = element => {
+      const r = element.getBoundingClientRect();
+      return { x:r.x, y:r.y, width:r.width, height:r.height, top:r.top, bottom:r.bottom };
+    };
+    const br = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2);
+    const style = element => {
+      const cs = getComputedStyle(element);
+      return { position:cs.position, zIndex:cs.zIndex, pointerEvents:cs.pointerEvents,
+        overflow:cs.overflow, transform:cs.transform };
+    };
+    return { width:innerWidth, height:innerHeight, visualViewport:visualViewport && {
+      width:visualViewport.width,height:visualViewport.height,offsetTop:visualViewport.offsetTop },
+      button:rect(button), banner:rect(banner), hit:hit?.outerHTML.slice(0,250),
+      buttonStyle:style(button), bannerStyle:style(banner) };
+  });
+  console.log('CONSENT_HITBOX_DIAGNOSTIC '+phase+' '+JSON.stringify(geometry));
+}
+
+
 test('GA4 is absent before consent and remains absent after Decline, even across pages', async ({ page }) => {
   const googleRequests = [];
   page.on('request', request => {
@@ -12,6 +37,7 @@ test('GA4 is absent before consent and remains absent after Decline, even across
   await expect(banner).toBeVisible();
   expect(googleRequests, 'No Google requests before opt-in').toHaveLength(0);
   expect(await page.evaluate(() => Boolean(window.gtag))).toBe(false);
+  await inspectConsentHitbox(page, 'before-decline');
   await page.getByRole('button', { name: 'Decline' }).click();
   await expect(banner).toHaveCount(0);
   await page.goto('/pricing', { waitUntil: 'domcontentloaded' });
