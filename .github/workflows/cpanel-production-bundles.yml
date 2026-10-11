@@ -1,0 +1,63 @@
+name: cPanel production candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'scripts/build-cpanel-bundles.mjs'
+      - 'scripts/rebase-standalone-links.mjs'
+      - '.github/workflows/cpanel-production-bundles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_SITE_URL: https://relaywa.com
+      NEXT_PUBLIC_API_BASE_URL: /api
+      # No RELAYWA_API_UPSTREAM: Passenger mounts the NestJS app at /api.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm config set --location=project forceLegacyDeploy true
+      - run: node scripts/build-cpanel-bundles.mjs
+      - name: Check production origin and packaging
+        run: |
+          test -f .cpanel-release/web/apps/web/app.js
+          test -f .cpanel-release/api/app.js
+          find .cpanel-release/web -type l -lname '/*' -print -quit > /tmp/absolute-standalone-links
+          test ! -s /tmp/absolute-standalone-links
+          grep -q 'api_app_root=api' .cpanel-release/MANIFEST.txt
+      - name: Archive production candidate
+        run: |
+          tar -czf relaywa-cpanel-production-api.tar.gz -C .cpanel-release/api .
+          tar -czf relaywa-cpanel-production-web.tar.gz -C .cpanel-release/web .
+          cp .cpanel-release/MANIFEST.txt MANIFEST.txt
+          sha256sum relaywa-cpanel-production-api.tar.gz relaywa-cpanel-production-web.tar.gz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-cpanel-production-candidate
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            relaywa-cpanel-production-api.tar.gz
+            relaywa-cpanel-production-web.tar.gz
+            MANIFEST.txt
+            SHA256SUMS.txt

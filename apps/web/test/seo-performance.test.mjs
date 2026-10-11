@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const read = path => readFileSync(new URL('../'+path, import.meta.url),'utf8');
 
 test('public marketing and API docs no longer statically import tenant workspace component',()=>{
-  const home=read('components/relay-home.tsx');
+  const home=(read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   const docs=read('app/docs/page.tsx');
   const shared=read('components/marketing-primitives.tsx');
   const workspace=read('components/relay-workspace.tsx');
@@ -21,7 +21,7 @@ test('public marketing and API docs no longer statically import tenant workspace
 });
 
 test('hero code preview has stable server-rendered content without interval re-render',()=>{
-  const home=read('components/relay-home.tsx');
+  const home=(read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   const body=home.slice(home.indexOf('function TypingApiPreview()'),home.indexOf('export default function RelayHome()'));
   assert.match(body,/aria-label=\{previewCode\}/);
   assert.match(body,/\{previewCode\}/);
@@ -29,7 +29,7 @@ test('hero code preview has stable server-rendered content without interval re-r
 });
 
 test('public pages include skip navigation and reduced-motion/focus-visible support',()=>{
-  const home=read('components/relay-home.tsx');
+  const home=(read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   const css=read('app/marketing.css');
   assert.match(home,/href="#main-content"/);
   assert.match(home,/id="main-content"/);

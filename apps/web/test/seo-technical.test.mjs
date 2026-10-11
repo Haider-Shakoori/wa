@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
+import { configuredProxyOrigin } from '../lib/cpanel-api-origin.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -126,7 +127,7 @@ test('existing analytics proxy still runs but prevents index and collection on p
 });
 
 test('legacy docs redirect is one way, and 404 page is nonindexable', async () => {
-  const config = loadTypescript('next.config.ts').default;
+  const config = loadTypescript('next.config.ts', { './lib/cpanel-api-origin.mjs': { configuredProxyOrigin } }).default;
   const redirects = await config.redirects();
   assert.ok(redirects.some(x => x.source === '/docs' && x.destination === '/api-docs' && x.permanent));
   assert.ok(!redirects.some(x => x.source === '/api-docs' && x.destination === '/docs'));

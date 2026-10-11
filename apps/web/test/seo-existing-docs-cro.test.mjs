@@ -38,7 +38,7 @@ test('each commercial SEO topic points into existing, canonical documentation co
 });
 
 test('existing English homepage, help, pricing and docs reuse linked topics without new pages', () => {
-  const home = read('components/relay-home.tsx');
+  const home = (read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   const pricing = read('app/pricing/page.tsx');
   const help = read('app/help/page.tsx');
   const docs = read('app/docs/page.tsx');
@@ -55,7 +55,7 @@ test('existing English homepage, help, pricing and docs reuse linked topics with
 });
 
 test('marketing copy accurately identifies QR-linked WhatsApp Web and immediate outbound dispatch', () => {
-  const home=read('components/relay-home.tsx');
+  const home=(read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   const pricing=read('app/pricing/page.tsx');
   const docs=read('app/docs/page.tsx');
   const merged=home+pricing+docs;

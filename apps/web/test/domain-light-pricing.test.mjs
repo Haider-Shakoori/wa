@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('public pricing is loaded from the backend catalog', async () => {
-  const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
+  const source = (await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8')) + (await readFile(new URL('../components/relay-home-interactive.tsx', import.meta.url), 'utf8'));
   assert.match(source, /public\/plans/);
   assert.match(source, /PlanCards/);
   assert.match(source, /Annual billing/);

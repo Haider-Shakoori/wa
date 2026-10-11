@@ -1,0 +1,130 @@
+{
+  "$comment": "Sanitized snapshot of RelayWA Cloudflare Free DNS intent, 2026-10-12. Documentation only: NOT a complete importable DNS zone. Do not delete any existing TXT/CAA/SRV records. No Cloudflare API credentials included.",
+  "zone": "relaywa.com",
+  "plan": "free",
+  "nameservers": [
+    "audrey.ns.cloudflare.com",
+    "mitch.ns.cloudflare.com"
+  ],
+  "ssl_tls": {
+    "mode": "full_strict",
+    "universal_ssl": "active",
+    "always_use_https": true
+  },
+  "transport": {
+    "http2": "verified",
+    "http3": "advertised_alt_svc_not_client_verified",
+    "brotli": "verified"
+  },
+  "proxy_origin": "51.81.56.231",
+  "records": [
+    {
+      "type": "A",
+      "name": "@",
+      "content": "51.81.56.231",
+      "proxied": true
+    },
+    {
+      "type": "CNAME",
+      "name": "www",
+      "content": "relaywa.com",
+      "proxied": true
+    },
+    {
+      "type": "A",
+      "name": "mail",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "cpanel",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "cpcalendars",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "cpcontacts",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "ftp",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "staging",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "api-staging",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "webdisk",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "webmail",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "A",
+      "name": "whm",
+      "content": "51.81.56.231",
+      "proxied": false
+    },
+    {
+      "type": "MX",
+      "name": "@",
+      "content": "mail.relaywa.com",
+      "priority": 0,
+      "proxied": false
+    }
+  ],
+  "preserve_external_records": [
+    "Existing SPF TXT at @",
+    "Existing DKIM TXT at default._domainkey",
+    "Existing DMARC TXT at _dmarc",
+    "Other authoritative TXT, CAA, SRV and service records"
+  ],
+  "do_not_proxy": [
+    "PostgreSQL",
+    "Redis",
+    "WhatsApp worker",
+    "SMTP/IMAP",
+    "cPanel service endpoints",
+    "staging hosts"
+  ],
+  "cache_policy": {
+    "static_paths": [
+      "/_next/static/*",
+      "/brand/*"
+    ],
+    "dynamic_paths_no_edge_cache": [
+      "/api/*",
+      "/login",
+      "/register",
+      "/dashboard*",
+      "/platform*",
+      "/subscription*",
+      "/analytics-policy"
+    ]
+  }
+}

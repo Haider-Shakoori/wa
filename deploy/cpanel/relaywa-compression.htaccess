@@ -1,0 +1,10 @@
+# BEGIN RelayWA cPanel performance: compress textual responses, never binaries.
+# Appended after the CloudLinux-managed .htaccess directives in public_html.
+# mod_deflate adds the correct Vary: Accept-Encoding response header automatically.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml
+  AddOutputFilterByType DEFLATE text/javascript application/javascript application/x-javascript
+  AddOutputFilterByType DEFLATE application/json application/ld+json application/manifest+json
+  AddOutputFilterByType DEFLATE application/xml image/svg+xml
+</IfModule>
+# END RelayWA cPanel performance

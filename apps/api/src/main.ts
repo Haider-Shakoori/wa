@@ -38,8 +38,14 @@ async function bootstrap() {
     transform: true,
   }));
 
-  const port = Number(process.env.API_PORT ?? 3001);
-  await app.listen(port, '0.0.0.0');
+  // Passenger/CloudLinux supplies PORT, which may be a TCP port or Unix socket.
+  // Keep API_PORT as the fallback for existing Docker and local deployments.
+  const listenTarget = process.env.PORT ?? process.env.API_PORT ?? '3001';
+  if (/^\d+$/.test(listenTarget)) {
+    await app.listen(Number(listenTarget), '0.0.0.0');
+  } else {
+    await app.listen(listenTarget);
+  }
 }
 
 void bootstrap();

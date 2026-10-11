@@ -63,9 +63,9 @@ test('analytics runs only where policy allows or visitor opts in; private routes
   assert.match(source,/isIndexablePublicPath\(normalizedPath\)/);
   assert.match(source,/marketingEventNames\.includes/);
   assert.doesNotMatch(source,/relaywa_access_token|messages\.send|customer_phone/);
-  assert.match(read('components/relay-home.tsx'),/trackMarketingEvent\('trial_cta_click'/);
+  assert.match((read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx')),/trackMarketingEvent\('trial_cta_click'/);
   assert.match(read('components/marketing-primitives.tsx'),/trackMarketingEvent\('plan_select'/);
-  assert.match(read('components/relay-home.tsx'),/href="\/analytics-preferences"/);
+  assert.match((read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx')),/href="\/analytics-preferences"/);
 });
 
 test('GA4 reports organic search separately from confirmed all-source platform payments', () => {

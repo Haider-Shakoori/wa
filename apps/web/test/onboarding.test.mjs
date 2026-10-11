@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 test('login supports sign in, registration and Google', async () => {
   const login = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
-  const google = await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8');
+  const google = (await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8')) + (await readFile(new URL('../lib/auth-providers.ts', import.meta.url), 'utf8'));
   assert.match(login,/Create your account/);
   assert.match(login,/\/auth\//);
   assert.match(login,/GoogleSignIn/);

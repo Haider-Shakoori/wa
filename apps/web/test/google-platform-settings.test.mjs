@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('Google login configuration is loaded at runtime', async () => {
-  const source=await readFile(new URL('../components/google-signin.tsx',import.meta.url),'utf8');
+  const source=(await readFile(new URL('../components/google-signin.tsx',import.meta.url),'utf8')) + (await readFile(new URL('../lib/auth-providers.ts',import.meta.url),'utf8'));
   assert.match(source,/\/auth\/providers/);
   assert.match(source,/google\?\.enabled/);
   assert.doesNotMatch(source,/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);

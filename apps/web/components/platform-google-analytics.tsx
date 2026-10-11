@@ -101,7 +101,7 @@ export function PlatformGoogleAnalytics({ token }: { token: string }) {
         <div className="panel website-traffic-panel" role="status">
           <h3>{report.status === 'not_configured' ? 'Connection setup required' : 'GA4 reports unavailable'}</h3>
           <p className="muted">{report.message}</p>
-          <p className="muted">The service account needs Viewer access to GA4 property 558119248. Its credential file must be mounted into the API container; never upload it to GitHub.</p>
+          <p className="muted">The service account needs Viewer access to GA4 property 558119248. Its credential file must be stored privately on the cPanel API server, outside public_html; never upload it to GitHub.</p>
         </div>
       )}
 

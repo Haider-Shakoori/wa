@@ -63,7 +63,7 @@ test('old explicit declines remain stronger than country automatic decisions and
   assert.match(tracker,/setStoredChoice\(stored === 'granted'/);
   assert.match(tracker,/ANALYTICS_CHOICE_CHANGED_CHANNEL/);
   assert.doesNotMatch(tracker,/<aside|showPreferences|Allow analytics|Decline/);
-  const footer=await read('../components/relay-home.tsx');
+  const footer=(await read('../components/relay-home.tsx')) + (await read('../components/relay-home-interactive.tsx'));
   const preferences=await read('../app/analytics-preferences/page.tsx');
   assert.match(footer,/href="\/analytics-preferences"/);
   assert.match(preferences,/Enable optional analytics/);

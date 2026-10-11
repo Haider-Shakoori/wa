@@ -3,11 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
-
-type AuthProviders = {
-  email?: { enabled?: boolean };
-  google?: { enabled?: boolean; clientId?: string };
-};
+import { getAuthProviders } from '../lib/auth-providers';
 
 export function GoogleSignIn({ destination, preservePlan = false }: { destination?: string; preservePlan?: boolean } = {}) {
   const router = useRouter();
@@ -19,7 +15,7 @@ export function GoogleSignIn({ destination, preservePlan = false }: { destinatio
 
   useEffect(()=>{
     let active=true;
-    void api<AuthProviders>('/auth/providers')
+    void getAuthProviders()
       .then((providers)=>{
         if (!active) return;
         const google=providers.google;

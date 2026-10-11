@@ -21,13 +21,22 @@ export function useAdaptiveLoginChallenge() {
   const [risk,setRisk]=useState<LoginProtectionState|null>(null);
   const [token,setToken]=useState('');
   const [resetKey,setResetKey]=useState(0);
+  const currentEmail = useRef('');
   async function check(email:string) {
+    const normalized=email.trim().toLowerCase();
+    currentEmail.current=normalized;
     const next=await api<LoginProtectionState>('/auth/login-protection?email='+
-      encodeURIComponent(email.trim().toLowerCase()));
-    setRisk(next);
+      encodeURIComponent(normalized));
+    // Ignore late responses for an email the user already changed.
+    if(currentEmail.current===normalized)setRisk(next);
     return next;
   }
-  function reset() {setToken('');setResetKey(v=>v+1);}
+  function reset() {
+    currentEmail.current='';
+    setRisk(null);
+    setToken('');
+    setResetKey(v=>v+1);
+  }
   return {risk,token,setToken,resetKey,check,reset};
 }
 
