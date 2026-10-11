@@ -400,7 +400,7 @@ export class AuthService {
       organizationId: membership.organization_id,
       onboardingStep,
       isPlatformAdmin,
-      nextPath: isPlatformAdmin ? '/platform' : loginMethod === 'register' && onboardingStep !== 'complete' ? '/onboarding' : '/dashboard',
+      nextPath: isPlatformAdmin ? '/platform' : '/dashboard',
     };
   }
 

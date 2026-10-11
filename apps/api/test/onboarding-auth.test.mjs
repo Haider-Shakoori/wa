@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('new accounts are onboarding-aware and no longer auto-create trials', async () => {
+test('new accounts automatically receive a trial and can enter the dashboard', async () => {
   const source = await readFile(new URL('../src/auth/auth.service.ts', import.meta.url), 'utf8');
   assert.match(source,/nextPath/);
-  assert.match(source,/\/onboarding/);
-  assert.doesNotMatch(source,/subscriptions\.createTrial/);
+  assert.match(source,/INSERT INTO organization_subscriptions/);
+  assert.match(source,/nextPath: isPlatformAdmin \? '\/platform' : '\/dashboard'/);
+  assert.doesNotMatch(source,/nextPath: [^\n]*\/onboarding/);
 });
 
 test('Google identity tokens are verified server-side against configured audience', async () => {
@@ -35,7 +36,7 @@ test('paid activation can create the subscription row directly', async () => {
 
 test('returning logins go directly to dashboard even when onboarding is incomplete', async () => {
   const source = await readFile(new URL('../src/auth/auth.service.ts', import.meta.url), 'utf8');
-  assert.match(source, /nextPath: isPlatformAdmin \? '\/platform' : loginMethod === 'register' && onboardingStep !== 'complete' \? '\/onboarding' : '\/dashboard'/);
+  assert.match(source, /nextPath: isPlatformAdmin \? '\/platform' : '\/dashboard'/);
   assert.match(source, /this\.issueTokens\(user, membership, 'password', context\)/);
   assert.match(source, /this\.issueTokens\(account\.user, account\.membership, 'google',context\)/);
   assert.match(source, /this\.issueTokens\(user, membership, 'github',context\)/);

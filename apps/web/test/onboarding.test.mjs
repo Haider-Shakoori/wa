@@ -13,17 +13,10 @@ test('login supports sign in, registration and Google', async () => {
   assert.doesNotMatch(google,/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
 });
 
-test('onboarding implements plan through webhook setup', async () => {
+test('legacy onboarding URL redirects to the workspace instead of showing a setup wizard', async () => {
   const source = await readFile(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
-  for (const label of ['Choose plan','Workspace','Connect WhatsApp','API key','Test message','Webhook']) {
-    assert.match(source,new RegExp(label));
-  }
-  assert.match(source,/billing\/checkout\/stripe/);
-  assert.match(source,/billing\/manual/);
-  assert.match(source,/\/whatsapp-sessions/);
-  assert.match(source,/\/api-keys/);
-  assert.match(source,/clientMessageId/);
-  assert.match(source,/\/webhooks/);
+  assert.match(source, /redirect\('\/dashboard'\)/);
+  assert.doesNotMatch(source, /\/onboarding\/state|Choose plan|Test message/);
 });
 
 test('dashboard provides guided setup without blocking the workspace', async () => {
