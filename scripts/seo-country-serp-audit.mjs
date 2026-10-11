@@ -57,7 +57,7 @@ export function auditRepo() {
   const html=readFileSync(new URL('apps/web/app/layout.tsx',root),'utf8');
   assert.match(html,/<html lang="en"/,'Marketing site language must remain English');
   const pricing=readFileSync(new URL('apps/web/app/pricing/page.tsx',root),'utf8');
-  assert.match(pricing,/QR-linked API subscription vs\. Meta's official API pricing/);
+  assert.match(pricing,/WhatsApp API cost: QR-linked plans vs\. Meta's official API pricing/);
   assert.match(pricing,/https:\/\/whatsappbusiness\.com\/products\/platform-pricing\//);
   assert.match(pricing,/RelayWA does not supply official Cloud API access/);
   assert.match(pricing,/PricingSection standalone/,'Keep actual dynamic price cards');
