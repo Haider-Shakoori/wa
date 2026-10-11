@@ -11,7 +11,7 @@ export function GET(request: NextRequest) {
   const name = (process.env.GA4_REGION_GEO_HEADER ?? '').trim().toLowerCase();
   const policy = resolveRegionalAnalyticsPolicy({
     geoHeaderName: name,
-    country: request.headers.get(name),
+    country: name ? request.headers.get(name) : null,
     ingressAttestation: request.headers.get('x-relaywa-geo-attestation'),
     expectedAttestation: process.env.GA4_REGION_PROXY_SECRET,
     approvedCountries: process.env.GA4_AUTO_APPROVED_COUNTRIES,
