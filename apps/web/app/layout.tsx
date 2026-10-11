@@ -11,7 +11,7 @@ const inter = localFont({
   display: 'swap',
   preload: true,
   variable: '--font-inter',
-  declarations: [{ prop: 'font-family', value: '"Inter Variable"' }],
+  declarations: [{ prop: 'font-family', value: 'Inter Variable' }],
 });
 import 'react-phone-number-input/style.css';
 import './globals.css';
