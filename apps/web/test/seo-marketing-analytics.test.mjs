@@ -53,18 +53,19 @@ test('marketing events never fire from private paths and accept only fixed event
   assert.equal(sent.length,1);
 });
 
-test('analytics loads only after explicit consent; private routes cannot emit conversion data', () => {
+test('analytics runs only where policy allows or visitor opts in; private routes cannot emit conversion data', () => {
   const source=read('components/google-analytics.tsx');
   assert.match(source,/consent === 'granted' && tagEnabled && <Script/);
   assert.match(source,/initializeConsentV2\(global, measurementId\)/);
   assert.match(source,/ga-disable-/);
   assert.match(source,/if \(!isPublic\) return null/);
+  assert.doesNotMatch(source,/<aside|showPreferences/);
   assert.match(source,/isIndexablePublicPath\(normalizedPath\)/);
   assert.match(source,/marketingEventNames\.includes/);
   assert.doesNotMatch(source,/relaywa_access_token|messages\.send|customer_phone/);
   assert.match(read('components/relay-home.tsx'),/trackMarketingEvent\('trial_cta_click'/);
   assert.match(read('components/marketing-primitives.tsx'),/trackMarketingEvent\('plan_select'/);
-  assert.match(read('components/relay-home.tsx'),/ANALYTICS_SETTINGS_CHANNEL/);
+  assert.match(read('components/relay-home.tsx'),/href="\/analytics-preferences"/);
 });
 
 test('GA4 reports organic search separately from confirmed all-source platform payments', () => {

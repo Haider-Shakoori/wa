@@ -34,19 +34,3 @@ body.relay-dark,.rw-site,.rw-app,.rw-auth,.platform-shell,.docs-v2{font-family:'
 @media (prefers-reduced-motion:reduce){.rw-developer-topic-grid *{scroll-behavior:auto!important}}
 
 
-/* Keep optional GA consent actions inside the visual viewport on narrow/mobile
-   browsers, even when a wide document causes the layout viewport to overflow. */
-@media (max-width:640px){
-  .rw-analytics-consent{
-    top:50svh!important;
-    bottom:auto!important;
-    left:12px!important;
-    right:12px!important;
-    margin:0!important;
-    max-width:calc(100vw - 24px)!important;
-    max-height:calc(100svh - 24px)!important;
-    transform:translateY(-50%)!important;
-    overflow-y:auto!important;
-    overscroll-behavior:contain;
-  }
-}

@@ -6,7 +6,7 @@ import Script from 'next/script';
 import { initializeConsentV2, updateConsentV2, type ConsentTarget } from '../lib/ga4-consent-v2';
 import { isIndexablePublicPath, normalizePublicPath } from '../lib/public-pages';
 import {
-  ANALYTICS_CONSENT_KEY, ANALYTICS_SETTINGS_CHANNEL, MARKETING_EVENT_CHANNEL,
+  ANALYTICS_CONSENT_KEY, ANALYTICS_CHOICE_CHANGED_CHANNEL, MARKETING_EVENT_CHANNEL,
   marketingEventNames, safeMarketingPageLocation, type MarketingEventDetail,
 } from '../lib/marketing-events';
 
@@ -20,10 +20,8 @@ export default function GoogleAnalytics() {
   // A regional automatic grant is never persisted as an explicit opt-in.
   const [storedChoice, setStoredChoice] = useState<Consent>(null);
   const [regionPolicy, setRegionPolicy] = useState<'pending' | 'auto' | 'consent'>('pending');
-  const [showPreferences, setShowPreferences] = useState(false);
   const consent: Consent = storedChoice ??
-    (!showPreferences && regionPolicy === 'auto' ? 'granted' : null);
-  const [hydrated, setHydrated] = useState(false);
+    (regionPolicy === 'auto' ? 'granted' : null);
   const [ready, setReady] = useState(false);
   // The tag cannot enter the DOM before Consent Mode v2 defaults are queued.
   const [tagEnabled, setTagEnabled] = useState(false);
@@ -33,31 +31,27 @@ export default function GoogleAnalytics() {
   const isPublic = Boolean(normalizedPath && isIndexablePublicPath(normalizedPath));
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(ANALYTICS_CONSENT_KEY);
-    setStoredChoice(stored === 'granted' || stored === 'denied' ? stored : null);
-    setHydrated(true);
-    const openSettings = () => {
-      const global = window as GtagWindow;
-      (global as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
-      if (initialized.current) updateConsentV2(global, 'denied');
-      // Pause tracking while preferences are open, even for regional
-      // automatic analytics. Do not silently reinstate an automatic grant.
-      setShowPreferences(true);
-      setStoredChoice(null);
-      setTagEnabled(false);
-      setReady(false);
-      lastViewed.current = '';
+    // Read explicit choices on mount and synchronize across tabs/navigation.
+    // Never overwrite a previous refusal with an automatic regional grant.
+    const refreshChoice = () => {
+      const stored = window.localStorage.getItem(ANALYTICS_CONSENT_KEY);
+      setStoredChoice(stored === 'granted' || stored === 'denied' ? stored : null);
     };
-    window.addEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
-    return () => window.removeEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
+    refreshChoice();
+    window.addEventListener('storage', refreshChoice);
+    window.addEventListener(ANALYTICS_CHOICE_CHANGED_CHANNEL, refreshChoice);
+    return () => {
+      window.removeEventListener('storage', refreshChoice);
+      window.removeEventListener(ANALYTICS_CHOICE_CHANGED_CHANNEL, refreshChoice);
+    };
   }, []);
 
   useEffect(() => {
     if (!isPublic) return;
     let active = true;
     const controller = new AbortController();
-    // Any network error, missing route, timeout or malformed response must
-    // retain the consent prompt and must never silently enable GA4.
+    // Any network error, missing route, timeout or malformed response leaves
+    // GA4 disabled until a visitor voluntarily opts in via footer settings.
     const timeout = window.setTimeout(() => controller.abort(), 4000);
     void fetch('/analytics-policy', {
       method: 'GET', cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
@@ -135,39 +129,9 @@ export default function GoogleAnalytics() {
     return () => window.removeEventListener(MARKETING_EVENT_CHANNEL, onMarketingEvent);
   }, [consent, ready, isPublic, normalizedPath]);
 
-  function choose(value: 'granted' | 'denied') {
-    window.localStorage.setItem(ANALYTICS_CONSENT_KEY, value);
-    // On an existing session this takes effect synchronously, before rerender.
-    if (initialized.current) updateConsentV2(window as GtagWindow, value);
-    if (value === 'denied') {
-      (window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
-      lastViewed.current = '';
-    }
-    setStoredChoice(value);
-    setShowPreferences(false);
-  }
-
   if (!isPublic) return null;
   return (
     <>
-      {hydrated && regionPolicy !== 'pending' && !consent && <aside className="rw-analytics-consent" role="region"
-        aria-label="Analytics preferences"
-        style={{ position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 1000,
-          maxWidth: 640, maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto',
-          display: 'flex', flexDirection: 'column', gap: 12,
-          boxSizing: 'border-box', margin: '0 auto', padding: 16, borderRadius: 14,
-          background: '#161e24', color: '#fff', border: '1px solid #445563',
-          boxShadow: '0 10px 32px rgba(0,0,0,.4)' }}>
-        <p style={{margin:0, position:'relative', zIndex:0, pointerEvents:'none'}}>Help improve RelayWA: allow optional Google Analytics on public pages?
-          No WhatsApp messages, customer details or private workspace URLs are shared.</p>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10,
-        position:'relative', zIndex:2, flexShrink:0}}>
-          <button type="button" onClick={() => choose('granted')} className="rw-button"
-            style={{minHeight:44, position:'relative', zIndex:1}}>Allow analytics</button>
-          <button type="button" onClick={() => choose('denied')} className="rw-button secondary"
-            style={{minHeight:44, position:'relative', zIndex:1}}>Decline</button>
-        </div>
-      </aside>}
       {consent === 'granted' && tagEnabled && <Script
         id="relaywa-ga4"
         src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}

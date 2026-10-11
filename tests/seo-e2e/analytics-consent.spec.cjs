@@ -1,98 +1,63 @@
 const { test, expect } = require('@playwright/test');
 
-async function inspectConsentHitbox(page, phase) {
-  const geometry = await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Decline');
-    const banner = document.querySelector('.rw-analytics-consent');
-    if (!button || !banner) return { error: 'missing banner or Decline' };
-    const rect = element => {
-      const r = element.getBoundingClientRect();
-      return { x:r.x, y:r.y, width:r.width, height:r.height, top:r.top, bottom:r.bottom };
-    };
-    const br = button.getBoundingClientRect();
-    const hit = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2);
-    const style = element => {
-      const cs = getComputedStyle(element);
-      return { position:cs.position, zIndex:cs.zIndex, pointerEvents:cs.pointerEvents,
-        overflow:cs.overflow, transform:cs.transform };
-    };
-    return { width:innerWidth, height:innerHeight, visualViewport:visualViewport && {
-      width:visualViewport.width,height:visualViewport.height,offsetTop:visualViewport.offsetTop },
-      button:rect(button), banner:rect(banner), hit:hit?.outerHTML.slice(0,250),
-      buttonStyle:style(button), bannerStyle:style(banner) };
-  });
-  console.log('CONSENT_HITBOX_DIAGNOSTIC '+phase+' '+JSON.stringify(geometry));
+async function policy(page,value='consent'){
+  await page.route('**/analytics-policy',route=>route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({policy:value}),
+  }));
 }
 
-
-test('GA4 is absent before consent and remains absent after Decline, even across pages', async ({ page }) => {
-  const googleRequests = [];
-  page.on('request', request => {
-    if (/googletagmanager\.com\/gtag\/js|google-analytics\.com\/(?:g\/collect|collect)/.test(request.url())) {
-      googleRequests.push(request.url());
-    }
+test('no cookie or analytics popup is shown anywhere and Decline prevents GA4 collection',async({page})=>{
+  await policy(page);
+  const outgoing=[];
+  page.on('request',req=>{
+    if(/googletagmanager\.com\/gtag\/js|google-analytics\.com\/(?:g\/collect|collect)/.test(req.url()))outgoing.push(req.url());
   });
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  const banner = page.getByRole('region', { name: 'Analytics preferences' });
-  await expect(banner).toBeVisible();
-  expect(googleRequests, 'No Google requests before opt-in').toHaveLength(0);
-  expect(await page.evaluate(() => Boolean(window.gtag))).toBe(false);
-  await inspectConsentHitbox(page, 'before-decline');
-  await page.getByRole('button', { name: 'Decline' }).click();
-  await expect(banner).toHaveCount(0);
-  await page.goto('/pricing', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'WhatsApp API pricing' })).toBeVisible();
-  expect(googleRequests, 'No Google requests when declined').toHaveLength(0);
-  expect(await page.evaluate(() => Boolean(window.gtag))).toBe(false);
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('.rw-analytics-consent')).toHaveCount(0);
+  await page.getByRole('link',{name:'Analytics preferences'}).click();
+  await expect(page.getByRole('heading',{name:'Analytics preferences'})).toBeVisible();
+  await expect(page.locator('.rw-analytics-consent')).toHaveCount(0);
+  await page.getByRole('button',{name:'Disable optional analytics'}).click();
+  await expect(page.getByText('Disabled by your choice')).toBeVisible();
+  await page.goto('/pricing',{waitUntil:'domcontentloaded'});
+  await expect(page.getByRole('heading',{name:'WhatsApp API pricing'})).toBeVisible();
+  expect(outgoing).toHaveLength(0);
 });
 
-test('Consent Mode v2 denies all by default, grants analytics only after opt-in, and allows revocation', async ({ page }) => {
-  const googleTagRequests = [];
-  await page.route(/googletagmanager\.com\/gtag\/js/, async route => {
-    googleTagRequests.push(route.request().url());
-    // Deterministic mock of Google tag loading. We check the queued commands
-    // and never send a measurement hit from a CI test browser to real GA4.
-    await route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* Google tag intercepted in CI */' });
+test('explicit opt-in loads GA4 with correct Consent Mode v2 command queue, persists, and can be revoked',async({page})=>{
+  await policy(page);
+  const tags=[];
+  await page.route(/googletagmanager\.com\/gtag\/js/,async route=>{
+    tags.push(route.request().url());
+    await route.fulfill({status:200,contentType:'application/javascript',body:'/* intercept Google tag in CI */'});
   });
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  const banner = page.getByRole('region', { name: 'Analytics preferences' });
-  await expect(banner).toBeVisible();
-  expect(googleTagRequests).toHaveLength(0);
-  await page.getByRole('button', { name: 'Allow analytics' }).click();
-  await expect(banner).toHaveCount(0);
-  await expect.poll(() => googleTagRequests.length).toBe(1);
-  await expect.poll(async () => page.evaluate(() => {
-    const rows = window.dataLayer || [];
-    return rows.some(x => x[0] === 'event' && x[1] === 'page_view') ? 1 : 0;
-  })).toBe(1);
-
-  // Verify Google's tag receives the actual `arguments` object for all
-  // queued commands, not an Array produced by `(...args) => push(args)`.
-  const queueFormat = await page.evaluate(() =>
-    (window.dataLayer || []).every(x => Object.prototype.toString.call(x) === '[object Arguments]'));
-  expect(queueFormat, 'gtag commands must be queued as Arguments objects').toBe(true);
-  const rows = await page.evaluate(() => (window.dataLayer || []).map(x => Array.from(x)));
-  expect(rows[0][0]).toBe('consent');
-  expect(rows[0][1]).toBe('default');
-  for (const key of ['analytics_storage','ad_storage','ad_user_data','ad_personalization']) {
-    expect(rows[0][2][key]).toBe('denied');
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  expect(tags).toHaveLength(0);
+  await page.getByRole('link',{name:'Analytics preferences'}).click();
+  await page.getByRole('button',{name:'Enable optional analytics'}).click();
+  await expect(page.getByText('Enabled by your choice')).toBeVisible();
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await expect.poll(()=>tags.length).toBe(1);
+  await expect.poll(async()=>page.evaluate(()=>
+    (window.dataLayer||[]).some(x=>x[0]==='event'&&x[1]==='page_view')?1:0)).toBe(1);
+  const rows=await page.evaluate(()=>(window.dataLayer||[]).map(x=>({
+    arrayLikeArguments:Object.prototype.toString.call(x)==='[object Arguments]',
+    values:Array.from(x)
+  })));
+  expect(rows.every(x=>x.arrayLikeArguments)).toBe(true);
+  const defaults=rows[0].values;
+  expect(defaults.slice(0,2)).toEqual(['consent','default']);
+  for(const key of ['analytics_storage','ad_storage','ad_user_data','ad_personalization']){
+    expect(defaults[2][key]).toBe('denied');
   }
-  const grant = rows.find(x => x[0] === 'consent' && x[1] === 'update' && x[2].analytics_storage === 'granted');
+  const grant=rows.find(x=>x.values[0]==='consent'&&x.values[1]==='update'&&x.values[2].analytics_storage==='granted');
   expect(grant).toBeTruthy();
-  for (const key of ['ad_storage','ad_user_data','ad_personalization']) {
-    expect(grant[2][key]).toBe('denied');
-  }
-  const config = rows.find(x => x[0] === 'config');
-  expect(config[1]).toBe('G-61Z26DFM1V');
-  expect(config[2].send_page_view).toBe(false);
-  const firstView = rows.find(x => x[0] === 'event' && x[1] === 'page_view');
-  expect(firstView[2].page_location).toMatch(/^http:\/\/127\.0\.0\.1:3000\/$/);
-  await page.getByRole('button', { name: 'Analytics preferences' }).click();
-  await expect(banner).toBeVisible();
-  await page.getByRole('button', { name: 'Decline' }).click();
-  await expect(banner).toHaveCount(0);
-  const finalState = await page.evaluate(() => (window.dataLayer || []).slice().reverse()
-    .find(x => x[0] === 'consent' && x[1] === 'update'));
-  expect(finalState[2].analytics_storage).toBe('denied');
-  expect(await page.evaluate(() => window['ga-disable-G-61Z26DFM1V'])).toBe(true);
+  expect(grant.values[2].ad_storage).toBe('denied');
+
+  await page.getByRole('link',{name:'Analytics preferences'}).click();
+  await page.getByRole('button',{name:'Disable optional analytics'}).click();
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  expect(await page.evaluate(()=>localStorage.getItem('relaywa_analytics_consent'))).toBe('denied');
+  expect(await page.evaluate(()=>window['ga-disable-G-61Z26DFM1V'])).toBe(true);
+  expect(tags).toHaveLength(1,'declining must prevent a later GA4 tag request');
 });

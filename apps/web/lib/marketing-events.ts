@@ -13,7 +13,8 @@ export type MarketingEventDetail = {
 };
 
 export const MARKETING_EVENT_CHANNEL = 'relaywa:marketing-event';
-export const ANALYTICS_SETTINGS_CHANNEL = 'relaywa:analytics-settings';
+/** Sent when a visitor explicitly changes an optional-analytics preference. */
+export const ANALYTICS_CHOICE_CHANGED_CHANNEL = 'relaywa:analytics-choice-changed';
 export const ANALYTICS_CONSENT_KEY = 'relaywa_analytics_consent';
 
 const safeCampaignKey = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']);
