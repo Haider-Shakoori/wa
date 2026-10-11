@@ -9,6 +9,141 @@
 >
 > **Scope:** This file records the RelayWA website/SaaS and its October 2026 migration, performance, Cloudflare, Google tag and GitHub work discussed and verified so far. It is **not** a secrets backup or a claim that every user-facing integration has been tested. "Working" indicates the particular checks named below; "pending" means it has not yet passed end-to-end verification.
 
+## RelayWA's purpose and functional scope
+
+> **What RelayWA is:** A hosted, developer-oriented, multi-tenant WhatsApp integration SaaS. It allows a customer to connect an existing WhatsApp number with a WhatsApp Web QR-linked session, expose that connection to the customer's own application through authenticated REST API endpoints, and receive inbound messaging and connection events through webhooks. Customers manage numbers, credentials, subscriptions and activity in a web workspace. RelayWA operators manage the multi-tenant platform from a separate control plane.
+>
+> **Fundamental product distinction:** RelayWA is **not** Meta's official WhatsApp Cloud API and is **not** an official Meta Business Solution Provider. It uses linked-device WhatsApp Web sessions, principally through the Baileys engine. Platform rules, session disconnections and account restrictions are real risks; a paid subscription does not guarantee unrestricted delivery or account safety.
+
+### Product mission and the problem it solves
+
+RelayWA's intended purpose is to give developers and businesses a repeatable way to add WhatsApp messaging to software they already operate **without building their own device-linking, session management and inbound-webhook infrastructure from scratch**. Users can connect one or more WhatsApp accounts, select an appropriate subscription, issue an API key, call the API from their preferred programming language, and build their own customer-facing workflow around the resulting events.
+
+The product is a **messaging connection layer**, not a complete CRM, mass marketing suite or fully autonomous customer-support agent. It handles the bridge to a linked WhatsApp account; the customer's application remains responsible for when and why it sends messages, consent and recipient eligibility, business logic, scheduling, conversation routing, and appropriately bounded client retries.
+
+**Intended users:** software developers; SaaS founders; agencies integrating WhatsApp into client applications; businesses integrating order/status updates, appointment notifications and support replies into existing backends; technical teams connecting CRM, ERP, POS, e-commerce, helpdesk or automation platforms. The REST interface is language-agnostic; product documentation includes JavaScript/Node.js, Laravel/PHP, Python, C#/.NET, cURL and n8n HTTP request examples.
+
+### How a customer uses the platform
+
+1. **Discover and register:** Visit the public website, review features/pricing/API documentation and create an account (email/password, or supported Google/GitHub sign-in when the corresponding provider is configured).
+2. **Get a tenant workspace and trial/plan:** Registration associates the user with an organization/workspace. The source includes trial and subscription provisioning; the public website advertises a **7-day no-card trial with one number and a daily message allowance**. Limits and prices must be checked against the actual server plan rows, not copied from static marketing claims.
+3. **Link a WhatsApp number:** In **Sessions**, create a session, request a QR code, then scan it on the phone under WhatsApp **Linked devices**. The session runtime attempts to establish the link and exposes connection state, QR expiry and logs. Multiple accounts remain independent and count against the subscription's connected-session entitlement.
+4. **Issue an API credential:** In **API access**, create an organization management key or session-bound key, choose only required permission scopes, copy it once, then store it on the customer's own backend. Keys can be listed and revoked; session-bound keys prevent unrelated apps from using the wrong WhatsApp number.
+5. **Send a message:** The customer's server makes a bearer-authenticated REST request with the session, recipient and message payload. RelayWA validates permissions/plan limits and forwards the request through the API-to-worker transport to the linked WhatsApp session. It records message state for inspection. The platform includes a quick-send playground for authorized users.
+6. **Receive incoming events:** Configure an HTTPS webhook endpoint, select event types and securely store the webhook signing secret. RelayWA forwards eligible message/session events to the external application, allowing the customer's software to update its own orders, tickets, contacts or conversations.
+7. **Operate and pay:** Inspect connection status, recent message activity, webhook deliveries and account usage. Change subscription, view payment records and invoices and manage authorized billing options as configured.
+
+These steps describe **implemented application flows in code and UI**, not proof that every step has passed a real cross-host/WhatsApp live transaction after the move to cPanel. See the acceptance checklist later in this file.
+
+### Functional module inventory
+
+The following inventory was cross-checked against the actual Next.js workspace/admin components, NestJS modules/controllers and API documentation on the active GitHub feature branch. **"Code/UI present" means developed and represented in the repository; it is not automatically a production end-to-end sign-off.**
+
+| Module | Purpose and functionality | Status / caveat |
+| --- | --- | --- |
+| Public marketing website | Home, features, use cases, how-it-works content, pricing, free-trial CTA, developer guides/blog and help center | Public website live; individual conversion paths not all end-to-end tested |
+| Developer documentation | API quickstart, endpoint reference, scoped authentication, session/QR connection, media, actions, webhooks, errors and production guidance; multi-language snippets | Published route `/api-docs` and code present |
+| User registration and authentication | Email/password registration and login; configurable Google and GitHub login; session and token management; adaptive login protection | Controllers and UI present; real provider sign-in still requires acceptance tests |
+| Multi-tenant organizations | Organization/workspace ownership and isolation; users and account context | Server modules and tenant-aware queries present; cross-tenant authorization regression/security testing remains important |
+| Tenant dashboard | Subscription overview, connected numbers, recent usage, navigation and setup guidance | Workspace UI present; authenticated journey not fully accepted after migration |
+| WhatsApp sessions | Add/list/rename/remove number sessions; connect, restart, disconnect/logout; view QR, status, errors and logs; session events stream | API/controller + UI present; actual QR pairing and persistence still must be live-tested |
+| Messaging REST API | Send text, image, video, audio, document, reply, reaction, location, contact and poll; query message lists/status | Endpoint handlers present; success through the real VPS worker remains to be accepted |
+| Quick-send testing | Workspace playground for choosing a connected number, entering recipient/message and sending text or uploaded media | UI wired to API; real delivery test pending |
+| Contacts, chats and groups | Read synchronized WhatsApp directory information for a session through scoped endpoints | API endpoints present; contents depend on linked worker/session availability |
+| API key management | Organization-level and session-bound credentials, token scopes and revocation | API and workspace UI present |
+| Webhooks | Create/edit/delete endpoints, select events, provision signing secrets and inspect delivery attempts/errors | API + UI present; signed delivery/retry process requires live acceptance |
+| Subscription entitlements | Trial, active/past-due/paused/canceled state, session and message limits, API key quotas, monthly vs annual billing | Source logic present; current commercial terms come from active production plans |
+| Payments and invoices | Stripe checkout/portal/webhook integration; payment history and invoices; configured manual/demo paths and provider administration | Modules present; **real live Stripe checkout/webhook** is not yet verified |
+| Tenant operations | Session status, message activity/history, webhook administration, settings and billing | UI/code present; hosted application must be checked with a tenant account |
+| Platform control plane | Separate role-checked operator dashboard: tenants/members, sessions, messaging, subscriptions/pricing, payments/providers, worker/queue health, monitoring, logs, administrators and diagnostics | Code/UI present with roles; no unrestricted public access |
+| Platform security | Admin roles (super, billing, support, read-only), configurable OAuth providers, MFA setup/recovery, login/security events, audit trails and session revocation | Role guards/endpoints present; security acceptance remains ongoing |
+| Operational safeguards | Messaging pacing/rate controls, duplicate prevention windows, retry/failure-pause settings, worker diagnostics and message-storage configuration | Configuration/service code present; check runtime behavior per engine |
+| First-party website traffic | Internal traffic/bot metrics and SEO conversion reports separate from Google Analytics | Platform modules present; different methodology from GA4 |
+| Google Analytics 4 | Client-side public-page tag and conversion events; server-side reporting views for audience, channels, devices, pages and realtime | **Public GA4 data confirmed**; **platform GA4 reporting credential still missing on cPanel** |
+| SaaS onboarding | Source includes plan selection, payment/workspace/link/API key/test/webhook steps, plus a lightweight workspace checklist | Implemented in source; **current registration/redirect policy must be checked** against the desired no-forced-onboarding behavior |
+
+### The two separate interfaces
+
+**Customer workspace (tenant-facing):** `/dashboard` and the related **Sessions**, **Subscription**, and **API access** screens. Intended for customers to link their own numbers, access a session, manage credentials, send test messages, inspect webhook delivery and pay for their plan. A tenant's identity and subscription permissions must not grant access to platform administration.
+
+**RelayWA control plane (platform operator):** a separate admin UI under `/platform`, requiring a valid JWT and the platform administrator guard. Its navigation groups include **Operations** (overview, clients, sessions, messaging), **Commercial** (website subscriptions, subscriptions, payments, providers), and **System** (monitoring, website traffic, Google Analytics, analytics, audit/security, administrators, infrastructure, authentication, storage and diagnostics). The code distinguishes `super_admin`, `billing_admin`, `support_admin` and `read_only` roles. This console is for managing RelayWA as a SaaS product, not for an ordinary tenant to control other accounts.
+
+### WhatsApp integration: technology and lifecycle
+
+- **Underlying integration:** QR-linked WhatsApp Web sessions, with **Baileys** as the default worker messaging engine. The control plane also contains **Chromium engine selection/configuration**; its availability and real-life reliability must be verified rather than assumed.
+- **Isolation:** Each WhatsApp number has its own session state. Independent session/API credentials are intended to reduce accidental mixing of customer numbers and tenants.
+- **Pairing:** Link an existing WhatsApp account through a phone-scanned QR code. Connection updates, re-pairing after logout, reconnect/restart operations and session logs are represented in the source.
+- **Workers:** Separate messaging processes on the VPS handle account connectivity and interaction with WhatsApp. The cPanel API sends commands through the private worker dispatch tunnel; the web application does not host Chromium/Baileys processes.
+- **Events:** Session/event endpoints include server-sent events (SSE); configured webhook endpoints deliver incoming messages/session activity to the customer's own HTTPS server.
+- **Client retries:** Product docs explicitly distinguish **direct outbound sending** from webhook delivery retries. Customers control scheduling and bounded retries for outbound API sends; use a stable `clientMessageId` for deduplication. Do **not** market an automatic outbound retry queue or guaranteed delivery as a completed feature.
+- **Safety:** Anti-spam rules, throttling, account status and WhatsApp's own restrictions still apply. RelayWA cannot guarantee account immunity from bans, limitless throughput or authorization from Meta.
+
+### Messaging formats and example workflows
+
+**Implemented API message/action categories:** text; images; videos; audio/voice messages; documents; replies; reactions; locations; contact cards; polls. There are also read endpoints for message records and synchronized contacts/chats/groups.
+
+**Example third-party applications** (these are **use cases customers can build**, not fully implemented built-in vertical products):
+
+| Example | What the customer's system does with RelayWA |
+| --- | --- |
+| E-commerce | Sends paid-order confirmations and dispatch/delivery notifications from its order management backend |
+| Booking/appointment system | Sends appointment reminders and processes replies in the booking workflow |
+| CRM or support desk | Sends support responses and receives inbound-message webhooks to update tickets |
+| POS/ERP | Sends receipts, collection reminders or status updates from its own business logic |
+| AI assistant / n8n | Feeds signed incoming webhook events into an external workflow with review/escalation safeguards |
+| Logistics/field service | Sends status or location messages from its own application |
+
+RelayWA itself does **not** become a complete CRM, ticket system, AI chatbot, OTP verification network, payment gateway or multi-channel omnichannel inbox merely by connecting to those services.
+
+### Subscription and commercial model
+
+- The site advertises a **free 7-day trial**, no card requirement, one linked number and a daily trial usage allowance; verify actual limits against active database plans before promising a number.
+- Paid subscription packages are **based on connected sessions/numbers and billing interval**, not a per-message charge in RelayWA's advertised commercial model. Application-level messaging safety and WhatsApp policy still apply regardless of plan.
+- Public plan cards are fetched from `/api/public/plans`, rather than treating hard-coded marketing copy as the single source of truth.
+- Code includes monthly/annual purchase selection, subscription status/allowances, payment history, invoice generation, Stripe checkout and billing portal integration, plus operator-configurable billing providers/manual paths.
+- The platform operator can manage tenant subscriptions and the website's advertised plan prices. This capability was the subject of a separate subscription-editing fix and requires real acceptance testing.
+- Before declaring billing production-ready, test the actual provider mode, webhook signatures, retries/idempotency, subscription activation and cancellation with an approved account.
+
+### API structure at a glance
+
+These are representative **source-implemented route families**. All application URLs use RelayWA's `/api` gateway and relevant authentication/permission guards; most endpoints also have `v1` aliases.
+
+| Route family (after `/api`) | Role |
+| --- | --- |
+| `/auth/*` | Signup/sign-in, OAuth, MFA and user session security |
+| `/whatsapp-sessions/*` | WhatsApp session management, QR, connection events and logs |
+| `/whatsapp-sessions/:sessionId/messages/*` | Send/read messages and message actions, including media uploads |
+| `/whatsapp-sessions/:sessionId/contacts`, `/chats`, `/groups` | Session directory reads |
+| `/api-keys/*` | Scoped organization and session API key lifecycle |
+| `/webhooks/*` | Manage event subscriptions and inspect attempts |
+| `/billing/*`, `/public/plans` | Pricing, checkout, invoices, subscriptions and providers |
+| `/platform/*` | Restricted operator/admin management and reports |
+| `/onboarding/*` | Recorded tenant setup state and workflow steps |
+| `/health` | Public API health response |
+
+For payload shapes, authentication schemes and up-to-date permissions see [the public API documentation](https://relaywa.com/api-docs) and the corresponding controller/service code, not this summary.
+
+### Current functional boundaries and unimplemented proposals
+
+- **Not the official Meta API:** This is a QR-linked WhatsApp Web bridge, not Meta's Cloud API, approved business messaging provider, or a guarantee that every account can send messages.
+- **Not an OTP feature release:** WhatsApp-initiated verification and OTP delivery were explored as product ideas; there is **no confirmation they were implemented or released**. Do not list them as shipped.
+- **Not an autonomous mass-sending suite:** Campaign blast/scheduling, built-in AI replies, automatic lead nurturing and similar commercial ideas should be tracked as separate scoped features if required, rather than implied by current endpoints.
+- **Not a managed outbound scheduler:** The API documents direct outbound sends; clients implement their own timing, policy compliance and retry management.
+- **Not a live GA4 reporting integration yet:** The public Google tag records visits; cPanel service-account credentials for the private operator dashboard are still missing.
+- **Not end-to-end verified just because the API has controllers:** The implementation inventory is source-backed, but real QR linking, outbound/inbound WhatsApp operations, Stripe production payment, email delivery and authenticated tenant journeys still require acceptance testing as described below.
+
+### Product-related sources in this repository
+
+- Public marketing product description and FAQ: [`apps/web/components/relay-home.tsx`](apps/web/components/relay-home.tsx)
+- Customer-facing sessions, subscriptions and API access: [`apps/web/components/relay-workspace.tsx`](apps/web/components/relay-workspace.tsx)
+- Detailed quickstart, message types, safety notes and endpoints: [`apps/web/app/docs/page.tsx`](apps/web/app/docs/page.tsx)
+- REST controllers: [`apps/api/src/sessions/sessions.controller.ts`](apps/api/src/sessions/sessions.controller.ts), [`apps/api/src/messages/messages.controller.ts`](apps/api/src/messages/messages.controller.ts), [`apps/api/src/webhooks/webhooks.controller.ts`](apps/api/src/webhooks/webhooks.controller.ts)
+- Multi-tenant and platform control plane: [`apps/web/app/platform/page.tsx`](apps/web/app/platform/page.tsx), [`apps/api/src/platform/platform-admin.controller.ts`](apps/api/src/platform/platform-admin.controller.ts)
+- Subscription and payments: [`apps/api/src/subscriptions/subscriptions.service.ts`](apps/api/src/subscriptions/subscriptions.service.ts), [`apps/api/src/payments/payments.controller.ts`](apps/api/src/payments/payments.controller.ts)
+- Production deployment and acceptance: [`docs/cpanel-migration.md`](docs/cpanel-migration.md)
+
+---
+
 ## 1. Current high-level status
 
 | Area | Status | What is known |
