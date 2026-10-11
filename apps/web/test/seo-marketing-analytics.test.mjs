@@ -55,7 +55,8 @@ test('marketing events never fire from private paths and accept only fixed event
 
 test('analytics loads only after explicit consent; private routes cannot emit conversion data', () => {
   const source=read('components/google-analytics.tsx');
-  assert.match(source,/consent === 'granted' && <Script/);
+  assert.match(source,/consent === 'granted' && tagEnabled && <Script/);
+  assert.match(source,/initializeConsentV2\(global, measurementId\)/);
   assert.match(source,/ga-disable-/);
   assert.match(source,/if \(!isPublic\) return null/);
   assert.match(source,/isIndexablePublicPath\(normalizedPath\)/);
