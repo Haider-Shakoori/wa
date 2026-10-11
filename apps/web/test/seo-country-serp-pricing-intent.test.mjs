@@ -43,7 +43,7 @@ test('evidence file remains an auditable, clean CSV and has no duplicated market
 
 test('pricing clarifies differences in *existing* server-rendered page, keeps trial/plans and docs links',()=>{
   const pricing=read('apps/web/app/pricing/page.tsx');
-  const marketing=read('apps/web/components/relay-home.tsx');
+  const marketing=(read('apps/web/components/relay-home.tsx') + read('apps/web/components/relay-home-interactive.tsx'));
   const docs=read('apps/web/app/docs/page.tsx');
   assert.match(pricing,/<PricingSection standalone/);
   assert.match(pricing,/id="pricing-model-heading"/);
