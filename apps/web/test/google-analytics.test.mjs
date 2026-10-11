@@ -26,7 +26,9 @@ test('GA4 only reports selected public pages, without private URL query data', a
   assert.ok(registry.includes("path: '/help'"));
   assert.match(tracker, /if \(!isPublic\) return null/);
   assert.match(tracker, /ga-disable-/);
-  assert.match(tracker, /send_page_view: false/);
+  const consentV2 = await read('../lib/ga4-consent-v2.ts');
+  assert.match(consentV2, /send_page_view: false/);
+  assert.match(tracker, /initializeConsentV2\(global, measurementId\)/);
   assert.match(tracker, /consent === 'granted'/);
   assert.match(tracker, /ANALYTICS_CONSENT_KEY/);
   assert.match(tracker, /marketingEventNames/);

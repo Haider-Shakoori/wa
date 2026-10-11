@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Script from 'next/script';
+import { initializeConsentV2, updateConsentV2, type ConsentTarget } from '../lib/ga4-consent-v2';
 import { isIndexablePublicPath, normalizePublicPath } from '../lib/public-pages';
 import {
   ANALYTICS_CONSENT_KEY, ANALYTICS_SETTINGS_CHANNEL, MARKETING_EVENT_CHANNEL,
@@ -11,16 +12,15 @@ import {
 
 const measurementId = 'G-61Z26DFM1V';
 type Consent = 'granted' | 'denied' | null;
-type GtagWindow = Window & {
-  dataLayer?: unknown[][];
-  gtag?: (...args: unknown[]) => void;
-};
+type GtagWindow = Window & ConsentTarget;
 
 export default function GoogleAnalytics() {
   const pathname = usePathname();
   const [consent, setConsent] = useState<Consent>(null);
   const [hydrated, setHydrated] = useState(false);
   const [ready, setReady] = useState(false);
+  // The tag cannot enter the DOM before Consent Mode v2 defaults are queued.
+  const [tagEnabled, setTagEnabled] = useState(false);
   const initialized = useRef(false);
   const lastViewed = useRef('');
   const normalizedPath = pathname ? normalizePublicPath(pathname) : null;
@@ -30,15 +30,40 @@ export default function GoogleAnalytics() {
     const stored = window.localStorage.getItem(ANALYTICS_CONSENT_KEY);
     setConsent(stored === 'granted' || stored === 'denied' ? stored : null);
     setHydrated(true);
-    const openSettings = () => setConsent(null);
+    const openSettings = () => {
+      const global = window as GtagWindow;
+      (global as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
+      if (initialized.current) updateConsentV2(global, 'denied');
+      setConsent(null);
+      setTagEnabled(false);
+      setReady(false);
+      lastViewed.current = '';
+    };
     window.addEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
     return () => window.removeEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
   }, []);
 
   useEffect(() => {
-    // Never report admin, tenant, authentication or checkout page views.
-    (window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = !isPublic || consent !== 'granted';
-    if (!isPublic || consent !== 'granted') lastViewed.current = '';
+    const global = window as GtagWindow;
+    // Explicitly disable collection outside approved public pages.
+    (global as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = !isPublic || consent !== 'granted';
+    if (!isPublic || consent !== 'granted') {
+      if (initialized.current) updateConsentV2(global, 'denied');
+      setTagEnabled(false);
+      setReady(false);
+      lastViewed.current = '';
+      return;
+    }
+
+    // BASIC mode: initialize the default denied state BEFORE <Script> mounts.
+    // Returning users with stored permission still get the denied default
+    // followed by a specific analytics-only grant, never advertising consent.
+    if (!initialized.current) {
+      initializeConsentV2(global, measurementId);
+      initialized.current = true;
+    }
+    updateConsentV2(global, 'granted');
+    setTagEnabled(true);
   }, [isPublic, consent]);
 
   useEffect(() => {
@@ -78,11 +103,13 @@ export default function GoogleAnalytics() {
 
   function choose(value: 'granted' | 'denied') {
     window.localStorage.setItem(ANALYTICS_CONSENT_KEY, value);
-    setConsent(value);
+    // On an existing session this takes effect synchronously, before rerender.
+    if (initialized.current) updateConsentV2(window as GtagWindow, value);
     if (value === 'denied') {
       (window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
       lastViewed.current = '';
     }
+    setConsent(value);
   }
 
   if (!isPublic) return null;
@@ -91,29 +118,27 @@ export default function GoogleAnalytics() {
       {hydrated && !consent && <aside className="rw-analytics-consent" role="region"
         aria-label="Analytics preferences"
         style={{ position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 1000,
-          maxWidth: 640, margin: '0 auto', padding: 16, borderRadius: 14,
+          maxWidth: 640, maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 12,
+          boxSizing: 'border-box', margin: '0 auto', padding: 16, borderRadius: 14,
           background: '#161e24', color: '#fff', border: '1px solid #445563',
           boxShadow: '0 10px 32px rgba(0,0,0,.4)' }}>
-        <p style={{margin:'0 0 10px'}}>Help improve RelayWA: allow optional Google Analytics on public pages?
+        <p style={{margin:0, position:'relative', zIndex:0, pointerEvents:'none'}}>Help improve RelayWA: allow optional Google Analytics on public pages?
           No WhatsApp messages, customer details or private workspace URLs are shared.</p>
-        <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
-          <button type="button" onClick={() => choose('granted')} className="rw-button">Allow analytics</button>
-          <button type="button" onClick={() => choose('denied')} className="rw-button secondary">Decline</button>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10,
+        position:'relative', zIndex:2, flexShrink:0}}>
+          <button type="button" onClick={() => choose('granted')} className="rw-button"
+            style={{minHeight:44, position:'relative', zIndex:1}}>Allow analytics</button>
+          <button type="button" onClick={() => choose('denied')} className="rw-button secondary"
+            style={{minHeight:44, position:'relative', zIndex:1}}>Decline</button>
         </div>
       </aside>}
-      {consent === 'granted' && <Script
+      {consent === 'granted' && tagEnabled && <Script
         id="relaywa-ga4"
         src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
         strategy="afterInteractive"
         onReady={() => {
-          if (!initialized.current) {
-            const global = window as GtagWindow;
-            global.dataLayer ??= [];
-            global.gtag = (...args: unknown[]) => { global.dataLayer?.push(args); };
-            global.gtag('js', new Date());
-            global.gtag('config', measurementId, { send_page_view: false });
-            initialized.current = true;
-          }
+          // Initialization and denied defaults were queued before loading this script.
           setReady(true);
         }}
       />}
