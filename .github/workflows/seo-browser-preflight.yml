@@ -1,0 +1,59 @@
+name: RelayWA SEO Browser Preflight
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/seo-e2e/**'
+      - 'apps/web/**'
+      - 'scripts/seo-perf-budget.mjs'
+      - '.github/workflows/seo-browser-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build public Next.js production output
+        run: pnpm --filter @wa/web build
+      - name: Install isolated Playwright runtime
+        working-directory: tests/seo-e2e
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Start local production web server
+        run: |
+          pnpm --filter @wa/web exec next start -p 3000 > /tmp/relaywa-seo-e2e-next.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:3000/pricing > /dev/null
+      - name: Test SEO routes using real Chromium desktop and mobile emulation
+        working-directory: tests/seo-e2e
+        run: npx playwright test --config=playwright.config.cjs
+      - name: Save screenshots and browser test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-seo-desktop-mobile-preflight
+          path: |
+            tests/seo-e2e/screenshots/
+            tests/seo-e2e/playwright-report/
+            tests/seo-e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 14
