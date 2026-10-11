@@ -31,7 +31,7 @@ test('Next metadata emits an optional HTML verification tag without forcing GA4 
   assert.match(layout,/googleSiteVerificationToken\(process\.env\.GOOGLE_SITE_VERIFICATION\)/);
   assert.match(layout,/verification: \{ google: gscVerification \}/);
   assert.match(env,/^GOOGLE_SITE_VERIFICATION=$/m);
-  assert.match(analytics,/consent === 'granted' && <Script/);
+  assert.match(analytics,/consent === 'granted' && tagEnabled && <Script/);
   assert.match(analytics,/if \(!isPublic\) return null/);
   assert.doesNotMatch(analytics,/google-site-verification|GOOGLE_SITE_VERIFICATION/);
   assert.match(docs,/Domain property/);
