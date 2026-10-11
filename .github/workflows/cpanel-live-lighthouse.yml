@@ -1,0 +1,37 @@
+name: RelayWA live cPanel Lighthouse
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/cpanel-live-lighthouse.yml'
+      - 'deploy/cpanel/relaywa-compression.htaccess'
+      - 'scripts/live-lighthouse-summary.mjs'
+permissions:
+  contents: read
+jobs:
+  lighthouse-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+      - name: Verify live hostname resolves to cPanel
+        run: |
+          getent ahostsv4 relaywa.com
+          curl --fail --silent --show-error -m 20 --resolve relaywa.com:443:51.81.56.231 -H 'Accept-Encoding: gzip' -D /tmp/relaywa-cpanel-headers -o /dev/null https://relaywa.com/
+          grep -i '^content-encoding: gzip' /tmp/relaywa-cpanel-headers
+      - name: Lighthouse production website mobile
+        uses: treosh/lighthouse-ci-action@v12
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        with:
+          urls: |
+            https://relaywa.com/
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: false
+      - name: Summarize actual production-origin results
+        if: always()
+        run: node scripts/live-lighthouse-summary.mjs
