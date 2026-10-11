@@ -35,6 +35,7 @@ WhatsApp session runtimes are isolated from the public API process. Later batche
 
 ## Production hosting and configuration
 
+- [**Project progress / what has been completed so far (SO_FAR.md)**](SO_FAR.md)
 - [cPanel + Cloudflare Free + VPS architecture and runbook](docs/cpanel-migration.md)
 - [Cloudflare Free DNS/SSL snapshot (sanitized, non-importable example)](deploy/cloudflare/zone-config.example.json)
 - [cPanel Apache text compression snippet](deploy/cpanel/relaywa-compression.htaccess)
