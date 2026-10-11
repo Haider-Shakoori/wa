@@ -1,0 +1,43 @@
+name: RelayWA SEO Python and .NET Examples
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'examples/relaywa-python-webhooks/**'
+      - 'examples/relaywa-dotnet-transactional/**'
+      - '.github/workflows/seo-python-dotnet-examples.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'examples/relaywa-python-webhooks/**'
+      - 'examples/relaywa-dotnet-transactional/**'
+      - '.github/workflows/seo-python-dotnet-examples.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run real Python standard library unit and local HTTP receiver tests
+        run: python -m unittest discover -v -s examples/relaywa-python-webhooks -p 'test_*.py'
+      - name: Compile Python examples
+        run: python -m py_compile examples/relaywa-python-webhooks/relaywa_example.py examples/relaywa-python-webhooks/test_relaywa.py
+  dotnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build strict .NET 8 sample
+        run: dotnet build examples/relaywa-dotnet-transactional/RelayWaExample.csproj -c Release --nologo
+      - name: Execute offline send and HMAC fixture tests
+        run: dotnet run --project examples/relaywa-dotnet-transactional/RelayWaExample.csproj -c Release --no-build -- --self-test
