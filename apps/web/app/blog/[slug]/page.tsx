@@ -8,6 +8,9 @@ import '../blog.css';
 
 type Params={params:Promise<{slug:string}>};
 
+// Only exact, explicitly published article slugs may be served.
+// Unknown slugs must return a real HTTP 404, not a streaming 200 with a 404 body.
+export const dynamicParams = false;
 export function generateStaticParams(){return publishedArticles.map(a=>({slug:a.slug}));}
 
 export async function generateMetadata({params}:Params):Promise<Metadata>{
