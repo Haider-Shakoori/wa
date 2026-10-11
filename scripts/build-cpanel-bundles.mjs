@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { rebaseStandaloneLinks } from './rebase-standalone-links.mjs';
 
 /**
  * Builds two independent CloudLinux/Passenger application directories.
@@ -36,6 +37,8 @@ if (!existsSync(join(api, 'node_modules', 'pg'))) {
 const standalone = join(root, 'apps', 'web', '.next', 'standalone');
 if (!existsSync(standalone)) throw new Error('Next standalone output missing');
 cpSync(standalone, web, { recursive: true, force: true });
+const rewrittenLinks = rebaseStandaloneLinks(standalone, web);
+console.log('Rebased portable Next.js standalone symlinks:', rewrittenLinks);
 
 const candidates = [
   join(web, 'apps', 'web', 'server.js'),
