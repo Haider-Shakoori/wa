@@ -21,13 +21,16 @@ for ip in "$PG_IP" "$WORKER_IP"; do
     exit 1
   fi
 done
-existing="$(pgrep -u "$(id -u)" -af 'ssh -fNT .*relaywa_cpanel_tunnel_ed25519' || true)"
+existing="$(pgrep -u "$(id -u)" -af 'ssh .*relaywa_cpanel_tunnel_ed25519' || true)"
 if [[ "$existing" == *"$PG_IP:5432"* && "$existing" == *"$WORKER_IP:3002"* ]]; then
   exit 0
 fi
-# If a container IP changed, replace ONLY our dedicated old tunnel.
-pkill -u "$(id -u)" -f '^ssh -fNT .*relaywa_cpanel_tunnel_ed25519' || true
-sleep 1
+# Never interrupt an established SSH connection from this check. If Docker
+# networking changed, fail visibly and require a coordinated switch.
+if [[ -n "$existing" ]]; then
+  echo 'Tunnel exists but target container addresses have changed; refusing automatic interruption' >&2
+  exit 2
+fi
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
   -i "$KEY" "$USER@$HOST" "rm -f $SOCKET"
 ssh -fNT -E "$LOG" -o BatchMode=yes -o StrictHostKeyChecking=yes \
