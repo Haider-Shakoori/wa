@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 test('public RelayWA hero is developer-focused and does not expose BusinessOS branding', async () => {
   const source = await readFile(new URL('../components/relay-home.tsx', import.meta.url), 'utf8');
   assert.match(source, /WhatsApp API/);
-  assert.match(source, /Bring WhatsApp into your product/);
+  assert.match(source, /Build a WhatsApp REST API integration around your existing number/);
   assert.match(source, /rw-hero-visual/);
   assert.match(source, /\/send-message/);
   assert.match(source, /rw-site-strip/);
