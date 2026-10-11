@@ -1,0 +1,9 @@
+{
+  "name": "relaywa-seo-browser-preflight",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Isolated Playwright browser smoke tests for public SEO only",
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
