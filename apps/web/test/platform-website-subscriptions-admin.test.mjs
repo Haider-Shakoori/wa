@@ -53,15 +53,34 @@ test('administrator role, public plan, and subscription selectors have legible d
  assert.match(styles,/color:#f6fff8!important/);
 });
 
-test('website plan save applies API response without depending on unrelated platform endpoints',async()=>{
- const page=await load('../app/platform/page.tsx');
- const dashboard=await load('../components/platform-website-subscriptions.tsx');
- const editor=await load('../components/platform-website-plan-editor.tsx');
- assert.match(editor,/const savedPlan=await api<ClientPlan>\(/);
- assert.match(editor,/onUpdated\(savedPlan\)/);
- assert.doesNotMatch(editor,/await onUpdated\(\)/);
- assert.match(dashboard,/onUpdated:\(savedPlan:ClientPlan\)=>void/);
- assert.match(page,/onUpdated=\{\(savedPlan\)=>\{/);
- assert.match(page,/setSubscriptionPlans\(previous=>previous\.some/);
- assert.doesNotMatch(page,/onUpdated=\{async\(\)=>\{await refresh\(\)/);
+test('website plan edits are verified with a fresh server catalog, not optimistic local state',async()=>{
+  const page=await load('../app/platform/page.tsx');
+  const dashboard=await load('../components/platform-website-subscriptions.tsx');
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  assert.match(editor,/const savedPlan=await api<ClientPlan>\(/);
+  assert.match(editor,/await onUpdated\(savedPlan\)/);
+  assert.match(dashboard,/onUpdated:\(savedPlan:ClientPlan\)=>Promise<void>/);
+  assert.match(page,/onUpdated=\{async\(savedPlan\)=>\{/);
+  assert.match(page,/const stored=latest\.find\(item=>item\.code===savedPlan\.code\)/);
+  assert.match(page,/stored\.monthly_price_cents!==savedPlan\.monthly_price_cents/);
+  assert.match(page,/stored\.annual_price_cents!==savedPlan\.annual_price_cents/);
+  assert.match(page,/setSubscriptionPlans\(latest\)/);
+  assert.match(page,/active!=='Website subscriptions'/);
+  assert.match(page,/api<ClientPlan\[]>\('\/platform\/subscription-plans',token\)/);
+  assert.doesNotMatch(editor,/window\.confirm/,'No native modal should silently cancel an admin save');
+  assert.doesNotMatch(page,/onUpdated=\{async\(\)=>\{await refresh\(\)/);
+});
+
+test('website plan edit validates exact USD cents, bounds and audit reason',async()=>{
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  assert.match(editor,/function toCents\(value:string\):number\|null/);
+  assert.match(editor,/Number\.isSafeInteger\(cents\)/);
+  assert.match(editor,/monthlyCents===null\|\|annualCents===null/);
+  assert.match(editor,/reason\.trim\(\)\.length<8/);
+  assert.match(editor,/dailyLimit/);
+  assert.match(editor,/monthlyLimit/);
+  assert.match(editor,/maxSessions<1\|\|maxSessions>100000/);
+  assert.match(editor,/plan\?'PATCH':'POST'/);
+  assert.match(editor,/onUpdated\(savedPlan\)/);
+  assert.match(editor,/Saving updates the website catalog for future checkouts/);
 });
