@@ -44,3 +44,15 @@ test('brand cache cannot accidentally cache HTML, sessions or auth responses', (
   assert.doesNotMatch(headerRules, /source: '\/api\//);
   assert.doesNotMatch(headerRules, /source: '\/login'/);
 });
+
+test('preload the locally hosted Inter font before discovering CSS for the hero heading', () => {
+  const layout = read('app/layout.tsx');
+  const css = read('app/marketing.css');
+  assert.match(layout, /import localFont from 'next\\/font\\/local'/);
+  assert.match(layout, /inter-latin-wght-normal\\.woff2/);
+  assert.match(layout, /preload: true/);
+  assert.match(layout, /display: 'swap'/);
+  assert.match(layout, /className=\\{inter\\.variable\\}/);
+  assert.doesNotMatch(layout, /import '@fontsource-variable\\/inter'/);
+  assert.match(css, /'Inter Variable'/);
+});
