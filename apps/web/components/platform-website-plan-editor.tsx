@@ -8,7 +8,7 @@ const dollars=(cents:number)=>((Number(cents)||0)/100).toFixed(2);
 // Avoid floating-point/locale ambiguity and reject prices outside the API's
 // actual integer-cent limits before submitting a mutation.
 function toCents(value:string):number|null {
-  if (!/^(?:0|[1-9]\\d{0,6})(?:\\.\\d{1,2})?$/.test(value.trim())) return null;
+  if (!/^(?:0|[1-9]\d{0,6})(?:\.\d{1,2})?$/.test(value.trim())) return null;
   const [whole,decimal=''] = value.trim().split('.');
   const cents=Number(whole)*100+Number(decimal.padEnd(2,'0'));
   return Number.isSafeInteger(cents)&&cents>0&&cents<=100000000?cents:null;
