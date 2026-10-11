@@ -86,12 +86,12 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
     setBusy(true);
     setError('');
     try {
-      if(!register){
-        const challenge=await captcha.check(email);
-        if(challenge.captchaRequired&&!captcha.token){
-          setError('Complete security verification before signing in.');
-          return;
-        }
+      // The NestJS login endpoint always runs requireChallenge server-side.
+      // Do not block a normal login on a redundant security-status round-trip:
+      // the email field prefetches risk information in the background.
+      if (!register && captcha.risk?.captchaRequired && !captcha.token) {
+        setError('Complete security verification before signing in.');
+        return;
       }
       const result=await api<any>('/auth/'+(register?'register':'login'),undefined,{
         method:'POST',
