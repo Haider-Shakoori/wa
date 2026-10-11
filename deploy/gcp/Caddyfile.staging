@@ -1,0 +1,23 @@
+{
+  servers {
+    protocols h1 h2 h3
+  }
+}
+
+gcp-stage.relaywa.com {
+  encode zstd gzip
+  # Environment variable must contain a Caddy-hashed password generated
+  # on the VM with: caddy hash-password
+  basic_auth {
+    staging {$RELAYWA_GCP_STAGE_PASSWORD_HASH}
+  }
+  header X-Robots-Tag "noindex,nofollow,noarchive"
+
+  @api path /api /api/*
+  handle @api {
+    reverse_proxy 127.0.0.1:3001
+  }
+  handle {
+    reverse_proxy 127.0.0.1:3000
+  }
+}
