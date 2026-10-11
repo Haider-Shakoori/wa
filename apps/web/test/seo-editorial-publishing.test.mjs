@@ -72,6 +72,7 @@ test('article content, publication dates and internal documentation are not fabr
   const guide=read('app/blog/[slug]/page.tsx');
   assert.match(guide,/getPublishedArticle/);
   assert.match(guide,/generateStaticParams/);
+  assert.match(guide,/export const dynamicParams = false;/, 'Never stream a false HTTP 200 for a draft article');
   assert.match(guide,/notFound\(\)/);
   assert.match(guide,/TechArticle/);
   assert.match(guide,/BreadcrumbList/);
