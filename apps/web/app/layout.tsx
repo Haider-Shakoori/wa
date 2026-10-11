@@ -1,5 +1,18 @@
 import type { Metadata, Viewport } from 'next';
-import '@fontsource-variable/inter';
+import localFont from 'next/font/local';
+
+// Explicit preloading cuts the CSS -> font waterfall for the LCP hero heading.
+// This is the same Inter Variable Latin font already used by the site; preserving
+// its family name avoids restyling all public and workspace components.
+const inter = localFont({
+  src: '../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: true,
+  variable: '--font-inter',
+  declarations: [{ prop: 'font-family', value: '"Inter Variable"' }],
+});
 import 'react-phone-number-input/style.css';
 import './globals.css';
 import './relay.css';
@@ -32,7 +45,7 @@ export const viewport: Viewport = { themeColor: '#070909', colorScheme: 'dark' }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" style={{ backgroundColor: '#070909', colorScheme: 'dark' }}>
+    <html lang="en" className={inter.variable} style={{ backgroundColor: '#070909', colorScheme: 'dark' }}>
       <body className="relay-dark"><NavigationProgress/><SessionExpiryWatcher/><GoogleAnalytics/>{children}</body>
     </html>
   );
