@@ -56,8 +56,8 @@ export default function GoogleAnalytics() {
     if (!isPublic) return;
     let active = true;
     const controller = new AbortController();
-    // Any network error, missing route, timeout or malformed response must
-    // retain the consent prompt and must never silently enable GA4.
+    // Any network error, missing route, timeout or malformed response leaves
+    // GA4 disabled until a visitor voluntarily opts in via footer settings.
     const timeout = window.setTimeout(() => controller.abort(), 4000);
     void fetch('/analytics-policy', {
       method: 'GET', cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
@@ -150,7 +150,9 @@ export default function GoogleAnalytics() {
   if (!isPublic) return null;
   return (
     <>
-      {hydrated && regionPolicy !== 'pending' && !consent && <aside className="rw-analytics-consent" role="region"
+      {/* No automatic consent popup. Settings open only via the footer;
+          restricted and unknown regions simply don't initialize GA4. */}
+      {hydrated && showPreferences && <aside className="rw-analytics-consent" role="region"
         aria-label="Analytics preferences"
         style={{ position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 1000,
           maxWidth: 640, maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto',
@@ -158,7 +160,7 @@ export default function GoogleAnalytics() {
           boxSizing: 'border-box', margin: '0 auto', padding: 16, borderRadius: 14,
           background: '#161e24', color: '#fff', border: '1px solid #445563',
           boxShadow: '0 10px 32px rgba(0,0,0,.4)' }}>
-        <p style={{margin:0, position:'relative', zIndex:0, pointerEvents:'none'}}>Help improve RelayWA: allow optional Google Analytics on public pages?
+        <p style={{margin:0, position:'relative', zIndex:0, pointerEvents:'none'}}>Analytics preferences: you can allow or disable Google Analytics on public pages.
           No WhatsApp messages, customer details or private workspace URLs are shared.</p>
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10,
         position:'relative', zIndex:2, flexShrink:0}}>
