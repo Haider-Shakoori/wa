@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runInNewContext} from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const load=path=>readFile(new URL(path,import.meta.url),'utf8');
 
@@ -53,15 +54,48 @@ test('administrator role, public plan, and subscription selectors have legible d
  assert.match(styles,/color:#f6fff8!important/);
 });
 
-test('website plan save applies API response without depending on unrelated platform endpoints',async()=>{
- const page=await load('../app/platform/page.tsx');
- const dashboard=await load('../components/platform-website-subscriptions.tsx');
- const editor=await load('../components/platform-website-plan-editor.tsx');
- assert.match(editor,/const savedPlan=await api<ClientPlan>\(/);
- assert.match(editor,/onUpdated\(savedPlan\)/);
- assert.doesNotMatch(editor,/await onUpdated\(\)/);
- assert.match(dashboard,/onUpdated:\(savedPlan:ClientPlan\)=>void/);
- assert.match(page,/onUpdated=\{\(savedPlan\)=>\{/);
- assert.match(page,/setSubscriptionPlans\(previous=>previous\.some/);
- assert.doesNotMatch(page,/onUpdated=\{async\(\)=>\{await refresh\(\)/);
+test('website plan edits are verified with a fresh server catalog, not optimistic local state',async()=>{
+  const page=await load('../app/platform/page.tsx');
+  const dashboard=await load('../components/platform-website-subscriptions.tsx');
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  assert.match(editor,/const savedPlan=await api<ClientPlan>\(/);
+  assert.match(editor,/await onUpdated\(savedPlan\)/);
+  assert.match(dashboard,/onUpdated:\(savedPlan:ClientPlan\)=>Promise<void>/);
+  assert.match(page,/onUpdated=\{async\(savedPlan\)=>\{/);
+  assert.match(page,/const stored=latest\.find\(item=>item\.code===savedPlan\.code\)/);
+  assert.match(page,/stored\.monthly_price_cents!==savedPlan\.monthly_price_cents/);
+  assert.match(page,/stored\.annual_price_cents!==savedPlan\.annual_price_cents/);
+  assert.match(page,/setSubscriptionPlans\(latest\)/);
+  assert.match(page,/active!=='Website subscriptions'/);
+  assert.match(page,/api<ClientPlan\[]>\('\/platform\/subscription-plans',token\)/);
+  assert.doesNotMatch(editor,/window\.confirm/,'No native modal should silently cancel an admin save');
+  assert.doesNotMatch(page,/onUpdated=\{async\(\)=>\{await refresh\(\)/);
+});
+
+test('website plan edit validates exact USD cents, bounds and audit reason',async()=>{
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  assert.match(editor,/function toCents\(value:string\):number\|null/);
+  assert.match(editor,/Number\.isSafeInteger\(cents\)/);
+  assert.match(editor,/monthlyCents===null\|\|annualCents===null/);
+  assert.match(editor,/reason\.trim\(\)\.length<8/);
+  assert.match(editor,/dailyLimit/);
+  assert.match(editor,/monthlyLimit/);
+  assert.match(editor,/maxSessions<1\|\|maxSessions>100000/);
+  assert.match(editor,/plan\?'PATCH':'POST'/);
+  assert.match(editor,/onUpdated\(savedPlan\)/);
+  assert.match(editor,/Saving updates the website catalog for future checkouts/);
+});
+
+test('USD price conversion accepts exact cents and rejects malformed values',async()=>{
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  const source=editor.slice(editor.indexOf('function toCents('),editor.indexOf('export function PlatformWebsitePlanEditor('));
+  assert.ok(source.startsWith('function toCents('));
+  const javascript=source.replace('value:string','value').replace('):number|null',')');
+  const convert=runInNewContext(javascript+';toCents;');
+  for(const [input,expected] of [
+    ['3.99',399],['6.49',649],['65.00',6500],['0.01',1],
+    ['1',100],['1.2',120],['999999.99',99999999],['1000000',100000000],
+    ['0.00',null],['-0.01',null],['3.999',null],['abc',null],['1e3',null],
+    ['1,000',null],['1000000.01',null],['',null],
+  ])assert.equal(convert(input),expected,'Unexpected cents for '+JSON.stringify(input));
 });

@@ -5,12 +5,20 @@ import { api } from '../lib/api';
 import type { ClientPlan } from './platform-client-subscription-editor';
 
 const dollars=(cents:number)=>((Number(cents)||0)/100).toFixed(2);
+// Avoid floating-point/locale ambiguity and reject prices outside the API's
+// actual integer-cent limits before submitting a mutation.
+function toCents(value:string):number|null {
+  if (!/^(?:0|[1-9]\d{0,6})(?:\.\d{1,2})?$/.test(value.trim())) return null;
+  const [whole,decimal=''] = value.trim().split('.');
+  const cents=Number(whole)*100+Number(decimal.padEnd(2,'0'));
+  return Number.isSafeInteger(cents)&&cents>0&&cents<=100000000?cents:null;
+}
 
 export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
   plan:ClientPlan|null;
   token:string;
   onClose:()=>void;
-  onUpdated:(savedPlan:ClientPlan)=>void;
+  onUpdated:(savedPlan:ClientPlan)=>Promise<void>;
 }) {
   const [code,setCode]=useState(plan?.code??'');
   const [name,setName]=useState(plan?.name??'');
@@ -28,12 +36,20 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
     e.preventDefault();
     if(busy)return;
     const codeSafe=code.trim().toLowerCase();
-    const monthlyCents=Math.round(Number(monthlyPrice)*100);
-    const annualCents=Math.round(Number(annualPrice)*100);
+    const monthlyCents=toCents(monthlyPrice);
+    const annualCents=toCents(annualPrice);
     if(!/^[a-z][a-z0-9_-]{1,39}$/.test(codeSafe)){setError('Plan code must contain 2–40 lowercase letters, digits, hyphens or underscores.');return;}
-    if(!Number.isSafeInteger(monthlyCents)||!Number.isSafeInteger(annualCents)||monthlyCents<=0||annualCents<=0){setError('Both monthly and annual prices must be greater than zero.');return;}
+    if(monthlyCents===null||annualCents===null){setError('Enter valid positive USD prices with at most two decimal places (up to $1,000,000).');return;}
+    if(!Number.isInteger(maxSessions)||maxSessions<1||maxSessions>100000 ||
+      !Number.isInteger(maxApiKeys)||maxApiKeys<1||maxApiKeys>100000) {
+      setError('Session and API key limits must be whole numbers between 1 and 100,000.');return;
+    }
+    const dailyLimit=dailyMessages.trim()===''?null:Number(dailyMessages);
+    const monthlyLimit=monthlyMessages.trim()===''?null:Number(monthlyMessages);
+    if([dailyLimit,monthlyLimit].some(v=>v!==null&&(!Number.isInteger(v)||v<1||v>100000000))) {
+      setError('Message limits must be empty (unlimited) or whole numbers between 1 and 100,000,000.');return;
+    }
     if(reason.trim().length<8){setError('Enter an audit reason of at least 8 characters.');return;}
-    if(!window.confirm((plan?'Update':'Create')+' public website plan '+codeSafe+'? Pricing changes affect future checkouts; entitlement changes can affect current subscribers. Existing payments will not be charged again.'))return;
     setBusy(true);setError('');
     try {
       const savedPlan=await api<ClientPlan>(plan?'/platform/website-plans/'+encodeURIComponent(plan.code):'/platform/website-plans',
@@ -41,14 +57,16 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
           method:plan?'PATCH':'POST',
           body:JSON.stringify({
             code:codeSafe,name:name.trim(),maxSessions,maxApiKeys,
-            dailyMessages:dailyMessages.trim()===''?null:Number(dailyMessages),
-            monthlyMessages:monthlyMessages.trim()===''?null:Number(monthlyMessages),
+            dailyMessages:dailyLimit,
+            monthlyMessages:monthlyLimit,
             monthlyPriceCents:monthlyCents,annualPriceCents:annualCents,currency:'USD',
             reason:reason.trim(),
           }),
         });
       // Use the confirmed server response rather than coupling the saved state to a global admin refresh.
-      onUpdated(savedPlan);
+      // Confirm the catalog now returns these values; avoid silently
+      // reporting a successful change based on an optimistic local update.
+      await onUpdated(savedPlan);
       onClose();
     } catch(e) {setError(e instanceof Error?e.message:'Plan could not be saved.');}
     finally {setBusy(false);}
@@ -62,7 +80,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
       </div>
       <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Close editor</button>
     </div>
-    <form onSubmit={e=>void submit(e)} className="website-plan-form">
+    <form onSubmit={e=>void submit(e)} className="website-plan-form" aria-busy={busy}>
       <label>Plan code
         <input required disabled={!!plan} minLength={2} maxLength={40} value={code}
           placeholder="business" onChange={e=>setCode(e.target.value.toLowerCase())}/>
@@ -100,6 +118,9 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
           placeholder="Example: Updated public website pricing for the new tier"
           onChange={e=>setReason(e.target.value)}/>
       </label>
+      <p className="muted website-plan-wide">Saving updates the website catalog for future checkouts.
+        Existing payments are not charged again. Changes to plan limits can affect current subscribers.
+        The audit reason records why this change was made; saving does not modify Stripe subscriptions automatically.</p>
       {error&&<p role="alert" className="alert website-plan-wide">{error}</p>}
       <div className="website-plan-actions website-plan-wide">
         <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>Cancel</button>

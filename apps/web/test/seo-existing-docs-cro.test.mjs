@@ -72,7 +72,7 @@ test('marketing copy accurately identifies QR-linked WhatsApp Web and immediate 
 
 test('documentation metadata and intent are unique to existing canonical pages', () => {
   const registry=read('lib/public-pages.ts');
-  assert.match(registry, /WhatsApp REST API Docs/);
+  assert.match(registry, /WhatsApp REST API Documentation & Integration/);
   assert.match(registry, /WhatsApp API integrations: QR pairing/);
   const docs=read('app/docs/page.tsx');
   assert.match(docs, /<h1>WhatsApp REST API documentation:/);

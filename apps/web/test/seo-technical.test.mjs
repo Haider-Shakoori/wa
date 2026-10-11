@@ -61,7 +61,7 @@ test('canonical URLs are HTTPS, normalized, and have no queries or fragments', (
   assert.equal(seo.canonicalUrl('/pricing/?utm_source=abc#detail'), 'https://relaywa.com/pricing');
   assert.equal(seo.canonicalUrl('api-docs/'), 'https://relaywa.com/api-docs');
   assert.equal(seo.marketingPageMetadata('/help').alternates.canonical, 'https://relaywa.com/help');
-  assert.equal(seo.marketingPageMetadata('/').title.absolute, 'RelayWA — WhatsApp API for Developers');
+  assert.equal(seo.marketingPageMetadata('/').title.absolute, 'WhatsApp API for Developers — QR Sessions & Webhooks | RelayWA');
   assert.throws(() => seo.marketingPageMetadata('/dashboard'), /Unknown or unpublished/);
 });
 

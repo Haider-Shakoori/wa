@@ -8,22 +8,22 @@
 export const publicPages = [
   {
     path: '/',
-    title: 'RelayWA — WhatsApp API for Developers',
-    description: 'Connect WhatsApp to your app with isolated sessions, REST API messaging, and real-time webhooks. Start a free 7-day RelayWA trial.',
+    title: 'WhatsApp API for Developers — QR Sessions & Webhooks | RelayWA',
+    description: 'Connect your WhatsApp number by QR code, send messages through a REST API, manage multiple sessions and receive signed webhooks with RelayWA.',
     changeFrequency: 'weekly',
     priority: 1,
   },
   {
     path: '/pricing',
-    title: 'RelayWA Pricing — WhatsApp Session API Plans',
-    description: 'Explore RelayWA subscription plans and a 7-day trial for QR-linked WhatsApp sessions, REST messaging, and developer webhooks.',
+    title: 'WhatsApp API Pricing & Cost — QR Session Plans | RelayWA',
+    description: 'Compare RelayWA WhatsApp API pricing: monthly and annual plans for QR-linked sessions, REST messaging, signed webhooks and a 7-day trial.',
     changeFrequency: 'weekly',
     priority: 0.9,
   },
   {
     path: '/api-docs',
-    title: 'RelayWA WhatsApp REST API Docs — QR Sessions & Webhooks',
-    description: 'WhatsApp REST API documentation for RelayWA QR-linked sessions, message endpoints, webhook signatures and Laravel, JavaScript, Python and .NET examples.',
+    title: 'WhatsApp REST API Documentation & Integration | RelayWA',
+    description: 'WhatsApp REST API docs for sending messages, QR-linked sessions, API keys and signed webhooks. HTTP integration examples for Node.js, Laravel, Python and .NET.',
     changeFrequency: 'monthly',
     priority: 0.9,
   },

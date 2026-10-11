@@ -96,7 +96,7 @@ test('docs redirect and English-only no-geo-redirect behavior', async ({ request
 
 test('help and pricing retain business model / documentation navigation', async ({ page }) => {
   await page.goto('/pricing');
-  await expect(page.getByRole('heading', { name: /QR-linked API subscription vs/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /WhatsApp API cost: QR-linked plans vs/ })).toBeVisible();
   await expect(page.locator('a[href="/api-docs#queue"]').first()).toBeVisible();
   await page.goto('/help');
   await expect(page.locator('section a[href="/api-docs"]').first()).toBeVisible();

@@ -615,7 +615,8 @@ export class PlatformAdminService {
       if (!previous.rows[0]) throw new NotFoundException('Website plan not found');
       const result = await client.query(`UPDATE subscription_plans
         SET name=$2,max_sessions=$3,daily_messages=$4,monthly_messages=$5,
-          max_api_keys=$6,monthly_price_cents=$7,annual_price_cents=$8,currency=$9
+          max_api_keys=$6,monthly_price_cents=$7,annual_price_cents=$8,currency=$9,
+          updated_at=now()
         WHERE code=$1
         RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
           monthly_price_cents,annual_price_cents,currency,active`,

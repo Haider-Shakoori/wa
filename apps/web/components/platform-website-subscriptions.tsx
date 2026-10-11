@@ -25,7 +25,7 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
   payments:Payment[];
   token:string;
   canEdit:boolean;
-  onUpdated:(savedPlan:ClientPlan)=>void;
+  onUpdated:(savedPlan:ClientPlan)=>Promise<void>;
   onPayments:()=>void;
 }) {
   const [annual,setAnnual]=useState(false);
