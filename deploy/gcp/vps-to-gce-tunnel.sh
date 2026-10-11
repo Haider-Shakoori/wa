@@ -24,8 +24,9 @@ done
 
 SOCKET=/srv/relaywa/private/pg/.s.PGSQL.5432
 # Check only real SSH processes to avoid matching the watchdog command itself.
+keyName="${RELAYWA_GCE_SSH_KEY##*/}"
 existing="$(ps -u "$(id -u)" -o comm=,args= |
-  awk '$1=="ssh" && index($0,"relaywa_gce_tunnel_ed25519")>0 {print}')"
+  awk -v needle="$keyName" '$1=="ssh" && index($0,needle)>0 {print}')"
 if [[ "$existing" == *"$PG_IP:5432"* &&
       "$existing" == *"$REDIS_IP:6379"* &&
       "$existing" == *"$WORKER_IP:3002"* ]]; then
