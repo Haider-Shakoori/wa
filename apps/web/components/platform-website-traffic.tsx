@@ -65,7 +65,7 @@ export function PlatformWebsiteTraffic({token}:{token:string}){
       <div>
         <p className="eyebrow">Website intelligence · First-party</p>
         <h2>Visitors, countries and crawlers</h2>
-        <p className="muted">Public RelayWA page requests, including browsers and crawlers that do not run JavaScript.</p>
+        <p className="muted">Public RelayWA page requests, including browsers and crawlers that do not run JavaScript. Independent of optional Google Analytics consent; approximate request metrics are not GA4 sessions or verified people.</p>
         {report&&<small>Updated {new Date(report.generatedAt).toLocaleTimeString()} · UTC day boundaries</small>}
       </div>
       <div className="website-traffic-controls" aria-label="Reporting period">
