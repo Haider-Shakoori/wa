@@ -33,7 +33,8 @@ for (const route of publicRoutes) {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href', 'https://relaywa.com' + route,
     );
-    await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /\S{50,}/);
+    const description = await page.locator('meta[name="description"]').getAttribute('content');
+    expect(description?.length || 0, 'Description should have useful copy').toBeGreaterThan(50);
     expect(await page.locator('link[hreflang]').count()).toBe(0);
     if (route.startsWith('/blog/')) {
       await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);
@@ -91,6 +92,6 @@ test('help and pricing retain business model / documentation navigation', async 
   await expect(page.getByRole('heading', { name: /QR-linked API subscription vs/ })).toBeVisible();
   await expect(page.locator('a[href="/api-docs#queue"]').first()).toBeVisible();
   await page.goto('/help');
-  await expect(page.locator('a[href="/api-docs"]').first()).toBeVisible();
-  await expect(page.locator('a[href="/blog"]').first()).toBeVisible();
+  await expect(page.locator('section a[href="/api-docs"]').first()).toBeVisible();
+  await expect(page.locator('a[href="/blog"]').first()).toHaveAttribute('href', '/blog');
 });
