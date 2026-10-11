@@ -1,0 +1,24 @@
+[Unit]
+Description=RelayWA NestJS backend (Google Compute Engine)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=relaywa
+Group=relaywa
+WorkingDirectory=/srv/relaywa/current-api
+Environment=NODE_ENV=production
+Environment=API_PORT=3001
+ExecStart=/usr/bin/node --env-file=/etc/relaywa/api.env /srv/relaywa/current-api/dist/main.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=25
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
