@@ -32,3 +32,12 @@ API health endpoint: `GET /api/health`
 ## Architecture rule
 
 WhatsApp session runtimes are isolated from the public API process. Later batches will add durable session ownership, QR lifecycle, reconnection, messaging, webhooks, quotas, and horizontal worker scaling without changing the public gateway contract.
+
+## Production hosting and configuration
+
+- [cPanel + Cloudflare Free + VPS architecture and runbook](docs/cpanel-migration.md)
+- [Cloudflare Free DNS/SSL snapshot (sanitized, non-importable example)](deploy/cloudflare/zone-config.example.json)
+- [cPanel Apache text compression snippet](deploy/cpanel/relaywa-compression.htaccess)
+- [Google Analytics GA4 admin reporting integration](docs/google-analytics-reporting.md)
+
+**Operational boundary:** Only the Next.js website and NestJS API run on cPanel. PostgreSQL, Redis, WhatsApp/Baileys workers and session credentials remain on the original VPS. Keep all cloud credentials, private environment files and SSH keys *outside this repository*. Production is not deployed automatically from an unreviewed branch.
