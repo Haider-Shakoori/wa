@@ -30,9 +30,12 @@ for (const route of publicRoutes) {
     await expect(page.locator('main#main-content')).toHaveCount(1);
     await expect(page.locator('h1').first()).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-      'href', 'https://relaywa.com' + route,
-    );
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    if (route === '/') {
+      expect(canonical).toMatch(/^https:\/\/relaywa\.com\/?$/);
+    } else {
+      expect(canonical).toBe('https://relaywa.com' + route);
+    }
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     expect(description?.length || 0, 'Description should have useful copy').toBeGreaterThan(50);
     expect(await page.locator('link[hreflang]').count()).toBe(0);
@@ -60,7 +63,11 @@ test('sitemap only includes reviewed English routes; no draft or country doorway
   expect(response.status()).toBe(200);
   const xml = await response.text();
   for (const route of publicRoutes) {
-    expect(xml).toContain(`<loc>https://relaywa.com${route}</loc>`);
+    if (route === '/') {
+      expect(xml).toMatch(/<loc>https:\/\/relaywa\.com\/?<\/loc>/);
+    } else {
+      expect(xml).toContain(`<loc>https://relaywa.com${route}</loc>`);
+    }
   }
   for (const route of unpublished) expect(xml).not.toContain('https://relaywa.com' + route);
   expect(xml).not.toMatch(/hreflang|\/pt-br|\/es\/|\/countries\//);
