@@ -83,3 +83,8 @@ Position RelayWA as a **developer-focused WhatsApp-linked-session messaging API*
 - Claims match the actual source and current product limitations.
 - No change to existing customer, admin, trial, messaging or billing functionality in Batch 01.
 - Requesters and reviewers distinguish **WhatsApp consumer adoption** from **commercial WhatsApp API buyer demand**.
+
+## 90-day English SEO operating plan — release-dependent (2026-10-11)
+
+- [90-day editorial, measurement and ethical outreach schedule](90-day-english-growth-plan.md): week-by-week English content and maintenance candidates, 14-country demand gates, unknown-value KPI scorecard, assigned review roles and 30/60/90-day decisions.
+- This is an **operating plan only**. It does not mean the SEO updates are deployed, articles are indexed, GSC/Bing are connected, or organic paid attribution is verified. Country pages remain held until evidence justifies differentiated English material.
