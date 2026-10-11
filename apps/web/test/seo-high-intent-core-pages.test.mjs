@@ -65,7 +65,7 @@ test('keyword mapping is actionable and prevents duplicate primary canonical tar
 });
 
 test('homepage, pricing and documentation answer search intent without changing URLs or billing behavior',()=>{
-  const homepage=read('apps/web/components/relay-home.tsx');
+  const homepage=(read('apps/web/components/relay-home.tsx') + read('apps/web/components/relay-home-interactive.tsx'));
   const pricing=read('apps/web/app/pricing/page.tsx');
   const docs=read('apps/web/app/docs/page.tsx');
   const registry=read('apps/web/lib/public-pages.ts');
