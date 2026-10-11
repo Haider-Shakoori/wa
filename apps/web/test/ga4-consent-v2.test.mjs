@@ -56,6 +56,7 @@ test('GA4 script never loads without consent and existing first-party estimates 
   assert.match(tracker, /setTagEnabled\(true\)/);
   assert.match(tracker, /ga-disable-/);
   assert.match(tracker, /isIndexablePublicPath/);
+  assert.match(tracker, /hydrated && showPreferences && <aside/);
   assert.match(proxy, /createHmac\('sha256',secret\)/);
   assert.match(proxy, /request\.nextUrl\.pathname\.slice\(0,240\)/);
   assert.match(dashboard, /Approximate, privacy-preserving/);
