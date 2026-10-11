@@ -36,11 +36,10 @@ test('platform remains a separate control plane while sharing the unified visual
 });
 
 
-test('onboarding uses neutral international E.164 recipient guidance', async () => {
+test('legacy onboarding page is a redirect rather than a region-specific setup wizard', async () => {
   const source = await readFile(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
-  assert.match(source, /E\.164 international format/);
-  assert.doesNotMatch(source, /93744119422/);
-  assert.doesNotMatch(source, /Afghanistan|Afghan|Kabul|AFN/i);
+  assert.match(source, /redirect\('\/dashboard'\)/);
+  assert.doesNotMatch(source, /93744119422|Afghanistan|Afghan|Kabul|AFN/i);
 });
 
 
