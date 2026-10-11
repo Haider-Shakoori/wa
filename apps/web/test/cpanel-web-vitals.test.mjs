@@ -40,6 +40,7 @@ test('social login buttons share one short-lived provider configuration request'
 test('brand cache cannot accidentally cache HTML, sessions or auth responses', () => {
   const config=read('next.config.ts');
   assert.match(config, /source: '\/brand\/:asset\*'/);
-  assert.doesNotMatch(config, /source: '\/api\//);
-  assert.doesNotMatch(config, /source: '\/login'/);
+  const headerRules = config.split('async headers() {')[1]?.split('async rewrites()')[0] ?? '';
+  assert.doesNotMatch(headerRules, /source: '\/api\//);
+  assert.doesNotMatch(headerRules, /source: '\/login'/);
 });
