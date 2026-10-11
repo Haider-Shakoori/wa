@@ -248,7 +248,7 @@ export default function DocsPage() {
         <section className="docs-v2-hero" id="overview">
           <span className="public-kicker">RelayWA API</span>
           <h1>WhatsApp REST API documentation: QR sessions, messages and webhooks</h1>
-          <p>Integrate RelayWA from your server: pair an existing WhatsApp account via QR, send text and media with a session API key, inspect delivery states, and verify signed webhook events.</p>
+          <p>Use these WhatsApp API integration docs to send messages from your backend: connect an existing number by QR code, authenticate with a session-bound Bearer key, call the send-message REST endpoint, and receive signed webhook events. Follow the Node.js, Laravel, Python and .NET examples below.</p>
           <p className="docs-platform-note">RelayWA is a QR-linked WhatsApp Web session API, not Meta's official WhatsApp Cloud API. Outbound sends are direct; your application handles scheduling, pacing and send retries.</p>
           <nav className="docs-topic-shortcuts" aria-label="Popular WhatsApp API guides">{developerTopics.map(topic=><a key={topic.id} href={'#'+topic.id}>{topic.title}</a>)}</nav>
           <div className="docs-base-url"><span>Base URL</span><code>{exampleApiBase}</code><button onClick={()=>void navigator.clipboard.writeText(exampleApiBase)}>Copy</button></div>
@@ -259,7 +259,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        <DocSection id="quickstart" eyebrow="Getting started" title="Quickstart" intro="The shortest path from account creation to your first WhatsApp message.">
+        <DocSection id="quickstart" eyebrow="Getting started" title="WhatsApp REST API quickstart" intro="Connect a QR-linked session, copy a scoped API key and send your first WhatsApp message from your server.">
           <div className="docs-step-grid">
             <Step number="01" title="Create a workspace">Start the 7-day trial or choose a paid plan, then finish workspace setup.</Step>
             <Step number="02" title="Connect WhatsApp">Create a session, scan the QR from WhatsApp → Linked devices and wait for <code>connected</code>.</Step>
@@ -302,7 +302,7 @@ export default function DocsPage() {
           </div>
         </DocSection>
 
-        <DocSection id="messages" eyebrow="Outbound messaging" title="Send messages" intro="Outbound requests are dispatched immediately. A successful send means WhatsApp transport acceptance; recipient delivery confirmation is a separate status update.">
+        <DocSection id="messages" eyebrow="Outbound messaging" title="Send WhatsApp messages with the REST API" intro="Send text or media using the server-side send-message endpoint. Outbound requests dispatch immediately; a successful send only confirms transport acceptance, not recipient delivery.">
           <EndpointTable rows={messageEndpoints}/>
           <h3>Text payload</h3>
           <Code value={['{','  "to": "E164_RECIPIENT_NUMBER",','  "text": "Your order is ready.",','  "clientMessageId": "order-1001"','}'].join('\n')}/>
@@ -346,7 +346,7 @@ export default function DocsPage() {
           <Note title="Avoid duplicate sends">Use clientMessageId for idempotency. If a request times out, check its message ID or repeat the same idempotency key to inspect the existing result before deciding to send again. A timeout can have an unknown delivery outcome.</Note>
         </DocSection>
 
-        <DocSection id="webhooks" eyebrow="Realtime delivery" title="Webhooks" intro="Webhook endpoints receive signed HTTPS POST callbacks for subscribed RelayWA session events.">
+        <DocSection id="webhooks" eyebrow="Realtime delivery" title="WhatsApp API webhooks" intro="Receive signed HTTPS POST callbacks for your QR-linked session events. Verify the webhook signature against the raw request body before processing updates.">
           <EndpointTable rows={webhookEndpoints}/>
           <h3>Delivery body</h3>
           <Code value={['{','  "id": "EVENT_ID",','  "type": "message.received",','  "sessionId": "SESSION_ID",','  "createdAt": "2026-10-07T12:00:00.000Z",','  "data": {}','}'].join('\n')}/>
@@ -408,8 +408,8 @@ export default function DocsPage() {
         </DocSection>
 
         <section id="language-examples">
-          <h2>Integrate RelayWA with your existing developer tools</h2>
-          <p>Send a message from your application server using POST /api/send-message and a scoped Bearer session key. The examples use the public API endpoint <code>{exampleApiBase}</code>; never put the key into browser JavaScript or a distributable app. The API uses QR-linked WhatsApp Web sessions, not Meta's official WhatsApp Cloud API.</p>
+          <h2>WhatsApp API integration examples for Node.js, Laravel, Python and .NET</h2>
+          <p>These WhatsApp API examples send a message from your application server using POST /api/send-message and a scoped Bearer session key. Use the public API endpoint <code>{exampleApiBase}</code>; never put credentials into browser JavaScript or distributable apps. RelayWA uses QR-linked WhatsApp Web sessions, not Meta's official WhatsApp Cloud API.</p>
           <nav className="docs-framework-shortcuts" aria-label="Jump to framework examples">{integrationGuides.map((guide)=><a key={guide.id} href={'#'+guide.id}>{guide.name}</a>)}</nav>
           <CodeShowcase examples={integrationExamples}/>
           <div className="docs-framework-guides">
