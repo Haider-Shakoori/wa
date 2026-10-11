@@ -38,6 +38,20 @@ export class WebsiteAnalyticsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Non-persistent, read-only IP -> ISO country lookup used only by the
+   * authenticated website server. Unmatched/invalid addresses fail closed.
+   * Uses the same indexed, offline country ranges as the traffic dashboard.
+   */
+  async resolveVisitorCountry(clientIp: unknown): Promise<string> {
+    if (typeof clientIp !== 'string' || clientIp.length > 45 || !isIP(clientIp)) return 'ZZ';
+    const lookup=await this.db.query<{country_code:string}>(`SELECT country_code
+      FROM website_geoip_ranges WHERE range_start <= $1::inet AND range_end >= $1::inet
+      ORDER BY range_start DESC LIMIT 1`,[clientIp]);
+    const code=(lookup.rows[0]?.country_code??'ZZ').trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code)?code:'ZZ';
+  }
+
   async collect(view: WebsiteView) {
     // Keyed daily visitor hash is generated in the website server;
     // raw IP addresses, browser fingerprints and query strings never reach storage.
