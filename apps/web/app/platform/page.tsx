@@ -715,7 +715,13 @@ export default function PlatformPage() {
         <PlatformWebsiteSubscriptions
           plans={subscriptionPlans} payments={payments} token={token}
           canEdit={['super_admin','billing_admin'].includes(platformRole)}
-          onUpdated={async()=>{await refresh();setNotice('Website pricing catalog saved.');}}
+          onUpdated={(savedPlan)=>{
+            setSubscriptionPlans(previous=>previous.some(item=>item.code===savedPlan.code)
+              ? previous.map(item=>item.code===savedPlan.code?savedPlan:item)
+              : [...previous,savedPlan]);
+            setError('');
+            setNotice('Website pricing catalog saved. The new plan is visible in the catalog.');
+          }}
           onPayments={()=>setActive('Payments')}/>
       }
 
