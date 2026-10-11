@@ -16,7 +16,10 @@ test('basic Consent Mode v2 sends default denial before config and advertising r
   exports.initializeConsentV2(target, 'G-61Z26DFM1V');
   exports.updateConsentV2(target, 'granted');
   const actions = target.dataLayer;
-  const actionsAsJson = JSON.parse(JSON.stringify(actions));
+  // gtag.js expects the original array-like function arguments object, not
+  // an Array from a rest parameter. This was missed by previous string tests.
+  assert.ok(actions.every(row => Object.prototype.toString.call(row) === '[object Arguments]'));
+  const actionsAsJson = JSON.parse(JSON.stringify(actions.map(row => Array.from(row))));
   assert.deepEqual(actionsAsJson[0], ['consent', 'default', {
     analytics_storage: 'denied', ad_storage: 'denied',
     ad_user_data: 'denied', ad_personalization: 'denied',
@@ -34,7 +37,7 @@ test('basic Consent Mode v2 sends default denial before config and advertising r
     ad_user_data: 'denied', ad_personalization: 'denied',
   });
   exports.updateConsentV2(target, 'denied');
-  assert.deepEqual(JSON.parse(JSON.stringify(actions.at(-1))), ['consent', 'update', {
+  assert.deepEqual(JSON.parse(JSON.stringify(Array.from(actions.at(-1)))), ['consent', 'update', {
     analytics_storage: 'denied', ad_storage: 'denied',
     ad_user_data: 'denied', ad_personalization: 'denied',
   }]);
