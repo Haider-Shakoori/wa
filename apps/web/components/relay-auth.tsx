@@ -143,7 +143,7 @@ export default function RelayAuth({ register=false }: { register?: boolean }) {
           <label>Email address
             <span className="rw-input-icon">
               <FeatherIcon name="mail" size={16}/>
-              <input type="email" required autoComplete="email" value={email} onChange={e=>{setEmail(e.target.value);captcha.reset();}} onBlur={()=>{if(!register&&email.trim())void captcha.check(email).catch(()=>{});}}/>
+              <input type="email" required autoComplete="email" value={email} onFocus={()=>{if(!register)router.prefetch('/dashboard');}} onChange={e=>{setEmail(e.target.value);captcha.reset();}} onBlur={()=>{if(!register&&email.trim())void captcha.check(email).catch(()=>{});}}/>
             </span>
           </label>
           <label>Password
