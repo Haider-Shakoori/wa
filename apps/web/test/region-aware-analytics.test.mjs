@@ -62,6 +62,8 @@ test('old explicit declines remain stronger than country automatic decisions and
   assert.match(tracker,/regionPolicy === 'auto'/);
   assert.match(tracker,/setStoredChoice\(value\)/);
   assert.match(tracker,/setShowPreferences\(true\)/);
+  assert.match(tracker,/hydrated && showPreferences && <aside/);
+  assert.doesNotMatch(tracker,/regionPolicy !== 'pending' && !consent && <aside/);
   assert.match(tracker,/fetch\('\/analytics-policy'/);
   assert.match(tracker,/\.catch\(\(\) => 'consent'/);
   assert.match(tracker,/isIndexablePublicPath/);
