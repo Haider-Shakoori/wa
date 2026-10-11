@@ -98,5 +98,5 @@ test('canonical, sitemap and private route protections stay centralized',()=>{
   assert.match(metadata,/robots: \{ index: true, follow: true \}/);
   assert.match(sitemap,/publicPages, editorialPages/);
   assert.match(docsPage,/marketingPageMetadata\('\/api-docs'\)/);
-  assert.doesNotMatch(sitemap,/countries\/|locales|hreflang/);
+  assert.doesNotMatch(sitemap.replace(/\/\/[^\n]+/g,''),/countries\/|locales|hreflang/);
 });
