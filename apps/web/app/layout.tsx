@@ -11,9 +11,15 @@ import NavigationProgress from '../components/navigation-progress';
 import GoogleAnalytics from '../components/google-analytics';
 import SessionExpiryWatcher from '../components/session-expiry-watcher';
 import { siteUrl, siteDescription } from '../lib/seo';
+import { googleSiteVerificationToken } from '../lib/google-site-verification';
+
+// Google Search Console verification is an ownership token, not GA4 tracking.
+// It is safe to render without analytics consent when explicitly configured.
+const gscVerification = googleSiteVerificationToken(process.env.GOOGLE_SITE_VERIFICATION);
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  ...(gscVerification ? { verification: { google: gscVerification } } : {}),
   title: { default: 'RelayWA — WhatsApp API for Developers', template: '%s | RelayWA' },
   description: siteDescription,
   applicationName: 'RelayWA',
