@@ -21,7 +21,9 @@ for ip in "$PG_IP" "$WORKER_IP"; do
     exit 1
   fi
 done
-existing="$(pgrep -u "$(id -u)" -af 'ssh .*relaywa_cpanel_tunnel_ed25519' || true)"
+# Only inspect real SSH processes. pgrep -af can match the watchdog's own
+# shell command and incorrectly declare a missing tunnel healthy.
+existing="$(ps -u "$(id -u)" -o comm=,args= | awk '$1 == "ssh" && index($0, "relaywa_cpanel_tunnel_ed25519") > 0 { print }')"
 if [[ "$existing" == *"$PG_IP:5432"* && "$existing" == *"$WORKER_IP:3002"* ]]; then
   exit 0
 fi
