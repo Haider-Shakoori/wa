@@ -2,58 +2,69 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { createRequire } from 'node:module';
-import { Buffer } from 'node:buffer';
-const require = createRequire(import.meta.url);
 import ts from 'typescript';
 
-const source = () => readFile(new URL('../lib/regional-analytics-policy.ts', import.meta.url), 'utf8');
-const approved = {
-  geoHeaderName: 'cf-ipcountry',
-  country: 'AF',
-  ingressAttestation: 'a'.repeat(48),
-  expectedAttestation: 'a'.repeat(48),
-  approvedCountries: 'AF',
-};
+const read = path => readFile(new URL(path, import.meta.url), 'utf8');
+const EEA = [
+  'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE',
+  'IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE',
+  'IS','LI','NO',
+];
 
-test('region policy fails closed without trusted geo, approved list or attestation', async () => {
-  const js = ts.transpileModule(await source(), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+test('EEA 30, UK and Switzerland require consent; verified Afghanistan does not', async () => {
+  const compiled = ts.transpileModule(await read('../lib/regional-analytics-policy.ts'), {
+    compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
   }).outputText;
   const exports = {};
-  runInNewContext(js, { exports, require, Buffer });
-  const resolve = exports.resolveRegionalAnalyticsPolicy;
-  assert.equal(resolve(approved), 'auto');
-  for (const change of [
-    { approvedCountries: '' }, { approvedCountries: 'US,GB' },
-    { geoHeaderName: 'x-country' }, { geoHeaderName: '' },
-    { country: 'ZZ' }, { country: '' }, { country: 'XX' },
-    { country: 'EU' }, { country: 'AF,US' }, { country: 'US' },
-    { ingressAttestation: '' }, { ingressAttestation: 'wrong' },
-    { expectedAttestation: '' }, { expectedAttestation: 'short' },
-  ]) {
-    assert.equal(resolve({ ...approved, ...change }), 'consent', JSON.stringify(change));
+  runInNewContext(compiled,{exports});
+  const decide = exports.resolveRegionalAnalyticsPolicy;
+  for(const code of [...EEA,'GB','UK','CH']) {
+    assert.equal(decide(code),'consent',code);
+    assert.equal(decide(code.toLowerCase()),'consent',code+' lower-case');
   }
-  assert.equal(resolve({ ...approved, approvedCountries: 'XX,EU' }), 'consent');
-  assert.equal(resolve({ ...approved, country: 'GB' }), 'consent');
-  assert.equal(resolve({ ...approved, country: 'US', approvedCountries: 'AF,US' }), 'auto',
-    'An explicitly reviewed/configured country may be automatic; no country is implicitly allowed');
+  assert.equal(EEA.length,30);
+  for(const code of ['AF','PK','IN','US','BR','AE','SA','NG','ID','MX','ZA']) {
+    assert.equal(decide(code),'auto',code);
+  }
+  for(const country of ['',null,undefined,'ZZ','XX','EU','AP','T1','A1','???','AF,CH']) {
+    assert.equal(decide(country),'consent',String(country));
+  }
 });
 
-test('policy is uncached, server-side, and never exposes secrets or country to browser', async () => {
-  const route = await readFile(new URL('../app/analytics-policy/route.ts', import.meta.url), 'utf8');
-  const tracker = await readFile(new URL('../components/google-analytics.tsx', import.meta.url), 'utf8');
-  const env = await readFile(new URL('../../../.env.example', import.meta.url), 'utf8');
-  assert.match(route, /force-dynamic/);
-  assert.match(route, /private, no-store/);
-  assert.match(route, /expectedAttestation: process\.env\.GA4_REGION_PROXY_SECRET/);
-  assert.match(route, /approvedCountries: process\.env\.GA4_AUTO_APPROVED_COUNTRIES/);
-  assert.match(route, /NextResponse\.json\(\{ policy \}/);
-  assert.match(env, /^GA4_AUTO_APPROVED_COUNTRIES=$/m);
-  assert.match(env, /^GA4_REGION_PROXY_SECRET=$/m);
-  assert.match(tracker, /fetch\('\/analytics-policy'/);
-  assert.match(tracker, /controller\.abort\(\)/);
-  assert.match(tracker, /setRegionPolicy\(mode\)/);
-  assert.match(tracker, /storedChoice \?\?/);
-  assert.match(tracker, /setShowPreferences\(true\)/);
+test('visitor country is read only through attested ingress and authenticated internal offline lookup', async () => {
+  const route=await read('../app/analytics-policy/route.ts');
+  const api=await read('../../api/src/website-analytics/website-analytics.controller.ts');
+  const database=await read('../../api/src/website-analytics/website-analytics.service.ts');
+  const env=await read('../../../.env.example');
+  assert.match(route,/GA4_REGION_IP_LOOKUP_ENABLED === 'true'/);
+  assert.match(route,/GA4_REGION_PROXY_SECRET/);
+  assert.match(route,/timingSafeEqual/);
+  assert.match(route,/request\.headers\.get\('x-forwarded-for'\)/);
+  assert.match(route,/isIP\(ip\)/);
+  assert.match(route,/WEBSITE_ANALYTICS_INGEST_KEY/);
+  assert.match(route,/website-events\/resolve-country/);
+  assert.match(route,/signal:AbortSignal\.timeout\(1800\)/);
+  assert.match(route,/private, no-store/);
+  assert.match(route,/NextResponse\.json\(\{ policy \}/);
+  assert.doesNotMatch(route,/request\.nextUrl\.searchParams\.get\('country'/);
+  assert.match(api,/@Post\('resolve-country'\)/);
+  assert.match(api,/this\.assertInternalAnalyticsKey\(provided\)/);
+  assert.match(database,/async resolveVisitorCountry\(clientIp: unknown\)/);
+  assert.match(database,/FROM website_geoip_ranges WHERE range_start/);
+  assert.match(env,/^GA4_REGION_IP_LOOKUP_ENABLED=false$/m);
+  assert.match(env,/^GA4_REGION_PROXY_SECRET=$/m);
+});
+
+test('old explicit declines remain stronger than country automatic decisions and sensitive routes are excluded',async()=>{
+  const tracker=await read('../components/google-analytics.tsx');
+  const privateRegistry=await read('../lib/public-pages.ts');
+  assert.match(tracker,/storedChoice \?\?/);
+  assert.match(tracker,/regionPolicy === 'auto'/);
+  assert.match(tracker,/setStoredChoice\(value\)/);
+  assert.match(tracker,/setShowPreferences\(true\)/);
+  assert.match(tracker,/fetch\('\/analytics-policy'/);
+  assert.match(tracker,/\.catch\(\(\) => 'consent'/);
+  assert.match(tracker,/isIndexablePublicPath/);
+  assert.match(privateRegistry,/isIndexablePublicPath/);
+  assert.doesNotMatch(tracker,/ad_storage: 'granted'/);
 });
