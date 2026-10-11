@@ -48,11 +48,11 @@ test('brand cache cannot accidentally cache HTML, sessions or auth responses', (
 test('preload the locally hosted Inter font before discovering CSS for the hero heading', () => {
   const layout = read('app/layout.tsx');
   const css = read('app/marketing.css');
-  assert.match(layout, /import localFont from 'next\\/font\\/local'/);
-  assert.match(layout, /inter-latin-wght-normal\\.woff2/);
-  assert.match(layout, /preload: true/);
-  assert.match(layout, /display: 'swap'/);
-  assert.match(layout, /className=\\{inter\\.variable\\}/);
-  assert.doesNotMatch(layout, /import '@fontsource-variable\\/inter'/);
-  assert.match(css, /'Inter Variable'/);
+  assert.ok(layout.includes("import localFont from 'next/font/local'"));
+  assert.ok(layout.includes('inter-latin-wght-normal.woff2'));
+  assert.ok(layout.includes('preload: true'));
+  assert.ok(layout.includes("display: 'swap'"));
+  assert.ok(layout.includes('className={inter.variable}'));
+  assert.ok(!layout.includes("import '@fontsource-variable/inter'"));
+  assert.ok(css.includes("'Inter Variable'"));
 });
