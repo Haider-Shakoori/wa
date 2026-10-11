@@ -15,7 +15,7 @@ async function loadAdmin(page,{rejectUpdate=false}={}){
    // The client session watcher requires a structurally valid, non-expired
    // JWT payload even when backend requests are mocked in browser CI.
    const payload=btoa(JSON.stringify({sub:'ci-billing-admin',exp:Math.floor(Date.now()/1000)+3600}))
-     .replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');
+     .replace(/=/g,'').replaceAll('=','').replaceAll('+','-').replaceAll('/','_');
    window.localStorage.setItem('relaywa_access_token','ci.'+payload+'.test-signature');
  });
  await page.route('**/api/**',async route=>{
