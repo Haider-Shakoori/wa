@@ -108,7 +108,7 @@ if (process.argv.includes('--include-production')) {
   }
   for (const [name, content] of [
     ['api-production.env', original],
-    ['web-production.env', prodWeb.join('\\n') + '\\n'],
+    ['web-production.env', prodWeb.join('\n') + '\n'],
   ]) {
     const file = join(destination, name);
     if (file === sourcePath) throw new Error('Refusing to overwrite source');
