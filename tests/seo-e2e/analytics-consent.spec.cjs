@@ -66,6 +66,11 @@ test('Consent Mode v2 denies all by default, grants analytics only after opt-in,
     return rows.some(x => x[0] === 'event' && x[1] === 'page_view') ? 1 : 0;
   })).toBe(1);
 
+  // Verify Google's tag receives the actual `arguments` object for all
+  // queued commands, not an Array produced by `(...args) => push(args)`.
+  const queueFormat = await page.evaluate(() =>
+    (window.dataLayer || []).every(x => Object.prototype.toString.call(x) === '[object Arguments]'));
+  expect(queueFormat, 'gtag commands must be queued as Arguments objects').toBe(true);
   const rows = await page.evaluate(() => (window.dataLayer || []).map(x => Array.from(x)));
   expect(rows[0][0]).toBe('consent');
   expect(rows[0][1]).toBe('default');
