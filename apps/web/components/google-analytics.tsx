@@ -16,7 +16,13 @@ type GtagWindow = Window & ConsentTarget;
 
 export default function GoogleAnalytics() {
   const pathname = usePathname();
-  const [consent, setConsent] = useState<Consent>(null);
+  // Explicit visitor choice ALWAYS overrides the region policy.
+  // A regional automatic grant is never persisted as an explicit opt-in.
+  const [storedChoice, setStoredChoice] = useState<Consent>(null);
+  const [regionPolicy, setRegionPolicy] = useState<'pending' | 'auto' | 'consent'>('pending');
+  const [showPreferences, setShowPreferences] = useState(false);
+  const consent: Consent = storedChoice ??
+    (!showPreferences && regionPolicy === 'auto' ? 'granted' : null);
   const [hydrated, setHydrated] = useState(false);
   const [ready, setReady] = useState(false);
   // The tag cannot enter the DOM before Consent Mode v2 defaults are queued.
@@ -28,13 +34,16 @@ export default function GoogleAnalytics() {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(ANALYTICS_CONSENT_KEY);
-    setConsent(stored === 'granted' || stored === 'denied' ? stored : null);
+    setStoredChoice(stored === 'granted' || stored === 'denied' ? stored : null);
     setHydrated(true);
     const openSettings = () => {
       const global = window as GtagWindow;
       (global as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
       if (initialized.current) updateConsentV2(global, 'denied');
-      setConsent(null);
+      // Pause tracking while preferences are open, even for regional
+      // automatic analytics. Do not silently reinstate an automatic grant.
+      setShowPreferences(true);
+      setStoredChoice(null);
       setTagEnabled(false);
       setReady(false);
       lastViewed.current = '';
@@ -42,6 +51,31 @@ export default function GoogleAnalytics() {
     window.addEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
     return () => window.removeEventListener(ANALYTICS_SETTINGS_CHANNEL, openSettings);
   }, []);
+
+  useEffect(() => {
+    if (!isPublic) return;
+    let active = true;
+    const controller = new AbortController();
+    // Any network error, missing route, timeout or malformed response must
+    // retain the consent prompt and must never silently enable GA4.
+    const timeout = window.setTimeout(() => controller.abort(), 4000);
+    void fetch('/analytics-policy', {
+      method: 'GET', cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
+    }).then(async response => {
+      if (!response.ok) throw new Error('Analytics policy unavailable');
+      const result: unknown = await response.json();
+      const mode = typeof result === 'object' && result !== null && 'policy' in result
+        ? (result as { policy: unknown }).policy : undefined;
+      return mode === 'auto' ? 'auto' : 'consent';
+    }).catch(() => 'consent' as const).then(mode => {
+      if (active) setRegionPolicy(mode);
+    }).finally(() => window.clearTimeout(timeout));
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [isPublic]);
 
   useEffect(() => {
     const global = window as GtagWindow;
@@ -109,13 +143,14 @@ export default function GoogleAnalytics() {
       (window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = true;
       lastViewed.current = '';
     }
-    setConsent(value);
+    setStoredChoice(value);
+    setShowPreferences(false);
   }
 
   if (!isPublic) return null;
   return (
     <>
-      {hydrated && !consent && <aside className="rw-analytics-consent" role="region"
+      {hydrated && regionPolicy !== 'pending' && !consent && <aside className="rw-analytics-consent" role="region"
         aria-label="Analytics preferences"
         style={{ position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 1000,
           maxWidth: 640, maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto',
