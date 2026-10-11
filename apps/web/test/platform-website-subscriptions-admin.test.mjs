@@ -52,3 +52,16 @@ test('administrator role, public plan, and subscription selectors have legible d
  assert.match(styles,/background:#17261d!important/);
  assert.match(styles,/color:#f6fff8!important/);
 });
+
+test('website plan save applies API response without depending on unrelated platform endpoints',async()=>{
+ const page=await load('../app/platform/page.tsx');
+ const dashboard=await load('../components/platform-website-subscriptions.tsx');
+ const editor=await load('../components/platform-website-plan-editor.tsx');
+ assert.match(editor,/const savedPlan=await api<ClientPlan>\(/);
+ assert.match(editor,/onUpdated\(savedPlan\)/);
+ assert.doesNotMatch(editor,/await onUpdated\(\)/);
+ assert.match(dashboard,/onUpdated:\(savedPlan:ClientPlan\)=>void/);
+ assert.match(page,/onUpdated=\{\(savedPlan\)=>\{/);
+ assert.match(page,/setSubscriptionPlans\(previous=>previous\.some/);
+ assert.doesNotMatch(page,/onUpdated=\{async\(\)=>\{await refresh\(\)/);
+});
