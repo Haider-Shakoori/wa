@@ -7,7 +7,7 @@
  */
 export type AnalyticsConsent = 'granted' | 'denied';
 export type ConsentTarget = {
-  dataLayer?: unknown[][];
+  dataLayer?: Array<IArguments | unknown[]>;
   gtag?: (...args: unknown[]) => void;
 };
 
@@ -31,7 +31,12 @@ export function consentV2State(consent: AnalyticsConsent) {
  */
 export function initializeConsentV2(target: ConsentTarget, measurementId: string) {
   target.dataLayer ??= [];
-  target.gtag ??= (...args: unknown[]) => { target.dataLayer?.push(args); };
+  // Google's gtag.js consumes the original array-like `arguments` object.
+  // Passing a rest-parameter Array instead left queued consent/config/events
+  // visible to our tests but did not result in collection by the live tag.
+  target.gtag ??= function (..._args: unknown[]) {
+    target.dataLayer?.push(arguments);
+  };
   target.gtag('consent', 'default', { ...deniedConsentV2 });
   target.gtag('set', 'ads_data_redaction', true);
   target.gtag('set', 'allow_ad_personalization_signals', false);
