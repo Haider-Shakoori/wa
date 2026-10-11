@@ -1,104 +1,95 @@
-# RelayWA: region-aware Google Analytics (opt-out protection)
+# RelayWA — EEA, UK and Swiss GA4 consent with offline country detection
 
-## Launch state: deliberately OFF without reviewed jurisdictions
+## Requested visitor behavior
 
-This feature supports regional automatic GA4 measurement but **does not assume any
-country permits GA4 without consent**. The three server-only settings below
-are **empty by default**, so *everyone* sees the existing optional
-Allow/Decline prompt and no Google tag loads beforehand. Before enabling a
-country, obtain a documented legal/privacy assessment for the actual GA4
-cookies, users, data sharing, purposes, age restrictions, transfers and
-applicable local rules. An example country code in a test or .env comment is
-NOT a legal conclusion.
+- **EEA (EU 27 + Iceland, Liechtenstein, Norway), UK (GB/UK), Switzerland (CH):**
+  keep the existing **Allow analytics / Decline** prompt for first-time visitors.
+  No Google tag or cookieless ping before consent.
+- **Afghanistan (AF), and other valid, independently verified non-protected
+  countries:** automatically send GA4 public-page activity in the background.
+  Do not show the popup unless the visitor opens Analytics preferences.
+- **Unknown/unverified country, invalid IP, backend unavailable or any failed
+  attestation:** keep consent required. Never guess country from UI language.
+- **All countries:** honor any previously stored Allow/Decline, offer the
+  existing footer preferences control and do not collect GA4 on private pages.
+  Advertising consent remains denied.
 
-Important primary references:
-- Google consent mode basic: https://developers.google.com/tag-platform/security/guides/consent?consentmode=basic
-- UK ICO statistical purposes exception (narrow, and *not* permission for
-  unrestricted third-party GA4): https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-the-use-of-storage-and-access-technologies/what-are-the-exceptions/
-- EDPB caution on analytics: https://www.edpb.europa.eu/system/files/2021-03/edpb_statement_032021_eprivacy_regulation_en_0.pdf
+This is a product-defined routing policy, **not a legal determination** that
+all countries outside these three regions permit GA4 tracking. Privacy and
+cookie laws in other countries may require further limitations. A privacy
+notice and regional legal review remain recommended.
 
-## Secure country-policy decision
+## Architecture — no commercial geolocation API
 
-Browser first-party `GET /analytics-policy` returns only `{"policy":"auto"}`
-or `{"policy":"consent"}`, with private no-store, noindex and no country
-leak. It is served by Next.js Web, **not** the separate `/api/` backend.
+RelayWA already maintains indexed `website_geoip_ranges` country ranges in
+PostgreSQL for its approximate first-party traffic dashboard.
 
-Only returns **auto** if ALL these hold:
-1. `GA4_REGION_GEO_HEADER` is set to one of `cf-ipcountry`,
-   `x-vercel-ip-country`, `x-geoip-country`.
-2. Trusted ingress supplies a valid two-letter country in that header,
-   derived from verified edge IP geolocation **not from client input**.
-3. Trusted ingress **overwrites and strips** the incoming client-supplied
-   `x-relaywa-geo-attestation` header and injects the exact private
-   `GA4_REGION_PROXY_SECRET` (32+ random characters).
-4. Visitor country is explicitly included in comma-separated
-   `GA4_AUTO_APPROVED_COUNTRIES` following review.
+1. Browser makes `GET /analytics-policy` with no country or IP parameters.
+2. Next web server checks `GA4_REGION_IP_LOOKUP_ENABLED=true` and verifies
+   `x-relaywa-geo-attestation` using the server-only
+   `GA4_REGION_PROXY_SECRET` (at least 32 random characters).
+3. **Trusted gateway** must always overwrite the attestation header and
+   the frontmost proxy MUST replace (not trust) any client-supplied
+   `X-Forwarded-For` before Nginx appends its upstream address.
+4. The web server validates the first IP in the sanitized chain with Node
+   `isIP`. Without a verified ingress attestation and a valid IP, it returns
+   `{"policy":"consent"}`.
+5. Web server makes a 1.8s-bounded POST to private
+   `http://api:3001/api/website-events/resolve-country`, using the existing
+   `WEBSITE_ANALYTICS_INGEST_KEY` as an internal authentication token.
+6. API validates that token with constant-time comparison, validates IP, and
+   looks up the country in the **local** indexed GeoIP table. It doesn't
+   store the lookup IP or send it to an external provider.
+7. Web server applies the protected country set in
+   `apps/web/lib/regional-analytics-policy.ts` and returns **only**
+   `{"policy":"auto"}` or `{"policy":"consent"}`, with no-store/noindex.
+8. Client Google tag is consent-gated/allowed exactly as in PR #113; client
+   never receives raw IP, geo database details or internal credential.
 
-**Never accept the country from a query parameter, Accept-Language, browser
-navigator, spoofable country header, IP geolocation by browser JavaScript or
-untrusted proxy chain.** Nginx on a generic VPS does not necessarily have
-geo-country information; a real upstream trusted edge/CDN GeoIP
-configuration is required. Do NOT turn on the three settings until the
-operator has verified the edge actually overwrites both headers. Prefer a
-private, inaccessible direct web origin so clients cannot bypass the ingress.
+Configuration (runtime only; never commit secrets):
 
-A malicious request without the secret fails closed; no configured secret,
-unrecognized country, invalid code, missing/invalid policy endpoint,
-network failure, or timeout requires explicit consent.
+```
+GA4_REGION_IP_LOOKUP_ENABLED=false
+GA4_REGION_PROXY_SECRET=
+WEBSITE_ANALYTICS_API_INTERNAL_URL=http://api:3001
+```
 
-## Visitor behavior
+The `WEBSITE_ANALYTICS_INGEST_KEY` is already used by the first-party
+collector and must be present in both Web and API. The `GA4_REGION_PROXY_SECRET`
+must match the value injected **by the trusted Nginx config** into each
+request's `X-Relaywa-Geo-Attestation`. Never configure the secret as public
+JavaScript, and never trust a user-provided attestation/country header.
 
-- Pending policy check: do **not** load Google; do not flash a prompt.
-- Approved region, no stored preference: automatically start GA4 on approved
-  **public-only** pages after policy validation. This automatic decision is
-  **not** written as an explicit opt-in.
-- Other/unknown region: ask visitor Allow or Decline first, using basic
-  Consent Mode v2. No GA scripts/pings before consent.
-- Explicit stored Allow or Decline overrides region policy, including travel
-  between regions. Existing declined visitors must never be auto-reenabled.
-- Footer **Analytics preferences** pauses Google and opens the prompt even in
-  automatic regions; Decline immediately suppresses further GA activity and
-  persists across reloads. Existing Google cookies may remain in the browser
-  after withdrawal; the app does not send new GA hits.
-- Google ad consent fields always remain denied, for all regions.
-- Continue server-side approximate first-party page request metrics,
-  separately governed by appropriate privacy notices/legal bases. Country is
-  only an eligibility signal, not an identity or evidence of legal status.
+**Rollout order matters:** deploy the API country lookup first and confirm
+that unauthenticated calls are blocked, then deploy the web image with
+policy disabled, update private gateway header sanitization, test that forged
+client X-Forwarded-For is discarded, and only then set
+`GA4_REGION_IP_LOOKUP_ENABLED=true` and validate AF/EEA/UK/CH/unknown
+behavior from known networks. Keep the current web image available for
+rollback.
 
-## QA: must be satisfied before enabling
+## Security / operations
 
-1. Run GitHub CI, production build, mobile Lighthouse and browser QA.
-2. API route GET default reports `consent` (no country approval).
-3. Verify forged `cf-ipcountry` and/or `x-relaywa-geo-attestation` headers
-   **cannot** trigger auto unless they are replaced with genuine edge-provided
-   values. Audit *both* edge and Nginx header forwarding behavior, including
-   direct-origin bypass.
-4. Test one deliberately configured reviewed country in staging, an unknown
-   country, and a country that requires consent (especially EU/EEA, UK, CH).
-5. In a controlled browser, confirm zero Google requests before Allow in the
-   consent region; in a reviewed automatic region confirm the GA4 tag / 
-   `/g/collect` request, and test footer Decline + reload.
-6. Confirm checkout, auth, dashboard, messaging, sessions, personal data,
-   private URLs, Stripe and worker are never measured.
-7. Confirm the intended GA4 measurement ID `G-61Z26DFM1V` and native GA4
-   Realtime still work, and use first-party metrics separately.
-8. Keep rollback to existing basic-consent website image; do not change
-   Stripe billing or server credentials in the same change.
+- No IP-based decision from the browser, cookies, language, UTM parameters,
+  `CF-IPCountry` sent by visitors, or public query parameters.
+- No client API key and no sensitive country data in browser responses.
+- No automatic GA4 in an unknown network: the banner is the safe fallback.
+- If `/analytics-policy` fails or times out, the client requires consent.
+- Do not overwrite a stored `denied` preference; withdrawal via footer is
+  effective on the current page and persists after reload.
+- Do not change or restart the WhatsApp worker or Stripe services. API
+  resolution is read-only. Existing web-page traffic collection is unchanged.
+- Verify the public site, subscription checkout and private routes after
+  deployment; review first-party traffic country resolution and GA4 Realtime.
+- The post-consent `/g/collect` network check can be intercepted so it does
+  not generate synthetic GA4 sessions; a real opted-in visit confirms
+  receipt on Google.
 
-## Release activation checklist (not automated in GitHub)
+## Sources
 
-- Written jurisdiction-specific permission/assessment with dated reviewer and
-  list of country codes; do not broadly approve every non-EEA country.
-- DNS/hosting edge supplies attested country signals on *every* request to
-  `/analytics-policy` including after SPA navigation.
-- Runtime web environment receives the three variables; the `GA4_REGION_PROXY_SECRET`
-  matches a long random ingress-only secret. Never use `NEXT_PUBLIC_` or
-  store either value in GitHub.
-- Update privacy/analytics notice for any regional automatic collection.
-- Observe logs/QA after web-only deploy; return to empty country list if
-  regional classification is uncertain. Consent remains the safe fallback.
-
-**Safety:** Simply merging this PR does not automatically activate any
-jurisdiction. This is intentional: the request was to enable automatic
-measurement only where it is *legally permitted*, not to infer permission
-from a list of countries.
+- EEA definition (EU 27 + Iceland, Liechtenstein, Norway):
+  https://employment-social-affairs.ec.europa.eu/policies-and-activities/moving-working-europe/eu-social-security-coordination/frequently-asked-questions/faq-social-security-where-do-these-rules-apply_en
+- Google Basic Consent Mode:
+  https://support.google.com/analytics/answer/14009635
+- Google EEA, UK and Swiss consent signals:
+  https://support.google.com/google-ads/answer/16142339
