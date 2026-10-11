@@ -1,11 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { API_BASE, api } from '../lib/api';
-
-type AuthProviders = {
-  github?: { enabled?: boolean };
-};
+import { API_BASE } from '../lib/api';
+import { getAuthProviders } from '../lib/auth-providers';
 
 export function GithubSignIn() {
   const [enabled,setEnabled] = useState(false);
@@ -13,7 +10,7 @@ export function GithubSignIn() {
 
   useEffect(()=>{
     let active=true;
-    void api<AuthProviders>('/auth/providers')
+    void getAuthProviders()
       .then((providers)=>{
         if (!active) return;
         setEnabled(Boolean(providers.github?.enabled));
