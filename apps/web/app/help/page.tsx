@@ -31,6 +31,34 @@ export default function Page() {
         )}
       </div>
     </section>
+    <section className="rw-site-section rw-developer-topics" aria-labelledby="api-options-heading">
+      <div className="rw-section-intro">
+        <p className="rw-kicker">CHOOSE YOUR WHATSAPP API CONNECTION</p>
+        <h2 id="api-options-heading">Meta Cloud API versus QR-linked WhatsApp sessions</h2>
+        <p>These are different approaches, not interchangeable products. RelayWA is an independent QR-linked WhatsApp Web session service and is not authorized or certified as Meta's official Cloud API.</p>
+      </div>
+      <div className="rw-developer-topic-grid">
+        <article>
+          <h3>Official Meta WhatsApp Cloud API</h3>
+          <p>Meta hosts the official WhatsApp Business Platform Cloud API. Its Graph API uses business assets, registered phone numbers and platform access tokens rather than pairing a WhatsApp Web session by scanning a QR code. Choose the official platform when an authorized integration is required.</p>
+          <a className="rw-topic-more" href="https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api" target="_blank" rel="noopener noreferrer">Meta's Cloud API reference <span aria-hidden="true">↗</span></a>
+        </article>
+        <article>
+          <h3>RelayWA QR-linked session API</h3>
+          <p>RelayWA links an existing WhatsApp number with a QR code and exposes REST methods, session state and signed webhooks. Session connectivity can change, and WhatsApp warns that linking through unofficial apps or websites can create security and account restriction risks. RelayWA cannot promise immunity from restrictions or guaranteed message delivery.</p>
+          <a className="rw-topic-more" href="https://faq.whatsapp.com/378279804439436/" target="_blank" rel="noopener noreferrer">WhatsApp's linked-device safety guidance <span aria-hidden="true">↗</span></a>
+        </article>
+      </div>
+      <p className="rw-topic-disclosure">For the current session-based send and retry contract, see <Link href="/api-docs#queue">message dispatch documentation</Link>. For pricing differences, see <Link href="/pricing">the pricing explanation</Link>.</p>
+    </section>
+    <section className="rw-site-section rw-developer-topics" aria-labelledby="messaging-consent-heading">
+      <div className="rw-section-intro">
+        <p className="rw-kicker">RESPONSIBLE MESSAGING</p>
+        <h2 id="messaging-consent-heading">Only message people who agreed to hear from you</h2>
+        <p>Before sending, obtain appropriate opt-in, record what each recipient agreed to receive, and respect opt-out or block requests. Use secure server-side credentials, protect QR codes and verify signed webhooks before handling events. A successful API response does not confirm that a person read your message.</p>
+        <p>Read the <a href="https://whatsappbusiness.com/policy/" target="_blank" rel="noopener noreferrer">WhatsApp Business Messaging Policy</a> and the <Link href="/blog/whatsapp-api-qr-session-troubleshooting">QR and session troubleshooting guide</Link>. RelayWA is not affiliated with or endorsed by Meta or WhatsApp.</p>
+      </div>
+    </section>
     <PublicFooter />
   </main>;
 }
