@@ -12,7 +12,7 @@ test('tenant login and registration expose Google and GitHub without exposing Pl
   assert.match(auth, /\/auth\/github\/exchange/);
   assert.match(auth, /tenantDestination/);
   assert.match(google, /preservePlan/);
-  assert.match(google, /result\.nextPath/);
+  assert.doesNotMatch(google, /result\.nextPath|\/onboarding/);
   assert.match(github, /\/auth\/github\/start/);
   assert.match(github, /Continue with GitHub/);
   assert.doesNotMatch(auth, /platform administrator/i);
@@ -41,9 +41,10 @@ test('GitHub callback stays on the canonical RelayWA origin', async () => {
 test('successful tenant login bypasses onboarding for email, Google, and GitHub', async () => {
   const auth = await readFile(new URL('../components/relay-auth.tsx', import.meta.url), 'utf8');
   const google = await readFile(new URL('../components/google-signin.tsx', import.meta.url), 'utf8');
-  assert.match(auth, /if \(!register\) return result\?\.isPlatformAdmin \? '\/platform' : '\/dashboard'/);
+  assert.match(auth, /return result\?\.isPlatformAdmin \? '\/platform' : '\/dashboard'/);
+  assert.doesNotMatch(auth, /\/onboarding/);
   assert.match(auth, /router\.replace\(tenantDestination\(result,register\)\)/);
   assert.match(auth, /\/auth\/github\/exchange/);
-  assert.match(google, /preservePlan \? \(result\.nextPath \?\? '\/onboarding'\) : \(result\.isPlatformAdmin \? '\/platform' : '\/dashboard'\)/);
+  assert.match(google, /destination \?\? \(result\.isPlatformAdmin \? '\/platform' : '\/dashboard'\)/);
   assert.match(google, /router\.replace\(next\)/);
 });

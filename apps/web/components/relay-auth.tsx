@@ -17,9 +17,8 @@ function tenantDestination(result:any, register:boolean) {
     return '/subscription?plan=' + encodeURIComponent(plan)
       + '&interval=' + encodeURIComponent(chosen.get('interval') || 'monthly');
   }
-  // Returning customers always land in their dashboard; onboarding stays an optional setup flow.
-  if (!register) return result?.isPlatformAdmin ? '/platform' : '/dashboard';
-  return result?.nextPath ?? '/onboarding';
+  // Registration and login both open the workspace. Plan selection is a separate billing flow.
+  return result?.isPlatformAdmin ? '/platform' : '/dashboard';
 }
 
 export default function RelayAuth({ register=false }: { register?: boolean }) {

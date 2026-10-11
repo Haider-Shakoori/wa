@@ -5,7 +5,6 @@ import { readFile } from 'node:fs/promises';
 const pages = [
   ['dashboard', '../components/relay-workspace.tsx'],
   ['platform', '../app/platform/page.tsx'],
-  ['onboarding', '../app/onboarding/page.tsx'],
 ];
 
 for (const [name, path] of pages) {
