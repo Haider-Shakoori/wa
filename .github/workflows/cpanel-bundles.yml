@@ -10,6 +10,7 @@ on:
       - 'apps/web/next.config.ts'
       - 'apps/web/lib/cpanel-api-origin.*'
       - 'apps/web/test/cpanel-api-origin.test.mjs'
+      - 'apps/web/test/seo-technical.test.mjs'
       - 'scripts/build-cpanel-bundles.mjs'
       - '.github/workflows/cpanel-bundles.yml'
       - 'docs/cpanel-migration.md'
@@ -56,6 +57,8 @@ jobs:
         run: pnpm test
       - name: Build production apps
         run: pnpm build
+      - name: Enable portable workspace deployment
+        run: pnpm config set --location=project forceLegacyDeploy true
       - name: Package cPanel Passenger directories
         run: node scripts/build-cpanel-bundles.mjs
       - name: Create archives and checksums
