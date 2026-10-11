@@ -60,7 +60,7 @@ test('old explicit declines remain stronger than country automatic decisions and
   const privateRegistry=await read('../lib/public-pages.ts');
   assert.match(tracker,/storedChoice \?\?/);
   assert.match(tracker,/regionPolicy === 'auto'/);
-  assert.match(tracker,/setStoredChoice\(value\)/);
+  assert.match(tracker,/setStoredChoice\(stored === 'granted'/);
   assert.match(tracker,/ANALYTICS_CHOICE_CHANGED_CHANNEL/);
   assert.doesNotMatch(tracker,/<aside|showPreferences|Allow analytics|Decline/);
   const footer=await read('../components/relay-home.tsx');
