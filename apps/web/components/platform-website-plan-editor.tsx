@@ -10,7 +10,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
   plan:ClientPlan|null;
   token:string;
   onClose:()=>void;
-  onUpdated:()=>Promise<void>;
+  onUpdated:(savedPlan:ClientPlan)=>void;
 }) {
   const [code,setCode]=useState(plan?.code??'');
   const [name,setName]=useState(plan?.name??'');
@@ -36,7 +36,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
     if(!window.confirm((plan?'Update':'Create')+' public website plan '+codeSafe+'? Pricing changes affect future checkouts; entitlement changes can affect current subscribers. Existing payments will not be charged again.'))return;
     setBusy(true);setError('');
     try {
-      await api(plan?'/platform/website-plans/'+encodeURIComponent(plan.code):'/platform/website-plans',
+      const savedPlan=await api<ClientPlan>(plan?'/platform/website-plans/'+encodeURIComponent(plan.code):'/platform/website-plans',
         token,{
           method:plan?'PATCH':'POST',
           body:JSON.stringify({
@@ -47,7 +47,8 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
             reason:reason.trim(),
           }),
         });
-      await onUpdated();
+      // Use the confirmed server response rather than coupling the saved state to a global admin refresh.
+      onUpdated(savedPlan);
       onClose();
     } catch(e) {setError(e instanceof Error?e.message:'Plan could not be saved.');}
     finally {setBusy(false);}
