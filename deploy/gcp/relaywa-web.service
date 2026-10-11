@@ -1,0 +1,25 @@
+[Unit]
+Description=RelayWA Next.js website (Google Compute Engine)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=relaywa
+Group=relaywa
+WorkingDirectory=/srv/relaywa/current-web/apps/web
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node --env-file=/etc/relaywa/web.env /srv/relaywa/current-web/apps/web/server.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=25
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
