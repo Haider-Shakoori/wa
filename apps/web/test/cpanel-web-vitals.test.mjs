@@ -19,7 +19,7 @@ test('homepage shell renders on the server, not a monolithic client component', 
 test('sign-in does not wait for an unnecessary CAPTCHA status request', () => {
   const auth = read('components/relay-auth.tsx');
   const backend = readFileSync(new URL('../../api/src/auth/auth.service.ts', import.meta.url), 'utf8');
-  assert.match(auth, /const result=await api<any>\('\/auth\/\/);
+  assert.ok(auth.includes("const result=await api<any>('/auth/'"));
   assert.doesNotMatch(auth, /const challenge=await captcha\.check\(email\)/);
   assert.match(auth, /captcha\.risk\?\.captchaRequired/);
   assert.match(auth, /router\.prefetch\('\/dashboard'\)/);
