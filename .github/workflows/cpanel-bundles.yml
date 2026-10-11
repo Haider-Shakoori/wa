@@ -1,0 +1,78 @@
+name: cPanel staging bundles
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/main.ts'
+      - 'apps/api/passenger.js'
+      - 'apps/web/passenger.js'
+      - 'apps/web/next.config.ts'
+      - 'apps/web/lib/cpanel-api-origin.*'
+      - 'apps/web/test/cpanel-api-origin.test.mjs'
+      - 'scripts/build-cpanel-bundles.mjs'
+      - '.github/workflows/cpanel-bundles.yml'
+      - 'docs/cpanel-migration.md'
+  workflow_dispatch:
+    inputs:
+      api_upstream_origin:
+        description: 'HTTPS origin of the separately hosted NestJS API (no /api path)'
+        required: true
+        default: 'https://api-staging.relaywa.com'
+        type: string
+      website_origin:
+        description: 'Staging or production website canonical origin'
+        required: true
+        default: 'https://staging.relaywa.com'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      # The Next rewrite is baked into the build. Configure before building.
+      RELAYWA_API_UPSTREAM: ${{ inputs.api_upstream_origin || 'https://api-staging.relaywa.com' }}
+      NEXT_PUBLIC_API_BASE_URL: /api
+      NEXT_PUBLIC_SITE_URL: ${{ inputs.website_origin || 'https://staging.relaywa.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Run automated tests
+        run: pnpm test
+      - name: Build production apps
+        run: pnpm build
+      - name: Package cPanel Passenger directories
+        run: node scripts/build-cpanel-bundles.mjs
+      - name: Create archives and checksums
+        run: |
+          tar -czf relaywa-cpanel-api.tar.gz -C .cpanel-release/api .
+          tar -czf relaywa-cpanel-web.tar.gz -C .cpanel-release/web .
+          cp .cpanel-release/MANIFEST.txt ./MANIFEST.txt
+          sha256sum relaywa-cpanel-api.tar.gz relaywa-cpanel-web.tar.gz > SHA256SUMS.txt
+          test -f relaywa-cpanel-api.tar.gz
+          test -f relaywa-cpanel-web.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-cpanel-staging-bundles
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            relaywa-cpanel-api.tar.gz
+            relaywa-cpanel-web.tar.gz
+            MANIFEST.txt
+            SHA256SUMS.txt
