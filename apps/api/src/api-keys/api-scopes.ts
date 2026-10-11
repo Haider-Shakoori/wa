@@ -8,6 +8,8 @@ export const API_SCOPES = {
   GROUPS_READ: 'groups.read',
   WEBHOOKS_READ: 'webhooks.read',
   WEBHOOKS_MANAGE: 'webhooks.manage',
+  VERIFICATIONS_READ: 'verifications.read',
+  VERIFICATIONS_MANAGE: 'verifications.manage',
 } as const;
 
 export type ApiScope = (typeof API_SCOPES)[keyof typeof API_SCOPES];

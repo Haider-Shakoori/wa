@@ -13,6 +13,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { PhoneVerificationModule } from './phone-verification/phone-verification.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
     SubscriptionsModule,
     PaymentsModule,
     OnboardingModule,
+    PhoneVerificationModule,
   ],
   controllers: [AppController],
 })

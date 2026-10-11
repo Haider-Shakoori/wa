@@ -11,6 +11,8 @@ export const PERMISSIONS = {
   GROUPS_READ: 'groups.read',
   WEBHOOKS_READ: 'webhooks.read',
   WEBHOOKS_MANAGE: 'webhooks.manage',
+  VERIFICATIONS_READ: 'verifications.read',
+  VERIFICATIONS_MANAGE: 'verifications.manage',
   BILLING_MANAGE: 'billing.manage',
 } as const;
 
@@ -32,6 +34,8 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, readonly Permission[]> =
     PERMISSIONS.GROUPS_READ,
     PERMISSIONS.WEBHOOKS_READ,
     PERMISSIONS.WEBHOOKS_MANAGE,
+    PERMISSIONS.VERIFICATIONS_READ,
+    PERMISSIONS.VERIFICATIONS_MANAGE,
   ],
   developer: [
     PERMISSIONS.ORGANIZATION_READ,
@@ -45,6 +49,8 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, readonly Permission[]> =
     PERMISSIONS.GROUPS_READ,
     PERMISSIONS.WEBHOOKS_READ,
     PERMISSIONS.WEBHOOKS_MANAGE,
+    PERMISSIONS.VERIFICATIONS_READ,
+    PERMISSIONS.VERIFICATIONS_MANAGE,
   ],
   member: [
     PERMISSIONS.ORGANIZATION_READ,
@@ -55,6 +61,7 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, readonly Permission[]> =
     PERMISSIONS.CONTACTS_READ,
     PERMISSIONS.CHATS_READ,
     PERMISSIONS.GROUPS_READ,
+    PERMISSIONS.VERIFICATIONS_READ,
   ],
   viewer: [
     PERMISSIONS.ORGANIZATION_READ,
