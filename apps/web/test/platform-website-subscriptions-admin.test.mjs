@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runInNewContext} from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const load=path=>readFile(new URL(path,import.meta.url),'utf8');
 
@@ -83,4 +84,18 @@ test('website plan edit validates exact USD cents, bounds and audit reason',asyn
   assert.match(editor,/plan\?'PATCH':'POST'/);
   assert.match(editor,/onUpdated\(savedPlan\)/);
   assert.match(editor,/Saving updates the website catalog for future checkouts/);
+});
+
+test('USD price conversion accepts exact cents and rejects malformed values',async()=>{
+  const editor=await load('../components/platform-website-plan-editor.tsx');
+  const source=editor.slice(editor.indexOf('function toCents('),editor.indexOf('export function PlatformWebsitePlanEditor('));
+  assert.ok(source.startsWith('function toCents('));
+  const javascript=source.replace('value:string','value').replace('):number|null',')');
+  const convert=runInNewContext(javascript+';toCents;');
+  for(const [input,expected] of [
+    ['3.99',399],['6.49',649],['65.00',6500],['0.01',1],
+    ['1',100],['1.2',120],['999999.99',99999999],['1000000',100000000],
+    ['0.00',null],['-0.01',null],['3.999',null],['abc',null],['1e3',null],
+    ['1,000',null],['1000000.01',null],['',null],
+  ])assert.equal(convert(input),expected,'Unexpected cents for '+JSON.stringify(input));
 });
