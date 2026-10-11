@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { createRequire } from 'node:module';
+import { Buffer } from 'node:buffer';
+const require = createRequire(import.meta.url);
 import ts from 'typescript';
 
 const source = () => readFile(new URL('../lib/regional-analytics-policy.ts', import.meta.url), 'utf8');
@@ -18,7 +21,7 @@ test('region policy fails closed without trusted geo, approved list or attestati
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const exports = {};
-  runInNewContext(js, { exports, require });
+  runInNewContext(js, { exports, require, Buffer });
   const resolve = exports.resolveRegionalAnalyticsPolicy;
   assert.equal(resolve(approved), 'auto');
   for (const change of [
