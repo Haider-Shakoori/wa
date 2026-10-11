@@ -238,6 +238,19 @@ export default function PlatformPage() {
 
   useEffect(()=>{ if(platformAccess==='allowed')void refresh(); },[token,platformAccess]);
 
+  // A failure on an unrelated operations-panel request must not prevent
+  // the website pricing catalog from loading when the billing tab opens.
+  useEffect(()=>{
+    if(platformAccess!=='allowed'||!token||active!=='Website subscriptions')return;
+    let mounted=true;
+    void api<ClientPlan[]>('/platform/subscription-plans',token).then(plans=>{
+      if(mounted)setSubscriptionPlans(plans);
+    }).catch(err=>{
+      if(mounted)setError(err instanceof Error?err.message:'Could not load website plans');
+    });
+    return ()=>{mounted=false;};
+  },[active,token,platformAccess]);
+
   async function approveManual(paymentId:string) {
     setError(''); setNotice('');
     try {
@@ -715,12 +728,30 @@ export default function PlatformPage() {
         <PlatformWebsiteSubscriptions
           plans={subscriptionPlans} payments={payments} token={token}
           canEdit={['super_admin','billing_admin'].includes(platformRole)}
-          onUpdated={(savedPlan)=>{
-            setSubscriptionPlans(previous=>previous.some(item=>item.code===savedPlan.code)
-              ? previous.map(item=>item.code===savedPlan.code?savedPlan:item)
-              : [...previous,savedPlan]);
+          onUpdated={async(savedPlan)=>{
+            // Read back authoritative values before reporting success. A
+            // stale local catalog or unrelated admin-panel refresh must not
+            // make an edit appear to work when it did not persist.
+            let latest:ClientPlan[];
+            try {
+              latest=await api<ClientPlan[]>('/platform/subscription-plans',token);
+            }catch {
+              throw new Error('Save was submitted, but the catalog could not be rechecked. Use Refresh to verify before retrying.');
+            }
+            const stored=latest.find(item=>item.code===savedPlan.code);
+            if(!stored ||
+              stored.name!==savedPlan.name ||
+              stored.monthly_price_cents!==savedPlan.monthly_price_cents ||
+              stored.annual_price_cents!==savedPlan.annual_price_cents ||
+              stored.max_sessions!==savedPlan.max_sessions ||
+              stored.max_api_keys!==savedPlan.max_api_keys ||
+              stored.daily_messages!==savedPlan.daily_messages ||
+              stored.monthly_messages!==savedPlan.monthly_messages) {
+              throw new Error('Save was submitted, but the catalog does not yet match. Refresh and check the plan before retrying.');
+            }
+            setSubscriptionPlans(latest);
             setError('');
-            setNotice('Website pricing catalog saved. The new plan is visible in the catalog.');
+            setNotice('Website plan saved and verified from the server. Public prices update for future checkouts.');
           }}
           onPayments={()=>setActive('Payments')}/>
       }
