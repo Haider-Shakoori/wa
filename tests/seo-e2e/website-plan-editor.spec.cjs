@@ -59,9 +59,9 @@ async function loadAdmin(page,{rejectUpdate=false}={}){
    return {path:location.pathname,tokenPresent:!!token,expiry,now:Math.floor(Date.now()/1000)};
  });
  console.log('BILLING_ADMIN_AUTH_FIXTURE '+JSON.stringify({diag,requests:requests.slice(-18)}));
- await expect(page.getByRole('button',{name:'Website subscriptions'})).toBeAttached();
  const menu=page.locator('.platform-mobile-menu-toggle');
  if(await menu.isVisible())await menu.click();
+ await expect(page.getByRole('button',{name:'Website subscriptions'})).toBeVisible();
  await page.getByRole('button',{name:'Website subscriptions'}).click();
  await expect(page.getByText('Website subscription plans',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Edit plan'})).toBeVisible();
