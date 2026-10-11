@@ -8,6 +8,9 @@ const original={
 
 async function loadAdmin(page,{rejectUpdate=false}={}){
  let catalog=[{...original}],patches=[];
+ const requests=[];
+ page.on('request',req=>{if(/platform|\/api\/|billing/.test(req.url()))requests.push({method:req.method(),url:req.url()});});
+ page.on('response',r=>{if(/platform|\/api\/|billing/.test(r.url()))requests.push({status:r.status(),url:r.url()});});
  await page.addInitScript(()=>{
    // The client session watcher requires a structurally valid, non-expired
    // JWT payload even when backend requests are mocked in browser CI.
@@ -47,6 +50,15 @@ async function loadAdmin(page,{rejectUpdate=false}={}){
    return json([]);
  });
  await page.goto('/platform',{waitUntil:'domcontentloaded'});
+ await page.waitForTimeout(900);
+ const diag=await page.evaluate(()=>{
+   const token=localStorage.getItem('relaywa_access_token');
+   const part=token?.split('.')[1];
+   let expiry='missing';
+   try{expiry=part?JSON.parse(atob(part)).exp:'no payload';}catch(e){expiry='decode error'}
+   return {path:location.pathname,tokenPresent:!!token,expiry,now:Math.floor(Date.now()/1000)};
+ });
+ console.log('BILLING_ADMIN_AUTH_FIXTURE '+JSON.stringify({diag,requests:requests.slice(-18)}));
  await expect(page.getByRole('button',{name:'Website subscriptions'})).toBeAttached();
  const menu=page.locator('.platform-mobile-menu-toggle');
  if(await menu.isVisible())await menu.click();
