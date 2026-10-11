@@ -113,7 +113,7 @@ test('reviewed public routes, metadata, sitemap and analytics allowlist match re
   const sitemap=read('app/sitemap.ts');
   const docs=read('app/blog/[slug]/page.tsx');
   const index=read('app/blog/page.tsx');
-  const home=read('components/relay-home.tsx');
+  const home=(read('components/relay-home.tsx') + read('components/relay-home-interactive.tsx'));
   assert.match(paths,/export const editorialPages/);
   assert.match(paths,/export const allPublishedPages/);
   for(const article of publishedArticles){
