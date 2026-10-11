@@ -9,3 +9,13 @@ coverage/
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# Deployment credentials: never push Cloudflare/API tokens, GA4 private keys or SSH keys
+**/ga4-service-account.json
+**/relaywa-ga4-key.json
+**/*service-account-key*.json
+**/cloudflare-api-token*
+**/relaywa-cpanel-private*.env
+*.p12
+*.pem
+*.key
