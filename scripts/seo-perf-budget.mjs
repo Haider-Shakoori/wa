@@ -50,7 +50,7 @@ async function visit(route) {
   if (route === '/pricing') {
     assert.ok(html.includes('id="pricing-model-heading"'),
       'Pricing model difference must be present in SSR HTML');
-    assert.ok(html.includes('QR-linked API subscription vs.'),
+    assert.ok(html.includes('WhatsApp API cost: QR-linked plans vs.'),
       'Pricing must distinguish QR-linked sessions from official Meta Cloud API');
     assert.ok(html.includes('https://whatsappbusiness.com/products/platform-pricing/'),
       'Pricing must link to official Meta fee information');
