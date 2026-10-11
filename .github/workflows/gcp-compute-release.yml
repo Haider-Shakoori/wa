@@ -1,0 +1,72 @@
+name: RelayWA Google Compute Engine candidate
+
+on:
+  pull_request:
+    branches: [main, feat/cpanel-hosting-package]
+    paths:
+      - 'deploy/gcp/**'
+      - 'scripts/provision-gcp-env.mjs'
+      - 'apps/web/**'
+      - 'apps/api/**'
+      - '.github/workflows/gcp-compute-release.yml'
+      - 'scripts/build-cpanel-bundles.mjs'
+      - 'scripts/rebase-standalone-links.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gcp-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_SITE_URL: https://relaywa.com
+      NEXT_PUBLIC_API_BASE_URL: /api
+      # Direct Caddy /api routing; no separate Next.js upstream rewrite.
+      RELAYWA_API_UPSTREAM: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck and unit/regression tests
+        run: |
+          pnpm typecheck
+          pnpm test
+      - name: Build production Next.js and NestJS
+        run: pnpm build
+      - name: Package portable application releases
+        run: |
+          pnpm config set --location=project forceLegacyDeploy true
+          node scripts/build-cpanel-bundles.mjs
+          test -f .cpanel-release/web/apps/web/server.js
+          test -f .cpanel-release/api/dist/main.js
+          test -f .cpanel-release/api/node_modules/pg/package.json
+          test -f .cpanel-release/web/apps/web/node_modules/next/package.json
+          ! find .cpanel-release/web -type l -lname '/*' | grep -q .
+      - name: Archive GCE website/backend only
+        run: |
+          tar -czf relaywa-gcp-web.tar.gz -C .cpanel-release/web .
+          tar -czf relaywa-gcp-api.tar.gz -C .cpanel-release/api .
+          tar -czf relaywa-gcp-infrastructure.tar.gz -C deploy/gcp .
+          sha256sum relaywa-gcp-web.tar.gz relaywa-gcp-api.tar.gz relaywa-gcp-infrastructure.tar.gz > SHA256SUMS.txt
+          ! tar -tzf relaywa-gcp-web.tar.gz | grep -E '/(worker|postgres|redis|session-auth)/'
+          ! tar -tzf relaywa-gcp-api.tar.gz | grep -E '/(worker|postgres|redis|session-auth)/'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-gce-production-candidate
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            relaywa-gcp-web.tar.gz
+            relaywa-gcp-api.tar.gz
+            relaywa-gcp-infrastructure.tar.gz
+            SHA256SUMS.txt
