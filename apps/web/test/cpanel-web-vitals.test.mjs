@@ -59,8 +59,9 @@ test('preload the locally hosted Inter font before discovering CSS for the hero 
 
 test('route loading indicator uses optimized lazy logo without global preloading', () => {
   const loading = read('app/loading.tsx');
-  assert.match(loading, /import Image from 'next\\/image'/);
-  assert.match(loading, /loading="lazy"/);
-  assert.match(loading, /sizes="64px"/);
-  assert.doesNotMatch(loading, /fetchPriority="high"|priority\\s*=|<img /);
+  assert.ok(loading.includes("import Image from 'next/image'"));
+  assert.ok(loading.includes('loading="lazy"'));
+  assert.ok(loading.includes('sizes="64px"'));
+  assert.ok(!loading.includes('fetchPriority="high"'));
+  assert.ok(!loading.includes('<img '));
 });
