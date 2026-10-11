@@ -8,7 +8,13 @@ const original={
 
 async function loadAdmin(page,{rejectUpdate=false}={}){
  let catalog=[{...original}],patches=[];
- await page.addInitScript(()=>window.localStorage.setItem('relaywa_access_token','ci-admin-jwt'));
+ await page.addInitScript(()=>{
+   // The client session watcher requires a structurally valid, non-expired
+   // JWT payload even when backend requests are mocked in browser CI.
+   const payload=btoa(JSON.stringify({sub:'ci-billing-admin',exp:Math.floor(Date.now()/1000)+3600}))
+     .replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');
+   window.localStorage.setItem('relaywa_access_token','ci.'+payload+'.test-signature');
+ });
  await page.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),p=url.pathname,method=req.method();
    const json=(body,status=200)=>route.fulfill({
