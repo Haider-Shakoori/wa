@@ -30,7 +30,7 @@ jobs:
           with urlopen(Request(url,headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']}),timeout=15) as r:
               ct=r.headers['Content-Type'];data=r.read(2_000_000)
           msg=BytesParser(policy=default).parsebytes(b'Content-Type: '+ct.encode()+b'\r\nMIME-Version: 1.0\r\n\r\n'+data)
-          script=next((p.get_payload(decode=True).decode('utf8','replace') for p in msg.iter_parts() if p.get_filename()=='index.js'),'')
+          script=next((p.get_payload(decode=True).decode('utf8','replace') for p in msg.iter_parts() if (p.get_filename() or p.get_param('name',header='content-disposition'))=='index.js'),'')
           offset=script.find('google-analytics')
           if offset<0:raise SystemExit('Route missing')
           s=script[max(0,offset-400):min(len(script),offset+1800)]
