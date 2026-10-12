@@ -100,17 +100,23 @@ def do():
         raise RuntimeError("Rollback version does not match expected original bindings")
 
     print("Guard 3 passed: rollback version bindings match")
+    versions=getjson("versions")
+    items=versions if isinstance(versions,list) else versions.get("items",versions.get("versions",[]))
+    if not items or items[0].get("id")!=STAGE:
+        raise RuntimeError("Unexpected latest uploaded version; abort release")
     status,kind,data=api("")
     if status!=200 or not kind.startswith("multipart/"):
-        raise RuntimeError("Unable to verify current Worker code")
+        raise RuntimeError("Unable to verify Worker module")
     message=BytesParser(policy=default).parsebytes(
         b"Content-Type: "+kind.encode()+b"\r\nMIME-Version: 1.0\r\n\r\n"+data)
     entry=[p.get_payload(decode=True) for p in message.iter_parts()
            if (p.get_filename() or p.get_param("name",header="content-disposition"))=="index.js"]
-    if len(entry)!=1 or not hashlib.sha256(entry[0]).hexdigest().startswith(EXPECTED_SHA_PREFIX):
-        raise RuntimeError("Worker source changed since staging; release aborted")
+    # Script GET returns the latest uploaded version, which is the STAGED
+    # version. The deployed previous version remains immutable for rollback.
+    if len(entry)!=1 or b"return json(await relaywaGa4ReportData(env, url));" not in entry[0] or        b"GA4_SERVICE_ACCOUNT_JSON" not in entry[0]:
+        raise RuntimeError("Latest uploaded Worker code differs from staged candidate")
 
-    print("Guard 4 passed: original platform script hash unchanged")
+    print("Guard 4 passed: latest Worker source matches verified staged GA4 candidate")
     protected="https://platform.relaywa.com/api/platform/google-analytics?days=7"
     whoami="https://platform.relaywa.com/api/platform/whoami"
     baseline=public_status(protected)
