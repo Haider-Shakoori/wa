@@ -1,5 +1,23 @@
 # RelayWA GA4: Google Data API reporting and Cloudflare rollout
 
+## Production deployment verification — 2026-10-12 23:02 UTC
+
+The GA4 website-reporting code is now LIVE on the **relaywa-platform** Cloudflare Worker, replacing its previous placeholder. The original six supporting modules and all ten previous Worker bindings were retained. An encrypted GA4_SERVICE_ACCOUNT_JSON secret binding was added.
+
+- Active version: 0fa74406-7b62-430c-820b-5615322d05b6.
+- Rollback version: 65b51e71-2323-4865-b6c7-8b3a43fd677e.
+- Protected route checks: both GA4 and whoami returned 401 without a login; platform root returned HTTP 200 three times.
+- Successful production deployment run: https://github.com/Haider-Shakoori/wa/actions/runs/38320004274
+- Successful live Google end-to-end query using the deployed code: https://github.com/Haider-Shakoori/wa/actions/runs/38320086923
+- The real Google 7-day report included **mobile** and **desktop** device categories. Tablets are included when there are tablet visits.
+- All historical queries filter on GA4 platform=web and hostname relaywa.com or www.relaywa.com. Browser visits on desktop, laptops, tablets and phones are included; app events and other hostnames are excluded.
+- Realtime filters on platform=web; hostname is not a supported Google Realtime Data API dimension.
+- Final confirmation through the logged-in Platform Admin > Google Analytics UI is still pending.
+- The GA4 browser tag and user/region privacy consent settings are independent; the server-side reporting fix does not guarantee that every visitor sends analytics events.
+
+**Future deployment warning:** this branch contains a verified patcher, but the original Cloudflare Worker source is not present on main. Other agents deploying an earlier platform Worker bundle may overwrite this fix. Preserve or sync the GA4 patch in the canonical Cloudflare deployment source.
+
+
 Public website tracking and administrative reporting are **separate** features.
 
 - Browser measurement ID: `G-61Z26DFM1V` (subject to regional policy and the visitor's preferences).
