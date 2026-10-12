@@ -1,0 +1,69 @@
+name: Cloudflare GA4 Route Structure Audit (read only)
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/cloudflare-ga4-route-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect deployed route structure without publishing source or secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,re
+          from urllib.request import Request,urlopen
+          from urllib.parse import quote
+          from email.parser import BytesParser
+          from email.policy import default
+          account=os.getenv('CF_ACCOUNT')
+          token=os.getenv('CF_TOKEN')
+          if not account or not token: raise SystemExit('Cloudflare secrets unavailable')
+          url='https://api.cloudflare.com/client/v4/accounts/'+quote(account,safe='')+'/workers/scripts/relaywa-platform'
+          with urlopen(Request(url,headers={'Authorization':'Bearer '+token},method='GET'),timeout=18) as r:
+              ct=r.headers['Content-Type']
+              body=r.read(2_000_000)
+          msg=BytesParser(policy=default).parsebytes(b'Content-Type: '+ct.encode()+b'\r\nMIME-Version: 1.0\r\n\r\n'+body)
+          modules={}
+          for p in msg.iter_parts():
+              modules[p.get_filename() or p.get_param('name',header='content-disposition') or 'unknown']=(p.get_payload(decode=True) or b'').decode('utf-8','replace')
+          source=modules.get('index.js','')
+          term='google-analytics'
+          offset=source.find(term)
+          print('Platform Worker entrypoint located:',bool(source))
+          print('GA4 route reference found:',offset>=0)
+          print('Public script contains unconfigured status:', 'not_configured' in source)
+          print('Public script contains credentials binding name:', 'GA4_SERVICE_ACCOUNT_JSON' in source)
+          if offset >= 0:
+              chunk=source[max(0,offset-1050):offset+2100]
+              # Suppress string literals, comments, identifiers that could expose
+              # credential values; log only allowlisted structural keywords.
+              print('Route structural indicators (not source text):')
+              keywords={
+                  'method_get': r'\bGET\b|method\s*===?\s*',
+                  'uses_environment': r'\benv\.',
+                  'calls_fetch': r'\bfetch\s*\(',
+                  'returns_json': r'\bjson\s*\(|JSON\.stringify\(',
+                  'checks_auth': r'\bauth\b|\badmin\b|\btoken\b',
+                  'returns_unsupported': r'unsupported|not_configured|not configured|unavailable',
+                  'calls_google': r'analyticsdata|oauth2|googleapis',
+                  'routes_platform': r'platform|google-analytics',
+                  'uses_binding': r'GA4_SERVICE_ACCOUNT_JSON',
+              }
+              for label,pat in keywords.items():
+                  print(' ',label, bool(re.search(pat,chunk,re.I)))
+              # Print only a high-level matching line count, never JS code or literals.
+              print('Route block window length:',len(chunk))
+          print('Read-only route audit done.')
+          PY
