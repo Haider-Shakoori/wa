@@ -10,7 +10,7 @@ export function patchPlatformWorker(source, reportModule) {
   if (source.includes('GA4_SERVICE_ACCOUNT_JSON') || source.includes('relaywaGa4ReportData')) {
     throw new Error('Platform bundle already contains a GA4 integration; manual review required');
   }
-  const matcher = /function googleAnalytics\(env, url\) \{[\s\S]*?\n\}/g;
+  const matcher = /(?:async\s+)?function googleAnalytics\(env, url\) \{[\s\S]*?\n\}/g;
   const fragments = [...source.matchAll(matcher)];
   if (fragments.length !== 1) throw new Error('Expected exactly one platform Google Analytics handler');
   if (!fragments[0][0].includes('not_configured') || !fragments[0][0].includes('558119248')) {
