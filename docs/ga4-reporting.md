@@ -34,22 +34,61 @@ Cloudflare Workers. It has no Node filesystem or `Buffer` dependencies.
 This NestJS class still uses Node filesystem imports for the fallback and is **not** an
 entire Cloudflare Worker entrypoint.
 
-**Cloudflare Worker (future production integration):** the deployed Worker's environment
-must contain an encrypted secret binding named `GA4_SERVICE_ACCOUNT_JSON`. Inside the
-existing, authenticated and admin-authorized reporting handler, pass
-`env.GA4_SERVICE_ACCOUNT_JSON` to `getGa4AccessToken`. Use the token only server-side to
-query the Google Analytics Data API. Do not expose the token or secret to responses,
-logs, the browser, or source control.
+**Live Cloudflare routing verified through authenticated read-only API calls:**
 
-The NestJS platform-admin guard does not automatically apply to a Cloudflare Worker
-route. Keep equivalent authentication and platform-admin authorization in the existing
-Worker router. Never publish a standalone unauthenticated reporting endpoint.
+| Domain | Deployed Worker |
+|---|---|
+| `relaywa.com` | `relaywa-web` |
+| `api.relaywa.com` | `relaywa-api` |
+| `platform.relaywa.com` | `relaywa-platform` |
 
-The live `/api/health` previously identified `cloudflare-workers` as its runtime,
-but the Worker router/source and GitHub-to-Cloudflare deployment workflow are **not
-present on this repository's `main` tree**. Therefore this PR cannot be considered a
-live Cloudflare deployment fix until the canonical Worker source is located and updated.
-Do not deploy or merge on the assumption the NestJS route serves Cloudflare requests.
+The deployed `relaywa-platform` entrypoint contains an **existing** async
+`googleAnalytics(env, url)` handler returning `status: not_configured`
+without calling the Google Analytics API. Cloudflare secret-binding metadata
+confirms `GA4_SERVICE_ACCOUNT_JSON` is not listed on any of the three Workers.
+
+**Cloudflare implementation in this branch:**
+
+- `cloudflare/ga4-reporting.mjs` implements real GA4 Data API reports and
+  Realtime reporting using Web Crypto, JSON private-key binding, readonly OAuth
+  scope, bounded timeouts and two-minute report caching. It preserves the
+  existing report response format and 7/30/90-day filters.
+- `scripts/ga4/patch-platform-worker.mjs` locates exactly one existing
+  placeholder and replaces only that handler, leaving all other routes,
+  authentication and role checks untouched. It refuses unexpected or
+  already-patched source to prevent accidental overwrites.
+- `.github/workflows/ga4-worker-preflight.yml` reads the *deployed*
+  `relaywa-platform` entrypoint via **Cloudflare GET**, generates a patched
+  candidate **in temporary GitHub Actions files only**, runs Node syntax checks
+  and tests, and deletes the files. It does **not** upload or deploy the patch,
+  and never prints the original Worker bundle.
+- This repository's `main` still does not contain the canonical independent
+  Cloudflare Worker source/deployment configuration. The prepared patcher is
+  intentionally against the exact live deployed handler, with automatic
+  failsafes when the deployed handler changes.
+
+The Next.js/NestJS code is not identical to the currently deployed Worker bundle.
+The GA4 reporting endpoint must stay behind the existing platform-admin
+authentication and authorization. The patcher preserves the deployed route
+table and only changes the pre-existing placeholder's body.
+
+**Production rollout (NOT PERFORMED by this PR):**
+
+1. Get explicit approval and ensure the other agent/deployer has stopped
+   changing this production Worker.
+2. Back up the existing production script, module parts, metadata and
+   currently deployed version without publishing them to the public repo.
+3. Bind `GA4_SERVICE_ACCOUNT_JSON` as an encrypted **secret on
+   `relaywa-platform`** (not on `relaywa-web`). GitHub repository secrets do
+   not automatically propagate to this Worker.
+4. Re-fetch the current Worker; refuse deployment if the route/source format
+   differs from the tested placeholder. Apply the additive patch while
+   preserving all original modules and non-GA4 bindings.
+5. Deploy using an approved, audited method, then recheck platform RBAC and
+   the authenticated analytics report; roll back if verification fails.
+6. Separately verify browser-side measurement ID `G-61Z26DFM1V` and visitor
+   consent policy. Restoring platform-admin report reads does not prove
+   GA4 browser events are firing.
 
 ## Secrets and deployment safety
 
