@@ -83,19 +83,23 @@ def deploy_version(version):
 
 def do():
     global deployed
+    print("Guard 1: checking deployed version")
     if current()!=PREVIOUS:
         raise RuntimeError("Production has changed; release aborted without deploying")
 
+    print("Guard 1 passed: deployed version unchanged")
     stage=getjson("versions/"+STAGE)
     new_types=all_binding_types(stage.get("resources"))
     if new_types!={**EXPECTED_BINDINGS,"GA4_SERVICE_ACCOUNT_JSON":"secret_text"}:
         raise RuntimeError("Staged version's inherited or GA4 bindings are not exactly as expected")
 
+    print("Guard 2 passed: staged bindings match")
     older=getjson("versions/"+PREVIOUS)
     original_types=all_binding_types(older.get("resources"))
     if original_types!=EXPECTED_BINDINGS:
         raise RuntimeError("Rollback version does not match expected original bindings")
 
+    print("Guard 3 passed: rollback version bindings match")
     status,kind,data=api("")
     if status!=200 or not kind.startswith("multipart/"):
         raise RuntimeError("Unable to verify current Worker code")
@@ -106,6 +110,7 @@ def do():
     if len(entry)!=1 or not hashlib.sha256(entry[0]).hexdigest().startswith(EXPECTED_SHA_PREFIX):
         raise RuntimeError("Worker source changed since staging; release aborted")
 
+    print("Guard 4 passed: original platform script hash unchanged")
     protected="https://platform.relaywa.com/api/platform/google-analytics?days=7"
     whoami="https://platform.relaywa.com/api/platform/whoami"
     baseline=public_status(protected)
