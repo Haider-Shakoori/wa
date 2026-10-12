@@ -31,9 +31,10 @@ jobs:
               ct=r.headers['Content-Type'];data=r.read(2_000_000)
           msg=BytesParser(policy=default).parsebytes(b'Content-Type: '+ct.encode()+b'\r\nMIME-Version: 1.0\r\n\r\n'+data)
           script=next((p.get_payload(decode=True).decode('utf8','replace') for p in msg.iter_parts() if (p.get_filename() or p.get_param('name',header='content-disposition'))=='index.js'),'')
-          offset=script.find('google-analytics')
+          offset=script.find('function googleAnalytics(')
+          if offset<0: offset=script.find('googleAnalytics =')
           if offset<0:raise SystemExit('Route missing')
-          s=script[max(0,offset-400):min(len(script),offset+1800)]
+          s=script[max(0,offset-180):min(len(script),offset+2600)]
           # Remove every string/template literal; this is structure only, not source.
           out=[];i=0;mode=None;escaped=False
           while i<len(s):
@@ -51,6 +52,6 @@ jobs:
           structure=re.sub(r'(?i)\b[a-f0-9]{24,}\b','[redacted]',structure)
           structure=re.sub(r'\b[A-Za-z0-9_+/=-]{90,}\b','[redacted]',structure)
           print('REDACTED ROUTE STRUCTURE BEGIN')
-          print(structure[:2400])
+          print(structure[:3000])
           print('REDACTED ROUTE STRUCTURE END')
           PY
