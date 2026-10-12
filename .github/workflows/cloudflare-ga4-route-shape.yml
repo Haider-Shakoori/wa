@@ -34,7 +34,7 @@ jobs:
           offset=script.find('function googleAnalytics(')
           if offset<0: offset=script.find('googleAnalytics =')
           if offset<0:raise SystemExit('Route missing')
-          s=script[max(0,offset-180):min(len(script),offset+2600)]
+          s=script[offset:min(len(script),offset+2200)]
           # Remove every string/template literal; this is structure only, not source.
           out=[];i=0;mode=None;escaped=False
           while i<len(s):
