@@ -65,6 +65,44 @@ async function verify() {
   if (!reportResponse.ok) {
     throw new Error(`Google Analytics Data API report failed (HTTP ${reportResponse.status}); verify Viewer access to property ${property} and API enablement`);
   }
+
+  const websiteFilter = { andGroup: { expressions: [
+    { filter: { fieldName: 'platform', stringFilter: {
+      value: 'web', matchType: 'EXACT', caseSensitive: false } } },
+    { filter: { fieldName: 'hostName', stringFilter: {
+      value: '^(www\\.)?relaywa\\.com$', matchType: 'FULL_REGEXP', caseSensitive: false } } }
+  ] } };
+  const websiteResponse = await fetch(reportEndpoint, {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      dateRanges: [{startDate:'7daysAgo',endDate:'today'}],
+      metrics: [{name:'sessions'}, {name:'screenPageViews'}],
+      dimensionFilter: websiteFilter, limit: '1'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!websiteResponse.ok) {
+    throw new Error('GA4 website-only filter query failed HTTP ' + websiteResponse.status);
+  }
+  console.log('GA4 Core reporting: website-only hostname and web platform filters accepted.');
+  const realtimeResponse = await fetch(
+    'https://analyticsdata.googleapis.com/v1beta/properties/' + property + ':runRealtimeReport', {
+      method: 'POST',
+      headers: {authorization: 'Bearer ' + token, 'content-type': 'application/json'},
+      body: JSON.stringify({
+        metrics: [{ name: 'activeUsers' }],
+        dimensionFilter: {filter:{fieldName:'platform',stringFilter:{
+          value:'web', matchType:'EXACT', caseSensitive:false
+        }}}
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+  if (!realtimeResponse.ok) {
+    throw new Error('GA4 web-only realtime filter query failed HTTP ' + realtimeResponse.status);
+  }
+  console.log('GA4 Realtime: web-only platform filter accepted.');
+
   console.log(`GA4 Data API: property ${property} accessible. Live secret verified. No changes made.`);
 }
 
