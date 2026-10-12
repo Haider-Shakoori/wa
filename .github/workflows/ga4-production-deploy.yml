@@ -1,0 +1,31 @@
+name: Deploy RelayWA GA4 Platform Worker
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/ga4-production-deploy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relaywa-platform-ga4-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy staged GA4 Worker with production rollback guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release script
+        run: |
+          python3 -m py_compile scripts/ga4/deploy-staged-worker.py
+          node --check cloudflare/ga4-reporting.mjs
+      - name: Promote verified staged Worker version to production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 scripts/ga4/deploy-staged-worker.py
