@@ -5,6 +5,7 @@ on:
     branches: [feat/ga4-cloudflare-credentials]
     paths:
       - .github/workflows/ga4-production-deploy.yml
+      - scripts/ga4/deploy-staged-worker.py
 
 permissions:
   contents: read
