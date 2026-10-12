@@ -37,7 +37,30 @@ test('real Web Crypto service-account signing calls Google OAuth and report APIs
     }
     assert.match(target, /analyticsdata\.googleapis\.com\/v1beta\/properties\/558119248:/);
     assert.equal(options.headers.authorization, 'Bearer test-only-access-token');
+    const body = JSON.parse(options.body);
+    if (target.endsWith(':runRealtimeReport')) {
+      assert.equal(body.dimensionFilter.filter.fieldName, 'platform');
+      assert.equal(body.dimensionFilter.filter.stringFilter.value, 'web');
+    } else {
+      const expressions = body.dimensionFilter.andGroup.expressions;
+      assert.equal(expressions[0].filter.fieldName, 'platform');
+      assert.equal(expressions[0].filter.stringFilter.value, 'web');
+      assert.equal(expressions[1].filter.fieldName, 'hostName');
+      assert.equal(expressions[1].filter.stringFilter.matchType, 'FULL_REGEXP');
+      const filter = new RegExp(expressions[1].filter.stringFilter.value);
+      assert.equal(filter.test('relaywa.com'), true);
+      assert.equal(filter.test('www.relaywa.com'), true);
+      assert.equal(filter.test('api.relaywa.com'), false);
+      assert.equal(filter.test('platform.relaywa.com'), false);
+    }
     dataCalls++;
+    if (JSON.stringify(body).includes('deviceCategory')) {
+      return new Response(JSON.stringify({rows: [
+        {dimensionValues:[{value:'desktop'}],metricValues:[{value:'5'}]},
+        {dimensionValues:[{value:'mobile'}],metricValues:[{value:'4'}]},
+        {dimensionValues:[{value:'tablet'}],metricValues:[{value:'1'}]}
+      ]}),{status:200});
+    }
     return new Response(JSON.stringify({
       rows: [{ dimensionValues: [{ value: '20261012' }],
         metricValues: [{ value: '5' }, { value: '12' }, { value: '3' }, { value: '0.5' }] }]
@@ -53,6 +76,7 @@ test('real Web Crypto service-account signing calls Google OAuth and report APIs
     assert.equal(result.realtimeUsers, 5);
     assert.equal(result.trend[0].date, '2026-10-12');
     assert.equal(result.countries[0].value, 5);
+    assert.deepEqual(result.devices.map(item => item.name), ['desktop', 'mobile', 'tablet']);
     assert.equal(tokenCalls, 1);
     assert.equal(dataCalls, 10);
     assert.equal(JSON.stringify(result).includes('PRIVATE KEY'), false);
