@@ -51,6 +51,39 @@ if isinstance(domains, list):
         print("  worker_domain:", identifier(d.get("hostname")),
               "| service:", identifier(d.get("service")), "| environment:", identifier(d.get("environment")))
 
+# Inspect current code shape and binding *names*, not secret values.
+for worker_name in ("relaywa-web", "relaywa-api", "relaywa-platform"):
+    settings = fetch(f"accounts/{ACCOUNT}/workers/scripts/{worker_name}/settings", f"{worker_name} settings")
+    if isinstance(settings, dict):
+        bindings = settings.get("bindings") or []
+        print(f"  {worker_name} binding types:", ", ".join(sorted(set(identifier(b.get("type")) for b in bindings))))
+        print(f"  {worker_name} binding names:", ", ".join(identifier(b.get("name")) for b in bindings))
+    deployments = fetch(f"accounts/{ACCOUNT}/workers/scripts/{worker_name}/deployments", f"{worker_name} deployments")
+    if isinstance(deployments, dict):
+        items = deployments.get("deployments") or []
+    elif isinstance(deployments, list):
+        items = deployments
+    else:
+        items = []
+    for entry in items[:2]:
+        print(f"  {worker_name} deployment:", identifier(entry.get("id")),
+              "| created:", identifier(entry.get("created_on")),
+              "| active:", bool(entry.get("versions")))
+    # Downloaded script content is inspected IN MEMORY only; never printed or stored.
+    request = Request(f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/scripts/{worker_name}",
+                      headers={"Authorization": "Bearer " + TOKEN}, method="GET")
+    try:
+        with urlopen(request, timeout=25) as res:
+            source = res.read(2_500_000).decode("utf-8", "replace")
+            kind = res.headers.get("content-type", "").split(";", 1)[0]
+        print(f"  {worker_name} script:", len(source), "bytes | MIME:", identifier(kind),
+              "| proxy-style:", any(s in source for s in ("fetch(request", "fetch(req", "upstream", "ORIGIN")),
+              "| Next/OpenNext:", any(s in source for s in ("open-next", "next/dist", "NextResponse", "vinext")))
+    except HTTPError as e:
+        print(f"  {worker_name} script read: HTTP {e.code}")
+    except (URLError, TimeoutError, ValueError):
+        print(f"  {worker_name} script read: unavailable")
+
 pages = fetch(f"accounts/{ACCOUNT}/pages/projects?per_page=100", "Pages projects")
 if isinstance(pages, list):
     print("Pages projects count:", len(pages))
@@ -88,6 +121,28 @@ if isinstance(zones, list):
             print("  legacy rate-limit count:", len(rate))
             for item in rate:
                 print("    rate-limit:", identifier(item.get("description")), "| disabled:", bool(item.get("disabled", False)))
+# Probe the actual live edge from GitHub's independent network.
+# No authentication, no POST and no bot-identity spoofing.
+for path in ("/", "/robots.txt", "/sitemap.xml", "/whatsapp-api-qr-code",
+             "/whatsapp-webhooks", "/guides/whatsapp-web-vs-cloud-api"):
+    req = Request("https://relaywa.com" + path,
+                  headers={"User-Agent": "RelayWA-SEO-GitHub-ReadOnly/1.0", "Accept": "text/html,application/xml,text/plain"},
+                  method="GET")
+    try:
+        with urlopen(req, timeout=18) as res:
+            status, headers = res.status, res.headers
+            res.read(1000)
+    except HTTPError as e:
+        status, headers = e.code, e.headers
+    except (URLError, TimeoutError):
+        print("  edge GET", path, "network unavailable")
+        continue
+    print("  edge GET", path, "HTTP", status,
+          "| server:", identifier(headers.get("server")),
+          "| cf-ray present:", bool(headers.get("cf-ray")),
+          "| retry-after:", identifier(headers.get("retry-after")),
+          "| content-type:", identifier(headers.get("content-type")))
+
 print("Cloudflare read-only inventory complete; no changes or deployments.")
 if not found:
     print("ERROR: relaywa.com zone not visible to provided API credentials")
