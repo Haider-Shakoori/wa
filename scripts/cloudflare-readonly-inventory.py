@@ -116,6 +116,43 @@ if isinstance(zones, list):
             print("  rulesets count:", len(rulesets))
             for item in rulesets:
                 print("    ruleset:", identifier(item.get("name")), "| kind:", identifier(item.get("kind")), "| phase:", identifier(item.get("phase")))
+        # Cloudflare Analytics API may expose sampled WAF event groups even when
+        # the token has no Rulesets Read permission. Never print client IPs.
+        try:
+            from datetime import datetime, timedelta, timezone
+            end = datetime.now(timezone.utc)
+            beginning = end - timedelta(hours=3)
+            query = """query Events($z: string, $f: FirewallEventsAdaptiveFilter_InputObject) {
+                viewer { zones(filter: {zoneTag: $z}) {
+                    firewallEventsAdaptive(filter:$f, limit:100, orderBy:[datetime_DESC]) {
+                        action source ruleId clientRequestPath datetime
+                    }
+                }}
+            }"""
+            payload = json.dumps({"query": query, "variables": {
+                "z": zid, "f": {"datetime_geq": beginning.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                   "datetime_leq": end.strftime("%Y-%m-%dT%H:%M:%SZ")}}}).encode()
+            qreq = Request("https://api.cloudflare.com/client/v4/graphql", data=payload,
+                           headers={"Authorization": "Bearer " + TOKEN,
+                                    "Content-Type":"application/json"}, method="POST")
+            with urlopen(qreq, timeout=20) as result:
+                event_data = json.load(result)
+            if event_data.get("errors"):
+                print("  Security events GraphQL: unavailable (scope/query limitation)")
+            else:
+                group = (event_data.get("data") or {}).get("viewer", {}).get("zones", [])
+                rows = group[0].get("firewallEventsAdaptive", []) if group else []
+                print("  Security events (sampled; last 3h):", len(rows))
+                from collections import Counter
+                counts = Counter((identifier(event.get("action")), identifier(event.get("source")),
+                                  identifier(event.get("ruleId"))) for event in rows)
+                for key, count in counts.most_common(10):
+                    print("    event group", key, "count", count)
+        except HTTPError as e:
+            print("  Security events GraphQL: HTTP", e.code)
+        except (URLError, TimeoutError, ValueError, KeyError, TypeError) as e:
+            print("  Security events GraphQL: unavailable", type(e).__name__)
+
         rate = fetch(f"zones/{zid}/rate_limits?per_page=100", "Legacy rate limits")
         if isinstance(rate, list):
             print("  legacy rate-limit count:", len(rate))
