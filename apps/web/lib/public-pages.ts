@@ -68,7 +68,7 @@ export const editorialPages = editorialDefinitions.map(([path,title,description,
 // until independently verified; these routes describe supported product behavior.
 // Keep new approved intent routes in tuple form, matching editorial definitions.
 // Historic keyword research audits intentionally read only the four original
-// \`path: '...'\` marketing entries and must not confuse these routes with
+// original marketing-page object entries and must not confuse these routes with
 // unverified country-page or translated-keyword publishing approvals.
 const intentDefinitions = [
   ['/whatsapp-api-qr-code',
