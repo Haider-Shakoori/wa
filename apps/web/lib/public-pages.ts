@@ -64,8 +64,34 @@ export const editorialPages = editorialDefinitions.map(([path,title,description,
   path, title, description, changeFrequency, priority,
 }));
 
+// Distinct buyer and integration search intents. Keep vendor comparisons gated
+// until independently verified; these routes describe supported product behavior.
+export const intentPages = [
+  {
+    path: '/whatsapp-api-qr-code',
+    title: 'WhatsApp API with QR Code | Connect Your Number — RelayWA',
+    description: 'Learn to link a WhatsApp number through a QR code, inspect session state and call RelayWA REST endpoints. Unofficial WhatsApp Web integration.',
+    changeFrequency: 'monthly',
+    priority: 0.8,
+  },
+  {
+    path: '/whatsapp-webhooks',
+    title: 'WhatsApp API Webhooks | Signed Events & Examples — RelayWA',
+    description: 'Understand RelayWA WhatsApp message and session webhooks, HMAC-SHA256 signature validation, event deduplication and integration failure handling.',
+    changeFrequency: 'monthly',
+    priority: 0.8,
+  },
+  {
+    path: '/guides/whatsapp-web-vs-cloud-api',
+    title: 'WhatsApp Web API vs Official Cloud API | Key Differences',
+    description: 'Compare QR-linked WhatsApp Web integrations and Meta’s official WhatsApp Cloud API by connection method, authorization, restrictions and operating risks.',
+    changeFrequency: 'monthly',
+    priority: 0.65,
+  },
+] as const;
+
 // Sitemaps, metadata and public-only analytics must agree on published paths.
-export const allPublishedPages = [...publicPages, ...editorialPages];
+export const allPublishedPages = [...publicPages, ...editorialPages, ...intentPages];
 
 export function normalizePublicPath(pathname: string): string {
   const withoutQueryOrHash = pathname.split(/[?#]/, 1)[0] || '/';
