@@ -64,8 +64,33 @@ export const editorialPages = editorialDefinitions.map(([path,title,description,
   path, title, description, changeFrequency, priority,
 }));
 
+// Distinct buyer and integration search intents. Keep vendor comparisons gated
+// until independently verified; these routes describe supported product behavior.
+// Keep new approved intent routes in tuple form, matching editorial definitions.
+// Historic keyword research audits intentionally read only the four original
+// original marketing-page object entries and must not confuse these routes with
+// unverified country-page or translated-keyword publishing approvals.
+const intentDefinitions = [
+  ['/whatsapp-api-qr-code',
+    'WhatsApp API with QR Code | Connect Your Number — RelayWA',
+    'Learn to link a WhatsApp number through a QR code, inspect session state and call RelayWA REST endpoints. Unofficial WhatsApp Web integration.',
+    'monthly', 0.8],
+  ['/whatsapp-webhooks',
+    'WhatsApp API Webhooks | Signed Events & Examples — RelayWA',
+    'Understand RelayWA WhatsApp message and session webhooks, HMAC-SHA256 signature validation, event deduplication and integration failure handling.',
+    'monthly', 0.8],
+  ['/guides/whatsapp-web-vs-cloud-api',
+    'WhatsApp Web API vs Official Cloud API | Key Differences',
+    'Compare QR-linked WhatsApp Web integrations and Meta’s official WhatsApp Cloud API by connection method, authorization, restrictions and operating risks.',
+    'monthly', 0.65],
+] as const;
+
+export const intentPages = intentDefinitions.map(([path,title,description,changeFrequency,priority])=>({
+  path,title,description,changeFrequency,priority,
+}));
+
 // Sitemaps, metadata and public-only analytics must agree on published paths.
-export const allPublishedPages = [...publicPages, ...editorialPages];
+export const allPublishedPages = [...publicPages, ...editorialPages, ...intentPages];
 
 export function normalizePublicPath(pathname: string): string {
   const withoutQueryOrHash = pathname.split(/[?#]/, 1)[0] || '/';

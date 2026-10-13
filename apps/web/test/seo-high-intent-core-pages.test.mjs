@@ -19,7 +19,7 @@ function getPages(){
 test('three core published SEO pages have distinct high-intent metadata with accurate product positioning',()=>{
   const {publicPages,allPublishedPages}=getPages();
   assert.equal(publicPages.length,4,'Retain exactly four foundational public pages');
-  assert.equal(allPublishedPages.length,8,'Do not accidentally publish thin or draft routes');
+  assert.equal(allPublishedPages.length,11,'Only approved public, editorial and intent routes should be indexed');
   const paths=['/','/pricing','/api-docs'];
   const wanted=[
     ['WhatsApp API for Developers','QR code','signed webhooks'],
@@ -39,7 +39,7 @@ test('three core published SEO pages have distinct high-intent metadata with acc
     assert.doesNotMatch(page.title+' '+page.description,/official whatsapp cloud api access|ban.proof|guaranteed delivery/i);
   });
   assert.ok(!allPublishedPages.some(p=>/\/countries\/|\/integrations\//.test(p.path)));
-  assert.equal(new Set(allPublishedPages.map(p=>p.path)).size,8);
+  assert.equal(new Set(allPublishedPages.map(p=>p.path)).size,11);
 });
 
 test('keyword mapping is actionable and prevents duplicate primary canonical targets',()=>{
