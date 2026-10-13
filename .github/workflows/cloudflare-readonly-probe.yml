@@ -5,6 +5,7 @@ on:
     branches: [chore/cloudflare-readonly-probe]
     paths:
       - .github/workflows/cloudflare-readonly-probe.yml
+      - scripts/cloudflare-readonly-inventory.py
   workflow_dispatch:
 
 permissions:
