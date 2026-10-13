@@ -17,7 +17,7 @@ function load(file){
   return exports;
 }
 const {publishedArticles}=load('lib/blog-articles.ts');
-const {publicPages,editorialPages,allPublishedPages,isIndexablePublicPath}=load('lib/public-pages.ts');
+const {publicPages,editorialPages,intentPages,allPublishedPages,isIndexablePublicPath}=load('lib/public-pages.ts');
 const [columns,...csv]=parseCsv(repoRead('docs/seo/editorial-calendar.csv'));
 const expected=[
   'slug','status','primary_keyword','locale','author_attribution','editorial_reviewer',
@@ -36,7 +36,7 @@ test('editorial calendar has complete schema, 3 live source-backed tutorials and
   assert.equal(new Set(items.map(x=>x.slug)).size,items.length);
   assert.deepEqual(published.map(x=>x.slug),Array.from(publishedArticles,a=>a.slug));
   assert.equal(editorialPages.length,4); // 1 blog index and exactly 3 live articles
-  assert.equal(allPublishedPages.length,publicPages.length+editorialPages.length);
+  assert.equal(allPublishedPages.length,publicPages.length+editorialPages.length+intentPages.length);
   for(const row of items) {
     assert.equal(row.locale,'en');
     assert.match(row.slug,/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
