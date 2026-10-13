@@ -134,14 +134,36 @@ for path in ("/", "/robots.txt", "/sitemap.xml", "/whatsapp-api-qr-code",
             res.read(1000)
     except HTTPError as e:
         status, headers = e.code, e.headers
+        error_html = e.read(4096).decode("utf-8", "replace")
     except (URLError, TimeoutError):
         print("  edge GET", path, "network unavailable")
         continue
     print("  edge GET", path, "HTTP", status,
           "| server:", identifier(headers.get("server")),
           "| cf-ray present:", bool(headers.get("cf-ray")),
+          "| cf-mitigated:", identifier(headers.get("cf-mitigated")),
           "| retry-after:", identifier(headers.get("retry-after")),
           "| content-type:", identifier(headers.get("content-type")))
+    if status == 429:
+        import re
+        match = re.search(r"<title[^>]*>([^<]{0,180})", error_html, flags=re.I)
+        print("    429 title:", identifier(match.group(1) if match else "none"),
+              "| Cloudflare error 1015:", "1015" in error_html,
+              "| Worker custom error:", any(x in error_html.lower() for x in ("too many requests", "rate limit", "quota exceeded")),
+              "| cf-error-code:", identifier(headers.get("cf-error-code")))
+
+# One browser-header GET for comparison, without pretending to be a verified search crawler.
+try:
+    req = Request("https://relaywa.com/robots.txt", method="GET", headers={
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+    })
+    with urlopen(req, timeout=18) as res:
+        print("  browser-header GET /robots.txt: HTTP", res.status)
+except HTTPError as e:
+    print("  browser-header GET /robots.txt: HTTP", e.code)
+except (URLError, TimeoutError):
+    print("  browser-header GET /robots.txt: unavailable")
 
 print("Cloudflare read-only inventory complete; no changes or deployments.")
 if not found:
