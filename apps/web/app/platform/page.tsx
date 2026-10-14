@@ -752,7 +752,7 @@ export default function PlatformPage() {
             }
             setSubscriptionPlans(latest);
             setError('');
-            setNotice('Website plan change saved and verified. Availability applies to new purchases; existing subscriber access is preserved.');
+            setNotice('Website plan saved and verified from the server. Public prices update for future checkouts. Availability changes only affect new purchases; existing subscriber access is preserved.');
           }}
           onPayments={()=>setActive('Payments')}/>
       }
