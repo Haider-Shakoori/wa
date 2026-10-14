@@ -62,5 +62,15 @@ const worker = readFileSync(resolve('ops/seo-overlay/worker-template.mjs'), 'utf
 const token = '__SEO_HTML_MAP__';
 assert.equal(worker.split(token).length, 2, 'One payload replacement location');
 mkdirSync(outputDir, { recursive: true });
-writeFileSync(join(outputDir, 'index.mjs'), worker.replace(token, JSON.stringify(templates)), 'utf8');
+const cookieJs = readFileSync(resolve('ops/seo-overlay/cookie-message.js'), 'utf8');
+const cookieCss = readFileSync(resolve('ops/seo-overlay/cookie-message.css'), 'utf8');
+assert.ok(cookieJs.includes('relaywa_analytics_consent') &&
+  cookieJs.includes('relaywa:analytics-choice-changed'), 'Cookie choices must use the current analytics preference contract');
+assert.ok(!cookieJs.includes('googletagmanager.com'), 'Notice must not load Google scripts');
+assert.equal(worker.split('__COOKIE_JS__').length, 2, 'Exactly one cookie JS build token');
+assert.equal(worker.split('__COOKIE_CSS__').length, 2, 'Exactly one cookie CSS build token');
+const result = worker.replace(token, JSON.stringify(templates))
+  .replace('__COOKIE_JS__', JSON.stringify(cookieJs))
+  .replace('__COOKIE_CSS__', JSON.stringify(cookieCss));
+writeFileSync(join(outputDir, 'index.mjs'), result, 'utf8');
 console.log('Isolated SEO Worker compiled; no tenant or existing Worker assets were changed.');

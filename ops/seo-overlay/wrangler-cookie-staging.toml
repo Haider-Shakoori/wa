@@ -1,0 +1,7 @@
+name = "relaywa-cookie-staging"
+main = "./dist/index.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Preview ONLY. Never attach a production zone route or custom domain.
+# Separate from currently deployed relaywa-seo-pages and relaywa-web.

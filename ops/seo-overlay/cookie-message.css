@@ -1,0 +1,34 @@
+/* Self-contained Cloudflare cookie notice (only marketing HTML routes). */
+.rw-cookie-message{
+  position:fixed;inset:auto 20px 20px;z-index:2147482000;
+  margin:0 auto;max-width:1120px;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:17px 20px;border:1px solid #3c7051;border-radius:14px;
+  background:#0f1914;color:#eef8f0;
+  box-shadow:0 14px 50px #000b;font-family:Inter,system-ui,-apple-system,sans-serif;
+}
+.rw-cookie-message *{box-sizing:border-box}
+.rw-cookie-copy{flex:1;min-width:0}
+.rw-cookie-copy strong{font-size:16px;line-height:1.4;font-weight:750;display:block;margin-bottom:5px;color:#fff}
+.rw-cookie-copy p{font-size:13px;line-height:1.6;color:#cadccf;margin:0;max-width:675px}
+.rw-cookie-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px}
+.rw-cookie-actions button{
+  appearance:none;cursor:pointer;min-height:44px;padding:11px 16px;
+  border-radius:9px;font:650 13px/1.25 Inter,system-ui,sans-serif;
+  white-space:nowrap;border:1px solid #399e61;background:#25d366;color:#05180e;
+}
+.rw-cookie-actions button[data-cookie-choice="denied"]{
+  background:transparent;border-color:#6a8976;color:#f2fff6;
+}
+.rw-cookie-actions a{padding:11px 4px;min-height:44px;display:inline-flex;align-items:center;
+  color:#a8efbc;text-decoration:underline;text-underline-offset:3px;font:550 13px Inter,system-ui,sans-serif}
+.rw-cookie-actions button:hover{filter:brightness(1.07)}
+.rw-cookie-message :is(button,a):focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:740px){
+  .rw-cookie-message{inset:auto 12px 12px;flex-direction:column;align-items:stretch;
+    max-height:min(75dvh,440px);overflow-y:auto;gap:14px;padding:17px}
+  .rw-cookie-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .rw-cookie-actions a{grid-column:1/-1;justify-content:center}
+  .rw-cookie-actions button{white-space:normal}
+}
+@media(prefers-reduced-motion:reduce){.rw-cookie-message *{transition:none!important}}
