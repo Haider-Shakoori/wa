@@ -29,7 +29,7 @@ function cookieAssets(path, method) {
     },
   });
 }
-function applyNoticeToOrigin(original, method) {
+function applyNoticeToOrigin(original, method, preview = false) {
   if (method === 'HEAD' || !original.ok ||
       !original.headers.get('content-type')?.toLowerCase().includes('text/html')) return original;
   // HTMLRewriter streams the existing Cloudflare app HTML without rebuilding,
@@ -39,6 +39,8 @@ function applyNoticeToOrigin(original, method) {
   }).transform(original);
   const headers = new Headers(rewritten.headers);
   headers.set('x-relaywa-cookie-message', '1');
+  // Prevent the alternative workers.dev hostname from creating SEO duplicates.
+  if (preview) headers.set('x-robots-tag', 'noindex, nofollow');
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('etag');
@@ -96,7 +98,7 @@ export default {
         ? new Request('https://relaywa.com' + url.pathname + url.search, request)
         : request;
       const original = await fetch(originRequest);
-      return applyNoticeToOrigin(original, request.method);
+      return applyNoticeToOrigin(original, request.method, url.hostname.endsWith('.workers.dev'));
     }
     if (url.pathname === PROTECTED_SITEMAP_PATH && url.hostname === 'relaywa.com') {
       // Cloudflare Workers Routes can fetch the existing Worker Custom Domain as origin.
