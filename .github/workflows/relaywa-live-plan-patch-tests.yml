@@ -1,0 +1,92 @@
+name: RelayWA Cloudflare Plan Patch Safety Tests
+on:
+  push:
+    branches: [fix/relaywa-cloudflare-plan-controls-20261014]
+    paths:
+      - ops/relaywa-cloudflare-plan-controls/**
+      - .github/workflows/relaywa-live-plan-patch-tests.yml
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate patcher syntax
+        run: node --check ops/relaywa-cloudflare-plan-controls/patch.mjs
+      - name: Validate live website bundle patcher syntax
+        run: node --check ops/relaywa-cloudflare-plan-controls/patch-web.mjs
+      - name: Install compact JavaScript parser for precise syntax checks
+        run: npm install --prefix /tmp/relaywa-parse --no-audit --no-fund --silent acorn@8
+      - name: Patch live Worker copies in memory and syntax-check without deploying
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { patchPlatform,patchApi } from './ops/relaywa-cloudflare-plan-controls/patch.mjs';
+          import {writeFile} from 'node:fs/promises';
+          import {execFileSync} from 'node:child_process';
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/';
+          for(const [worker,patcher] of [['relaywa-platform',patchPlatform],['relaywa-api',patchApi]]){
+            const res=await fetch(root+worker,{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
+            if(!res.ok)throw Error('Could not read deployed '+worker+' worker');
+            const form=await res.formData();
+            const js=form.get('index.js');
+            if(!js)throw Error('Missing '+worker+' index.js');
+            const source=typeof js==='string'?js:await js.text();
+            const updated=patcher(source);
+            if(updated===source)throw Error('No change for '+worker);
+            const filename='/tmp/'+worker+'-modified.mjs';
+            await writeFile(filename,updated);
+            execFileSync('node',['--check',filename],{stdio:'pipe'});
+            console.log('SAFE_PATCH '+worker+' before='+source.length+' after='+updated.length);
+            console.log('PRESERVED_WORKER_OTHER_MODULES '+(Array.from(form.keys()).length-1));
+          }
+          const {patchWebsitePage}=await import('./ops/relaywa-cloudflare-plan-controls/patch-web.mjs');
+          const webres=await fetch(root+'relaywa-web',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(30000)});
+          if(!webres.ok)throw Error('Cannot read Vinext website Worker');
+          const webform=await webres.formData();
+          for(const name of ['ssr/_next/static/page-Gh6edkTR.js','recovery-assets.mjs']){
+            const old=webform.get(name);
+            if(!old)throw Error('Missing live website module '+name);
+            const source=typeof old==='string'?old:await old.text();
+            for(const [label,contents] of [['original',source],['editor-only',patchWebsitePage(source,false)]]){
+              const checkPath='/tmp/'+label+'-'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
+              await writeFile(checkPath,contents);
+              try{execFileSync('node',['--check',checkPath],{stdio:'pipe',timeout:25000});
+                console.log('WEB_SYNTAX_PASS '+name+' '+label);
+              }catch(e){const message=String(e.stderr??'');console.log('WEB_SYNTAX_FAIL '+name+' '+label+' '+(message.match(/SyntaxError:[^\n]+/)||[])[0]);throw Error('Baseline or edit-only syntax invalid');}
+            }
+            const updated=patchWebsitePage(source);
+            if(updated===source)throw Error('Web module was not changed');
+            const path='/tmp/'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
+            await writeFile(path,updated);
+            try {
+              execFileSync('node',['--check',path],{stdio:'pipe',timeout:25000});
+            } catch(err) {
+              const output=String(err.stderr||'');
+              const {parse}=await import('/tmp/relaywa-parse/node_modules/acorn/dist/acorn.mjs');
+              try{parse(updated,{ecmaVersion:'latest',sourceType:'module'});}
+              catch(error){
+                console.log('WEB_ACORN_PARSE_ERROR '+name+' '+JSON.stringify({message:error.message,pos:error.pos,
+                  text:updated.slice(Math.max(0,error.pos-170),error.pos+170)}));
+              }
+              const syntax=output.match(/SyntaxError:[^\n]*/);
+              const caret=output.lastIndexOf('^');
+              const lines=output.split('\n');
+              const caretIdx=lines.findIndex(x=>x.includes('^')&&x.trim()==='^');
+              const column=caretIdx>=0?lines[caretIdx].indexOf('^'):-1;
+              const offending=caretIdx>=1?lines[caretIdx-1]:'';
+              console.log('WEB_SYNTAX_DIAG '+name+' '+JSON.stringify({message:syntax?.[0],column,near:offending.slice(Math.max(0,column-160),column+170)}));
+              throw Error('Website module syntax check failed; no deploy');
+            }
+            console.log('SAFE_WEB_PATCH '+name+' before='+source.length+' after='+updated.length);
+          }
+          console.log('PATCH_VALIDATED_NO_PRODUCTION_WRITES');
+          NODE

@@ -728,6 +728,7 @@ export default function PlatformPage() {
         <PlatformWebsiteSubscriptions
           plans={subscriptionPlans} payments={payments} token={token}
           canEdit={['super_admin','billing_admin'].includes(platformRole)}
+          canDelete={platformRole==='super_admin'}
           onUpdated={async(savedPlan)=>{
             // Read back authoritative values before reporting success. A
             // stale local catalog or unrelated admin-panel refresh must not
@@ -746,12 +747,23 @@ export default function PlatformPage() {
               stored.max_sessions!==savedPlan.max_sessions ||
               stored.max_api_keys!==savedPlan.max_api_keys ||
               stored.daily_messages!==savedPlan.daily_messages ||
-              stored.monthly_messages!==savedPlan.monthly_messages) {
+              stored.monthly_messages!==savedPlan.monthly_messages ||
+              (savedPlan.available_for_purchase!==undefined &&
+               Number(stored.available_for_purchase??1)!==Number(savedPlan.available_for_purchase))) {
               throw new Error('Save was submitted, but the catalog does not yet match. Refresh and check the plan before retrying.');
             }
             setSubscriptionPlans(latest);
             setError('');
             setNotice('Website plan saved and verified from the server. Public prices update for future checkouts.');
+          }}
+          onDeleted={async(code)=>{
+            const latest=await api<ClientPlan[]>('/platform/subscription-plans',token);
+            if(latest.some(plan=>plan.code===code)){
+              throw new Error('Delete was submitted, but the catalog still contains this plan.');
+            }
+            setSubscriptionPlans(latest);
+            setError('');
+            setNotice('Website plan deleted and verified from the server.');
           }}
           onPayments={()=>setActive('Payments')}/>
       }

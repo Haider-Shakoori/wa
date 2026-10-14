@@ -28,7 +28,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
   const [monthlyMessages,setMonthlyMessages]=useState(plan?.monthly_messages?.toString()??'');
   const [monthlyPrice,setMonthlyPrice]=useState(dollars(plan?.monthly_price_cents??0));
   const [annualPrice,setAnnualPrice]=useState(dollars(plan?.annual_price_cents??0));
-  const [reason,setReason]=useState('');
+  const [reason,setReason]=useState('Updated website subscription plan from the platform dashboard');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
 
@@ -115,7 +115,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
       </label>
       <label className="website-plan-wide">Audit reason
         <textarea value={reason} rows={2} minLength={8} maxLength={500} required
-          placeholder="Example: Updated public website pricing for the new tier"
+          placeholder="Describe why this plan is being changed (8+ characters)"
           onChange={e=>setReason(e.target.value)}/>
       </label>
       <p className="muted website-plan-wide">Saving updates the website catalog for future checkouts.
@@ -124,7 +124,7 @@ export function PlatformWebsitePlanEditor({plan,token,onClose,onUpdated}:{
       {error&&<p role="alert" className="alert website-plan-wide">{error}</p>}
       <div className="website-plan-actions website-plan-wide">
         <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>Cancel</button>
-        <button type="submit" className="primary-button" disabled={busy||reason.trim().length<8}>
+        <button type="submit" className="primary-button" disabled={busy}>
           {busy?'Saving…':plan?'Save website plan':'Create website plan'}
         </button>
       </div>
