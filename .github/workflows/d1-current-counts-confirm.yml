@@ -41,6 +41,13 @@ jobs:
           }
           const admins=await query("SELECT lower(email) AS email,is_platform_admin,CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END AS enabled FROM users WHERE lower(email) IN ('haider@relaywa.com','mr.qkay@relaywa.com') ORDER BY email");
           console.log('PROTECTED_ADMIN_LOGINS '+JSON.stringify(admins));
+          const testResponse=await fetch(base+'/'+dbs[0].uuid+'/query',{
+            method:'POST',headers,body:JSON.stringify({sql:'SELECT 1 AS a; SELECT 2 AS b;'}),
+            signal:AbortSignal.timeout(15000)
+          });
+          const testData=await testResponse.json();
+          console.log('MULTI_SELECT_SQL_SUPPORTED '+(testResponse.ok&&testData.success?'yes':'no'));
+          if(!testResponse.ok)console.log('MULTI_SELECT_ERROR '+JSON.stringify(testData.errors?.map(e=>({code:e.code,message:String(e.message??'').slice(0,280)}))));
           console.log('READ_ONLY_CONFIRMATION_COMPLETE');
           NODE
 
