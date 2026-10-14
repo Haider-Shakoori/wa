@@ -1,0 +1,42 @@
+name: RelayWA Subscription Plan Reference Audit
+on:
+  push:
+    branches: [audit/relaywa-plan-delete-references-20261014]
+    paths: [.github/workflows/relaywa-plan-reference-audit.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Show plan reference counts only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/d1/database';
+          const headers={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'content-type':'application/json'};
+          async function request(url,body){
+            const r=await fetch(url,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(20000)});
+            const j=await r.json();
+            if(!r.ok||!j.success)throw Error('Cloudflare read failed HTTP '+r.status);
+            return j.result;
+          }
+          const databases=(await request(base+'?per_page=100')).filter(x=>x.name==='relaywa');
+          if(databases.length!==1)throw Error('RelayWA D1 database not uniquely identified');
+          async function q(sql){
+            const r=await request(base+'/'+databases[0].uuid+'/query',{sql});
+            return r?.[0]?.results??[];
+          }
+          const rows=await q(`SELECT p.code,p.name,p.active,p.available_for_purchase,
+            (SELECT COUNT(*) FROM organization_subscriptions s WHERE s.plan_code=p.code) AS subscription_refs,
+            (SELECT COUNT(*) FROM payments pay WHERE pay.plan_code=p.code) AS payment_refs,
+            (SELECT COUNT(*) FROM organizations o WHERE o.selected_plan_code=p.code) AS selected_workspace_refs
+            FROM subscription_plans p ORDER BY p.code`);
+          for(const p of rows)console.log('PLAN_REFERENCE '+JSON.stringify(p));
+          console.log('READ_ONLY_REFERENCE_AUDIT_SUCCESS');
+          NODE
