@@ -38,6 +38,6 @@ test('sitemap overlay augments real sitemap and deduplicates future origin updat
     assert.equal(result.split('<loc>' + loc + '</loc>').length - 1, 1, 'Exactly one of: ' + loc);
   }
   const twice = augmentSitemap(result);
-  assert.equal(twice, result.replace('\n\n</urlset>', '\n</urlset>'));
+  assert.equal(twice, result);
   assert.throws(() => augmentSitemap('not a sitemap'), /not an XML urlset/);
 });
