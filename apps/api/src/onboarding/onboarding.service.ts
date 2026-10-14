@@ -89,7 +89,7 @@ export class OnboardingService {
   async selectPlan(organizationId: string, input: SelectPlanDto) {
     const planResult = await this.db.query<any>(
       `SELECT code, monthly_price_cents, annual_price_cents, currency
-       FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1`,
+       FROM subscription_plans WHERE code = $1 AND active = true AND available_for_purchase = true LIMIT 1`,
       [input.planCode],
     );
     const plan = planResult.rows[0];
