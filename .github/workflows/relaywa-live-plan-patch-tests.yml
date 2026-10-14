@@ -64,7 +64,11 @@ jobs:
               const output=String(err.stderr||'');
               const syntax=output.match(/SyntaxError:[^\n]*/);
               const caret=output.lastIndexOf('^');
-              console.log('WEB_SYNTAX_DIAG '+name+' '+JSON.stringify({message:syntax?.[0]||'unknown',location:output.slice(0,100),caret,context:output.slice(Math.max(0,caret-100),Math.min(output.length,caret+120)).replace(/ +/g,' ').slice(0,320)}));
+              const lines=output.split('\n');
+              const caretIdx=lines.findIndex(x=>x.includes('^')&&x.trim()==='^');
+              const column=caretIdx>=0?lines[caretIdx].indexOf('^'):-1;
+              const offending=caretIdx>=1?lines[caretIdx-1]:'';
+              console.log('WEB_SYNTAX_DIAG '+name+' '+JSON.stringify({message:syntax?.[0],column,near:offending.slice(Math.max(0,column-160),column+170)}));
               throw Error('Website module syntax check failed; no deploy');
             }
             console.log('SAFE_WEB_PATCH '+name+' before='+source.length+' after='+updated.length);
