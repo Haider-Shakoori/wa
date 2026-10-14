@@ -15,8 +15,14 @@ const ERROR_BACKOFF_MS = Math.max(60000, Number(process.env.OUTBOUND_POLL_ERROR_
 
 const sleep = (ms, signal) =>
   new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+    if (signal?.aborted) return resolve();
+    const finish = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener('abort', finish, { once: true });
   });
 
 export function startOutboundPoll({ store, sessions, signal }) {
