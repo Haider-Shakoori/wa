@@ -87,6 +87,8 @@ for path in (
     status, headers, html = get(path)
     assert status == 200, "Marketing page not reachable: " + path
     assert headers.get("x-relaywa-cookie-message") == "1", "Cookie overlay missing: " + path
+    if PREVIEW:
+        assert "noindex" in headers.get("x-robots-tag", ""), "Preview origin must not be indexed: " + path
     assert "relaywa-cookie-message.js" in html, "Cookie loader missing: " + path
     assert "relaywa-cookie-message.css" in html, "Cookie stylesheet missing: " + path
     assert "RelayWA" in html, "Original page content missing: " + path
