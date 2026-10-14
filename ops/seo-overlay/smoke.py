@@ -63,7 +63,29 @@ for path in PATHS:
     assert "application/ld+json" in html, f"{path} schema missing"
     assert "noindex" not in html.lower(), f"{path} incorrectly nonindexable"
     assert "self.__next_f" not in html, f"{path} hydration code retained"
-    print("SEO page verified:", origin + path)
+    assert 'src="/relaywa-cookie-message.js"' in html, "Cookie message script missing: " + path
+    assert 'href="/relaywa-cookie-message.css"' in html, "Cookie notice styles missing: " + path
+    print("SEO page and cookie notice verified:", origin + path)
+
+# Both resources must be served by the SEO overlay and never redirect to auth.
+for resource, expected in (
+    ("/relaywa-cookie-message.js", "We use cookies"),
+    ("/relaywa-cookie-message.css", ".rw-cookie-message"),
+):
+    _, headers, payload = get(resource)
+    assert headers.get("x-relaywa-cookie-assets") == "1", "Asset is not served by this Worker"
+    assert expected in payload, "Cookie asset incomplete: " + resource
+    print("Cookie message asset available:", origin + resource)
+
+# Existing marketing pages must retain their origin HTML.
+for path in ("/", "/pricing", "/api-docs", "/help", "/blog"):
+    status, headers, html = get(path)
+    assert status == 200, "Marketing page not reachable: " + path
+    assert headers.get("x-relaywa-cookie-message") == "1", "Cookie overlay missing: " + path
+    assert "relaywa-cookie-message.js" in html, "Cookie loader missing: " + path
+    assert "relaywa-cookie-message.css" in html, "Cookie stylesheet missing: " + path
+    assert "RelayWA" in html, "Original page content missing: " + path
+    print("Original marketing page and cookie notice verified:", origin + path)
 
 if LIVE:
     _, headers, sitemap = get("/sitemap.xml")
@@ -75,7 +97,8 @@ if LIVE:
         assert "https://relaywa.com" + existing in sitemap, "Previous sitemap entry removed: " + existing
     assert "/login</loc>" not in sitemap and "/dashboard</loc>" not in sitemap
     _, headers, home = get("/")
-    assert headers.get("x-relaywa-seo-overlay") is None, "Homepage unexpectedly intercepted"
+    assert headers.get("x-relaywa-seo-overlay") is None, "Homepage replaced by SEO snapshot"
+    assert headers.get("x-relaywa-cookie-message") == "1", "Cookie notice not applied to original homepage"
     assert "WhatsApp API for Developers" in home, "Homepage changed"
     _, headers, robots = get("/robots.txt")
     assert headers.get("x-relaywa-seo-overlay") is None, "Robots unexpectedly intercepted"
