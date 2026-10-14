@@ -1,0 +1,102 @@
+name: RelayWA D1 Read-Only Inventory
+on:
+  push:
+    branches: [maintenance/relaywa-d1-audit-20261014]
+    paths: [.github/workflows/relaywa-d1-readonly-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Identify RelayWA D1 bindings (no data modifications)
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!account || !token) {
+            console.error('Cloudflare GitHub credentials missing; no modifications made.');
+            process.exitCode=2;
+          } else {
+            const base='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(account);
+            async function get(path) {
+              try {
+                const response=await fetch(base+path,{
+                  headers: { Authorization:'Bearer '+token, Accept:'application/json' },
+                  signal:AbortSignal.timeout(15000),
+                });
+                const json=await response.json();
+                if(!response.ok || !json.success) {
+                  console.log('READ '+path.split('?')[0]+': unavailable ('+response.status+'; '+(json.errors?.[0]?.code??'unknown')+')');
+                  return null;
+                }
+                return json.result;
+              } catch(error) {
+                console.log('READ '+path.split('?')[0]+': failed ('+error.name+')');
+                return null;
+              }
+            }
+            const databases=await get('/d1/database?per_page=100');
+            const named=(Array.isArray(databases)?databases:[]).filter(d=>/relay.?wa/i.test(String(d.name??'')));
+            console.log('D1 inventory: '+(Array.isArray(databases)?databases.length:'unavailable')+' databases in account; '+named.length+' RelayWA-named');
+            const selected=new Map();
+            for(const name of ['relaywa-api','relaywa-web','relaywa-platform']) {
+              const settings=await get('/workers/scripts/'+name+'/settings');
+              const bindings=settings?.bindings??[];
+              const d1=bindings.filter(b=>/d1/i.test(String(b.type??'')));
+              console.log('Worker '+name+': '+d1.length+' D1 bindings'+(!settings?' (settings unavailable)':''));
+              for(const b of d1) {
+                const id=b.id??b.database_id??b.databaseId;
+                if(!id) {console.log(' D1 binding '+b.name+' lacks database ID');continue;}
+                const meta=(Array.isArray(databases)?databases:[]).find(d=>d.uuid===id||d.id===id);
+                console.log(' binding='+b.name+' database='+(meta?.name??'unknown')+' id='+id);
+                selected.set(String(id),meta?.name??name);
+              }
+            }
+            if(!selected.size) {
+              console.log('NO_CONFIRMED_D1_BINDINGS: database data not queried.');
+            }
+            for(const [id,name] of selected) {
+              const url=base+'/d1/database/'+encodeURIComponent(id)+'/query';
+              async function query(sql) {
+                try {
+                  const response=await fetch(url,{method:'POST',headers:{
+                    Authorization:'Bearer '+token,'Content-Type':'application/json'
+                  },body:JSON.stringify({sql}),signal:AbortSignal.timeout(15000)});
+                  const payload=await response.json();
+                  if(!response.ok||!payload.success){
+                    console.log('Database '+name+' query unavailable HTTP '+response.status+', code '+(payload.errors?.[0]?.code??'unknown'));
+                    return null;
+                  }
+                  return payload.result?.[0]?.results??[];
+                }catch(e){console.log('Database '+name+' query failed: '+e.name);return null;}
+              }
+              const tableRows=await query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+              if(!tableRows) continue;
+              const tables=tableRows.map(x=>x.name);
+              console.log('Database '+name+' table names: '+tables.join(', '));
+              for(const table of ['users','organizations','organization_memberships','organization_subscriptions','whatsapp_sessions','payments']) {
+                if(!tables.includes(table))continue;
+                const columns=await query("SELECT name FROM pragma_table_info('"+table+"')");
+                console.log('Table '+table+' columns: '+(columns??[]).map(x=>x.name).join(', '));
+                const count=await query('SELECT count(*) AS total FROM "'+table+'"');
+                console.log('Table '+table+' rowcount: '+(count?.[0]?.total??'unavailable'));
+              }
+              if(tables.includes('users')) {
+                const cols=(await query("SELECT name FROM pragma_table_info('users')"))?.map(r=>r.name)??[];
+                if(cols.includes('email')) {
+                  const flags=cols.includes('is_platform_admin')?',is_platform_admin':'';
+                  const sql="SELECT email"+flags+" FROM users WHERE lower(email) IN ('qais@relaywa.com','haider@relaywa.com') ORDER BY email";
+                  const admins=await query(sql);
+                  console.log('Protected accounts present: '+JSON.stringify(admins??[]));
+                }
+              }
+            }
+          }
+          NODE
