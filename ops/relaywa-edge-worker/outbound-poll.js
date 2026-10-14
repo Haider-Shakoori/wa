@@ -7,7 +7,10 @@
  * (their bytes only travel on the direct dispatch).
  */
 
-const POLL_MS = Math.max(15000, Number(process.env.OUTBOUND_POLL_MS ?? 15000));
+import { hasActiveSessions, boundedInterval } from './adaptive-poll.js';
+
+const POLL_MS = boundedInterval(process.env.OUTBOUND_POLL_MS, 15000);
+const IDLE_POLL_MS = boundedInterval(process.env.OUTBOUND_IDLE_POLL_MS, 60000, POLL_MS);
 const ERROR_BACKOFF_MS = Math.max(60000, Number(process.env.OUTBOUND_POLL_ERROR_BACKOFF_MS ?? 60000));
 
 const sleep = (ms, signal) =>
@@ -29,7 +32,7 @@ export function startOutboundPoll({ store, sessions, signal }) {
       }
 
       if (!message) {
-        await sleep(POLL_MS, signal);
+        await sleep(hasActiveSessions(sessions) ? POLL_MS : IDLE_POLL_MS, signal);
         continue;
       }
 
