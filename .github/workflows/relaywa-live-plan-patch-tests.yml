@@ -23,6 +23,8 @@ jobs:
         run: node --check ops/relaywa-cloudflare-plan-controls/patch.mjs
       - name: Validate live website bundle patcher syntax
         run: node --check ops/relaywa-cloudflare-plan-controls/patch-web.mjs
+      - name: Install compact JavaScript parser for precise syntax checks
+        run: npm install --prefix /tmp/relaywa-parse --no-audit --no-fund --silent acorn@8
       - name: Patch live Worker copies in memory and syntax-check without deploying
         shell: bash
         run: |
@@ -69,6 +71,12 @@ jobs:
               execFileSync('node',['--check',path],{stdio:'pipe',timeout:25000});
             } catch(err) {
               const output=String(err.stderr||'');
+              const {parse}=await import('/tmp/relaywa-parse/node_modules/acorn/dist/acorn.mjs');
+              try{parse(updated,{ecmaVersion:'latest',sourceType:'module'});}
+              catch(error){
+                console.log('WEB_ACORN_PARSE_ERROR '+name+' '+JSON.stringify({message:error.message,pos:error.pos,
+                  text:updated.slice(Math.max(0,error.pos-170),error.pos+170)}));
+              }
               const syntax=output.match(/SyntaxError:[^\n]*/);
               const caret=output.lastIndexOf('^');
               const lines=output.split('\n');
