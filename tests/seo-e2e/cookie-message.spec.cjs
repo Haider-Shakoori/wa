@@ -1,5 +1,12 @@
 const {test, expect} = require('@playwright/test');
 
+// The cookie notice is an isolated Cloudflare HTML overlay, not part of the
+// local Node/Next app. Local source browser QA must not expect an edge banner.
+test.beforeEach(() => {
+  test.skip(!process.env.SEO_E2E_ORIGIN?.startsWith('https://'),
+    'Cookie message tests require the deployed Cloudflare stage or live hostname');
+});
+
 test('@cookie fresh visitor sees non-modal cookie message and choice persists', async ({page}) => {
   await page.goto('/whatsapp-api-qr-code', {waitUntil:'domcontentloaded'});
   const notice = page.locator('#relaywa-cookie-message');
