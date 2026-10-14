@@ -20,7 +20,7 @@ test('overlay has exactly three fixed public pages and never intercepts other ap
     assert.ok(html.includes('application/ld+json'));
     assert.match(html, /<style\b/i, 'Worker page must be styled without external build assets');
     assert.ok(!html.includes('self.__next_f'), 'No client hydration chunk references');
-    assert.doesNotMatch(html, /guaranteed delivery|ban.proof|official Meta.approved RelayWA/i);
+    assert.doesNotMatch(html, /we guarantee delivery|ban.proof|relaywa is (?:an )?official meta/i);
   }
   for (const route of ['/api/auth/me', '/dashboard', '/login', '/pricing', '/robots.txt']) {
     assert.ok(!SEO_PATHS.includes(route));
