@@ -1,0 +1,48 @@
+name: RelayWA Cloudflare Plan Patch Safety Tests
+on:
+  push:
+    branches: [fix/relaywa-cloudflare-plan-controls-20261014]
+    paths:
+      - ops/relaywa-cloudflare-plan-controls/**
+      - .github/workflows/relaywa-live-plan-patch-tests.yml
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate patcher syntax
+        run: node --check ops/relaywa-cloudflare-plan-controls/patch.mjs
+      - name: Patch live Worker copies in memory and syntax-check without deploying
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { patchPlatform,patchApi } from './ops/relaywa-cloudflare-plan-controls/patch.mjs';
+          import {writeFile} from 'node:fs/promises';
+          import {execFileSync} from 'node:child_process';
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/';
+          for(const [worker,patcher] of [['relaywa-platform',patchPlatform],['relaywa-api',patchApi]]){
+            const res=await fetch(root+worker,{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
+            if(!res.ok)throw Error('Could not read deployed '+worker+' worker');
+            const form=await res.formData();
+            const js=form.get('index.js');
+            if(!js)throw Error('Missing '+worker+' index.js');
+            const source=typeof js==='string'?js:await js.text();
+            const updated=patcher(source);
+            if(updated===source)throw Error('No change for '+worker);
+            const filename='/tmp/'+worker+'-modified.mjs';
+            await writeFile(filename,updated);
+            execFileSync('node',['--check',filename],{stdio:'pipe'});
+            console.log('SAFE_PATCH '+worker+' before='+source.length+' after='+updated.length);
+            console.log('PRESERVED_WORKER_OTHER_MODULES '+(Array.from(form.keys()).length-1));
+          }
+          console.log('PATCH_VALIDATED_NO_PRODUCTION_WRITES');
+          NODE
