@@ -1,0 +1,41 @@
+name: RelayWA Enterprise Removal Preflight
+on:
+  push:
+    branches: [maintenance/remove-enterprise-plan-20261014]
+    paths: [.github/workflows/relaywa-enterprise-removal-audit.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Inspect Enterprise dependencies without modifying D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/d1/database';
+          const headers={Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'};
+          async function cf(u,body){const r=await fetch(u,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(20000)});const j=await r.json();if(!r.ok||!j.success)throw Error('Cloudflare '+r.status+' '+JSON.stringify(j.errors?.map(e=>e.code)));return j.result;}
+          const found=(await cf(root+'?per_page=100')).filter(x=>x.name==='relaywa');
+          if(found.length!==1)throw Error('Unexpected D1 database match');
+          const url=root+'/'+found[0].uuid;
+          async function q(sql){const r=await cf(url+'/query',{sql});return r?.[0]?.results??[];}
+          const admins=await q("SELECT lower(email) AS email,platform_role,is_platform_admin,disabled_at FROM users WHERE lower(email) IN ('haider@relaywa.com','mr.qkay@relaywa.com') ORDER BY email");
+          console.log('PROTECTED_ADMINS '+JSON.stringify(admins));
+          const plans=await q("SELECT code,name,active,available_for_purchase,max_sessions,max_api_keys,daily_messages,monthly_messages,monthly_price_cents,annual_price_cents FROM subscription_plans WHERE code IN ('enterprise','scale','enterprise_b2b','trial') ORDER BY code");
+          console.log('PLAN_OPTIONS '+JSON.stringify(plans));
+          const current=await q("SELECT os.organization_id,os.plan_code,os.status,os.provider,os.current_period_end,os.cancel_at_period_end,os.provider_subscription_id IS NOT NULL AS stripe_subscription_present,org.name AS organization_name, (SELECT COUNT(*) FROM organization_memberships m JOIN users u ON u.id=m.user_id WHERE m.organization_id=os.organization_id AND lower(u.email) IN ('haider@relaywa.com','mr.qkay@relaywa.com') AND u.is_platform_admin=1 AND u.disabled_at IS NULL) AS protected_admin_members, (SELECT COUNT(*) FROM organization_memberships m WHERE m.organization_id=os.organization_id) AS total_members FROM organization_subscriptions os JOIN organizations org ON org.id=os.organization_id WHERE os.plan_code='enterprise' ORDER BY os.organization_id");
+          console.log('ENTERPRISE_SUBSCRIPTIONS '+JSON.stringify(current));
+          const refs=await q("SELECT (SELECT COUNT(*) FROM payments WHERE plan_code='enterprise') AS payments,(SELECT COUNT(*) FROM organizations WHERE selected_plan_code='enterprise') AS selected_workspaces,(SELECT COUNT(*) FROM whatsapp_sessions WHERE organization_id IN (SELECT organization_id FROM organization_subscriptions WHERE plan_code='enterprise')) AS sessions,(SELECT COUNT(*) FROM api_keys WHERE organization_id IN (SELECT organization_id FROM organization_subscriptions WHERE plan_code='enterprise')) AS api_keys");
+          console.log('DEPENDENCIES '+JSON.stringify(refs));
+          const fk=await q("SELECT name,sql FROM sqlite_master WHERE type='table' AND lower(sql) LIKE '%references subscription_plans%' ORDER BY name");
+          console.log('PLAN_FK_TABLES '+JSON.stringify(fk.map(x=>x.name)));
+          const bookmark=await cf(url+'/time_travel/bookmark');
+          console.log('RESTORE_BOOKMARK_AVAILABLE '+Boolean(bookmark?.bookmark));
+          console.log('READ_ONLY_ENTERPRISE_AUDIT_SUCCESS');
+          NODE
