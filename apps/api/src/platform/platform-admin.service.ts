@@ -570,7 +570,7 @@ export class PlatformAdminService {
   async subscriptionPlans() {
     const result = await this.db.query(`SELECT code, name, max_sessions,
       daily_messages, monthly_messages, max_api_keys,
-      monthly_price_cents, annual_price_cents, currency
+      monthly_price_cents, annual_price_cents, currency, available_for_purchase
       FROM subscription_plans WHERE active = true ORDER BY
       CASE code WHEN 'trial' THEN 1 WHEN 'starter' THEN 2
         WHEN 'growth' THEN 3 WHEN 'plus' THEN 4 WHEN 'scale' THEN 5 ELSE 99 END`);
@@ -591,7 +591,7 @@ export class PlatformAdminService {
          monthly_price_cents,annual_price_cents,currency,active)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
         RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
-          monthly_price_cents,annual_price_cents,currency,active`,
+          monthly_price_cents,annual_price_cents,currency,active,available_for_purchase`,
         [input.code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
          input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
          input.annualPriceCents,input.currency]);
@@ -610,7 +610,7 @@ export class PlatformAdminService {
     }
     return this.db.transaction(async client => {
       const previous = await client.query(`SELECT code,name,max_sessions,daily_messages,
-        monthly_messages,max_api_keys,monthly_price_cents,annual_price_cents,currency
+        monthly_messages,max_api_keys,monthly_price_cents,annual_price_cents,currency,available_for_purchase
         FROM subscription_plans WHERE code=$1 AND active=true FOR UPDATE`,[code]);
       if (!previous.rows[0]) throw new NotFoundException('Website plan not found');
       const result = await client.query(`UPDATE subscription_plans
@@ -619,13 +619,45 @@ export class PlatformAdminService {
           updated_at=now()
         WHERE code=$1
         RETURNING code,name,max_sessions,daily_messages,monthly_messages,max_api_keys,
-          monthly_price_cents,annual_price_cents,currency,active`,
+          monthly_price_cents,annual_price_cents,currency,active,available_for_purchase`,
         [code,input.name.trim(),input.maxSessions,input.dailyMessages??null,
          input.monthlyMessages??null,input.maxApiKeys,input.monthlyPriceCents,
          input.annualPriceCents,input.currency]);
       await this.recordAudit(client,actorUserId,'website.plan.updated','subscription_plan',code,
         previous.rows[0],{...result.rows[0],reason:input.reason.trim()});
       return result.rows[0];
+    });
+  }
+
+
+  async updateWebsitePlanAvailability(code: string,
+    input: { availableForPurchase: boolean; reason: string }, actorUserId: string) {
+    if (!input.reason?.trim() || input.reason.trim().length < 8) {
+      throw new BadRequestException('Provide an audit reason of at least eight characters');
+    }
+    if (code === 'trial') throw new BadRequestException('The built-in trial cannot be disabled');
+    return this.db.transaction(async client => {
+      const previous = await client.query<{code:string; available_for_purchase:boolean}>(
+        `SELECT code,available_for_purchase FROM subscription_plans
+         WHERE code=$1 AND active=true FOR UPDATE`, [code]);
+      if (!previous.rows[0]) throw new NotFoundException('Website plan not found');
+      if (previous.rows[0].available_for_purchase === input.availableForPurchase) {
+        const current = await client.query(
+          `SELECT code,name,max_sessions,daily_messages,monthly_messages,
+                  max_api_keys,monthly_price_cents,annual_price_cents,currency,
+                  active,available_for_purchase
+           FROM subscription_plans WHERE code=$1`, [code]);
+        return current.rows[0];
+      }
+      const updated = await client.query(`UPDATE subscription_plans
+        SET available_for_purchase=$2,updated_at=now() WHERE code=$1
+        RETURNING code,name,max_sessions,daily_messages,monthly_messages,
+          max_api_keys,monthly_price_cents,annual_price_cents,currency,
+          active,available_for_purchase`, [code,input.availableForPurchase]);
+      await this.recordAudit(client,actorUserId,'website.plan.availability.updated',
+        'subscription_plan',code,previous.rows[0],
+        {available_for_purchase:input.availableForPurchase,reason:input.reason.trim()});
+      return updated.rows[0];
     });
   }
 
