@@ -1,0 +1,24 @@
+name: RelayWA D1 Cleanup Preview
+on:
+  push:
+    branches: [maintenance/relaywa-d1-audit-20261014]
+    paths: [.github/workflows/d1-cleanup-preview.yml]
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate code
+        run: node --check scripts/relaywa-d1-one-time-client-cleanup.mjs
+      - name: Dry run
+        env:
+          CLEANUP_MODE: dry-run
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/relaywa-d1-one-time-client-cleanup.mjs
