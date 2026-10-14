@@ -1,0 +1,29 @@
+name: RelayWA Edge Worker Adaptive Poll Tests
+on:
+  push:
+    branches: [fix/relaywa-edge-adaptive-idle-20261014]
+    paths:
+      - ops/relaywa-edge-worker/**
+      - .github/workflows/relaywa-edge-adaptive-tests.yml
+  pull_request:
+    paths:
+      - ops/relaywa-edge-worker/**
+      - .github/workflows/relaywa-edge-adaptive-tests.yml
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax-check Cloudflare bridge overrides
+        run: |
+          node --check ops/relaywa-edge-worker/adaptive-poll.js
+          node --check ops/relaywa-edge-worker/command-loop.js
+          node --check ops/relaywa-edge-worker/outbound-poll.js
+      - name: Run idle and active session polling regressions
+        run: node --test ops/relaywa-edge-worker/test/*.test.mjs
