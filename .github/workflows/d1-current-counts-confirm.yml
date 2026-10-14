@@ -43,3 +43,5 @@ jobs:
           console.log('PROTECTED_ADMIN_LOGINS '+JSON.stringify(admins));
           console.log('READ_ONLY_CONFIRMATION_COMPLETE');
           NODE
+
+# Recheck after initial D1 deletion error; read-only.
