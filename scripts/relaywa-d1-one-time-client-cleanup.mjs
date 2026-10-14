@@ -22,7 +22,7 @@ async function cf(path,body,timeout=30000){
     signal:AbortSignal.timeout(timeout)
   });
   const j=await r.json();
-  if(!r.ok||!j.success)throw Error('Cloudflare request failed: HTTP '+r.status+', codes '+JSON.stringify(j.errors?.map(e=>e.code)));
+  if(!r.ok||!j.success)throw Error('Cloudflare request failed: HTTP '+r.status+', details '+JSON.stringify(j.errors?.map(e=>({code:e.code,message:String(e.message??'').slice(0,360)}))));
   return j.result;
 }
 const matched=(await cf('?per_page=100')).filter(x=>x.name==='relaywa');
