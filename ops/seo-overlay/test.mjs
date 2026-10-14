@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, {augmentSitemap, SEO_PATHS, SCRIPT_NAME} from './dist/index.mjs';
+import worker, {augmentSitemap, SEO_PATHS, SCRIPT_NAME, MARKETING_ROUTES, COOKIE_JS_PATH, COOKIE_CSS_PATH} from './dist/index.mjs';
 
 test('overlay has exactly three fixed public pages and never intercepts other app paths', async () => {
   assert.equal(SCRIPT_NAME, 'relaywa-seo-pages');
@@ -18,13 +18,23 @@ test('overlay has exactly three fixed public pages and never intercepts other ap
     assert.match(html, /<h1(?:\s|>)/i);
     assert.equal((html.match(/<h1(?:\s|>)/gi) || []).length, 1);
     assert.ok(html.includes('application/ld+json'));
+    assert.ok(html.includes('data-relaywa-cookie="1"'));
+    assert.ok(html.includes(COOKIE_JS_PATH));
+    assert.ok(html.includes(COOKIE_CSS_PATH));
     assert.match(html, /<style\b/i, 'Worker page must be styled without external build assets');
     assert.ok(!html.includes('self.__next_f'), 'No client hydration chunk references');
     assert.doesNotMatch(html, /we guarantee delivery|ban.proof|relaywa is (?:an )?official meta/i);
   }
-  for (const route of ['/api/auth/me', '/dashboard', '/login', '/pricing', '/robots.txt']) {
+  for (const route of ['/api/auth/me', '/dashboard', '/login', '/checkout', '/platform', '/robots.txt']) {
     assert.ok(!SEO_PATHS.includes(route));
+    assert.ok(!MARKETING_ROUTES.includes(route), 'Do not route private app pages: ' + route);
   }
+  assert.deepEqual(MARKETING_ROUTES, [
+    '/', '/pricing', '/api-docs', '/help', '/blog',
+    '/blog/nodejs-whatsapp-api-send-webhooks',
+    '/blog/laravel-whatsapp-api-order-notifications',
+    '/blog/whatsapp-api-qr-session-troubleshooting',
+  ]);
 });
 
 test('sitemap overlay augments real sitemap and deduplicates future origin updates', () => {
@@ -40,4 +50,25 @@ test('sitemap overlay augments real sitemap and deduplicates future origin updat
   const twice = augmentSitemap(result);
   assert.equal(twice, result);
   assert.throws(() => augmentSitemap('not a sitemap'), /not an XML urlset/);
+});
+
+test('cookie resources serve safe, explicit choices using existing GA4 preference', async () => {
+  const jsResponse = await worker.fetch(new Request('https://relaywa.com' + COOKIE_JS_PATH));
+  assert.equal(jsResponse.status, 200);
+  assert.match(jsResponse.headers.get('content-type'), /javascript/);
+  assert.match(jsResponse.headers.get('x-robots-tag'), /noindex/);
+  const js = await jsResponse.text();
+  assert.match(js, /We use cookies/);
+  assert.match(js, /Accept optional/);
+  assert.match(js, /Reject optional/);
+  assert.match(js, /Cookie settings/);
+  assert.match(js, /relaywa_analytics_consent/);
+  assert.match(js, /relaywa:analytics-choice-changed/);
+  assert.doesNotMatch(js, /gtag\s*\(|googletagmanager|google-analytics\.com/);
+  const cssResponse = await worker.fetch(new Request('https://relaywa.com' + COOKIE_CSS_PATH));
+  assert.equal(cssResponse.status, 200);
+  assert.match(cssResponse.headers.get('content-type'), /text\/css/);
+  const css = await cssResponse.text();
+  assert.match(css, /@media\(max-width:740px\)/);
+  assert.match(css, /min-height:44px/);
 });
