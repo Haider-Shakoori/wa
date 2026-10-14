@@ -67,7 +67,7 @@ jobs:
             }
             const mainFile=form.get('index.js');
             if(mainFile){
-              const source=await mainFile.text();
+              const source=typeof mainFile==='string'?mainFile:await mainFile.text();
               const needles=worker==='relaywa-platform'?
                 ['async function subscriptionPlans(','async function updateWebsitePlan(','async function createWebsitePlan(','/platform/website-plans/:code','/platform/subscription-plans']:
                 ['FROM subscription_plans','subscription_plans WHERE','SELECT code, name, max_sessions','plan_code','/billing/checkout'];
