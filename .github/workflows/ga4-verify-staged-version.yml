@@ -1,0 +1,53 @@
+name: GA4 Cloudflare Staged Version Verification
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/ga4-verify-staged-version.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify GA4 secret exists on staged version, production still unchanged (read only)
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from urllib.request import Request,urlopen
+          from urllib.parse import quote
+          base='https://api.cloudflare.com/client/v4/accounts/'+quote(os.environ['ACCOUNT'],safe='')+'/workers/scripts/relaywa-platform/'
+          def get(path):
+              with urlopen(Request(base+path,headers={'Authorization':'Bearer '+os.environ['TOKEN']}),timeout=16) as r:
+                  obj=json.load(r)
+              if not obj.get('success'):raise RuntimeError('Cloudflare read failure')
+              return obj['result']
+          stage='0fa74406-7b62-430c-820b-5615322d05b6'
+          old='65b51e71-2323-4865-b6c7-8b3a43fd677e'
+          d=get('deployments')
+          live=d['deployments'][0]['versions']
+          if len(live)!=1 or live[0]['version_id']!=old or live[0]['percentage']!=100:
+              raise RuntimeError('Concurrent production change detected')
+          print('Current production version unchanged:',old)
+          r=get('versions/'+stage)
+          print('Staged version metadata top-level keys:',list(r.keys()))
+          print('Staged version resources keys:',list((r.get('resources') or {}).keys()))
+          resources=(r.get('resources') or {}).get('bindings',{})
+          if isinstance(resources,dict):
+              print('Version binding names:',list(resources))
+              print('Version binding types:',[(k,(v.get('type') if isinstance(v,dict) else type(v).__name__)) for k,v in resources.items()])
+          elif isinstance(resources,list):
+              print('Version binding names:',[b.get('name') for b in resources])
+              print('Version binding types:',[(b.get('name'),b.get('type')) for b in resources])
+          else:
+              print('Staged bindings metadata format unavailable.')
+          print('Pre-deployment read-only verification complete.')
+          PY

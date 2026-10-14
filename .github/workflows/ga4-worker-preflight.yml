@@ -1,0 +1,66 @@
+name: GA4 Cloudflare Worker Candidate Preflight
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - cloudflare/ga4-reporting.mjs
+      - cloudflare/ga4-reporting.test.mjs
+      - scripts/ga4/patch-platform-worker.mjs
+      - .github/workflows/ga4-worker-preflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    name: Unit tests and read-only live Worker patch verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check syntax of standalone GA4 module and patcher
+        run: |
+          node --check cloudflare/ga4-reporting.mjs
+          node --check scripts/ga4/patch-platform-worker.mjs
+      - name: Test the credential-independent reporting logic
+        run: node --test cloudflare/ga4-reporting.test.mjs
+      - name: Read deployed platform Worker entrypoint into temporary workspace (GET only)
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.request import Request, urlopen
+          from urllib.parse import quote
+          from email.parser import BytesParser
+          from email.policy import default
+          token, account = os.environ.get('CF_TOKEN'), os.environ.get('CF_ACCOUNT')
+          if not token or not account: raise SystemExit('Cloudflare secret missing')
+          url='https://api.cloudflare.com/client/v4/accounts/'+quote(account,safe='')+'/workers/scripts/relaywa-platform'
+          with urlopen(Request(url,headers={'Authorization':'Bearer '+token},method='GET'),timeout=15) as response:
+              kind=response.headers['Content-Type']
+              data=response.read(2_000_000)
+          message=BytesParser(policy=default).parsebytes(b'Content-Type: '+kind.encode()+b'\r\nMIME-Version: 1.0\r\n\r\n'+data)
+          selected=[p.get_payload(decode=True) for p in message.iter_parts()
+                    if (p.get_filename() or p.get_param('name',header='content-disposition'))=='index.js']
+          if len(selected)!=1: raise SystemExit('Expected exactly one Worker entrypoint')
+          path=os.path.join(os.environ['RUNNER_TEMP'],'relaywa-platform-original.mjs')
+          with open(path,'wb') as out: out.write(selected[0])
+          os.chmod(path,0o600)
+          print('Read-only copy of deployed Worker entrypoint prepared in temporary workspace.')
+          PY
+      - name: Build non-deploying candidate and check its JavaScript syntax
+        run: |
+          node scripts/ga4/patch-platform-worker.mjs "$RUNNER_TEMP/relaywa-platform-original.mjs" cloudflare/ga4-reporting.mjs "$RUNNER_TEMP/relaywa-platform-ga4-candidate.mjs"
+          node --check "$RUNNER_TEMP/relaywa-platform-ga4-candidate.mjs"
+          echo 'Worker candidate syntax valid; no Worker updates or secret writes performed.'
+      - name: Remove temporary Worker copies
+        if: always()
+        run: rm -f "$RUNNER_TEMP/relaywa-platform-original.mjs" "$RUNNER_TEMP/relaywa-platform-ga4-candidate.mjs"
