@@ -746,12 +746,13 @@ export default function PlatformPage() {
               stored.max_sessions!==savedPlan.max_sessions ||
               stored.max_api_keys!==savedPlan.max_api_keys ||
               stored.daily_messages!==savedPlan.daily_messages ||
-              stored.monthly_messages!==savedPlan.monthly_messages) {
+              stored.monthly_messages!==savedPlan.monthly_messages ||
+              stored.available_for_purchase!==savedPlan.available_for_purchase) {
               throw new Error('Save was submitted, but the catalog does not yet match. Refresh and check the plan before retrying.');
             }
             setSubscriptionPlans(latest);
             setError('');
-            setNotice('Website plan saved and verified from the server. Public prices update for future checkouts.');
+            setNotice('Website plan change saved and verified. Availability applies to new purchases; existing subscriber access is preserved.');
           }}
           onPayments={()=>setActive('Payments')}/>
       }
