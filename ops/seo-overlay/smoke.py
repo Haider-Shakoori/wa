@@ -78,7 +78,12 @@ for resource, expected in (
     print("Cookie message asset available:", origin + resource)
 
 # Existing marketing pages must retain their origin HTML.
-for path in ("/", "/pricing", "/api-docs", "/help", "/blog"):
+for path in (
+    "/", "/pricing", "/api-docs", "/help", "/blog",
+    "/blog/nodejs-whatsapp-api-send-webhooks",
+    "/blog/laravel-whatsapp-api-order-notifications",
+    "/blog/whatsapp-api-qr-session-troubleshooting",
+):
     status, headers, html = get(path)
     assert status == 200, "Marketing page not reachable: " + path
     assert headers.get("x-relaywa-cookie-message") == "1", "Cookie overlay missing: " + path
