@@ -72,6 +72,10 @@ def main():
     if not TOKEN or not ACCOUNT:
         raise RuntimeError("GitHub Cloudflare secrets unavailable")
     zid = zone()
+    domains = call("GET", "accounts/" + ACCOUNT + "/workers/domains")
+    matches = [x for x in domains if x.get("hostname") == "relaywa.com"]
+    if len(matches) != 1 or matches[0].get("service") != "relaywa-web":
+        raise RuntimeError("Live relaywa.com custom domain is no longer owned by relaywa-web; refusing release")
     items = all_routes(zid)
     safe_checks(items)
     mine = {x["pattern"]: x for x in items if x.get("script") == SCRIPT}
