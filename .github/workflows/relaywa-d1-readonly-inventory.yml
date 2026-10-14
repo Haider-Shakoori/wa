@@ -88,6 +88,20 @@ jobs:
                 const count=await query('SELECT count(*) AS total FROM "'+table+'"');
                 console.log('Table '+table+' rowcount: '+(count?.[0]?.total??'unavailable'));
               }
+              const targetStatus=await query("SELECT lower(email) AS email,is_platform_admin,platform_role,CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END AS enabled FROM users WHERE lower(email) IN ('haider@relaywa.com','mrqkay@relaywa.com') ORDER BY email");
+              console.log('Exact protected login accounts: '+JSON.stringify(targetStatus??[]));
+              const allAdmins=await query("SELECT CASE WHEN lower(email) IN ('haider@relaywa.com','mrqkay@relaywa.com') THEN 'protected' ELSE 'other' END AS kind, count(*) AS total FROM users WHERE is_platform_admin=1 GROUP BY kind");
+              console.log('Protected versus non-protected admins: '+JSON.stringify(allAdmins??[]));
+              const membership=await query("SELECT lower(u.email) AS email,count(m.id) AS memberships FROM users u LEFT JOIN organization_memberships m ON m.user_id=u.id WHERE lower(u.email) IN ('haider@relaywa.com','mrqkay@relaywa.com') GROUP BY lower(u.email)");
+              console.log('Protected account memberships: '+JSON.stringify(membership??[]));
+              const schema=await query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+              for(const t of schema??[]) {
+                const fk=await query("SELECT \\"table\\" AS ref,\\\"from\\\" AS source,\\\"to\\\" AS target,on_delete FROM pragma_foreign_key_list('"+t.name+"')");
+                if((fk??[]).length)console.log('FK '+t.name+': '+JSON.stringify(fk));
+              }
+              const b=await get('/d1/database/'+encodeURIComponent(id)+'/time_travel/bookmark');
+              console.log('Preflight Time Travel bookmark: '+(b?.bookmark?'available':'unavailable'));
+
               const adminStats=await query("SELECT count(*) AS total, sum(CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END) AS enabled FROM users WHERE is_platform_admin=1");
               console.log('Platform admins summary: '+JSON.stringify(adminStats??[]));
               const qaisMatches=await query("SELECT count(*) AS total FROM users WHERE lower(email) LIKE '%qais%' OR lower(name) LIKE '%qais%'");
