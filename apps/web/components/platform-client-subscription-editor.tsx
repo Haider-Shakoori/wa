@@ -7,6 +7,7 @@ export type ClientPlan = {
   code:string;name:string;max_sessions:number;daily_messages:number|null;
   monthly_messages:number|null;max_api_keys:number;
   monthly_price_cents:number;annual_price_cents:number;currency:string;
+  available_for_purchase?:boolean;
 };
 export type ClientSubscription = {
   organization_id:string;organization_name:string;plan_code:string;status:string;
