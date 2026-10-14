@@ -369,7 +369,7 @@ export class PaymentsService {
   private async plan(code: string) {
     const result = await this.db.query<PlanRow>(
       `SELECT code, monthly_price_cents, annual_price_cents, currency
-       FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1`,
+       FROM subscription_plans WHERE code = $1 AND active = true AND available_for_purchase = true LIMIT 1`,
       [code],
     );
     if (!result.rows[0]) throw new NotFoundException('Plan not found');
