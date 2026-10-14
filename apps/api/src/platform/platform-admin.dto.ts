@@ -88,6 +88,14 @@ export class WebsitePlanDto {
   reason!: string;
 }
 
+export class WebsitePlanAvailabilityDto {
+  @IsBoolean()
+  availableForPurchase!: boolean;
+
+  @IsString() @MinLength(8) @MaxLength(500)
+  reason!: string;
+}
+
 export class UpdatePlatformSubscriptionDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(64)
   planCode?: string;
