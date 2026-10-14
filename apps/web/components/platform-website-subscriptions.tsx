@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '../lib/api';
 import type { ClientPlan } from './platform-client-subscription-editor';
 import { PlatformWebsitePlanEditor } from './platform-website-plan-editor';
 
@@ -30,6 +31,30 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
 }) {
   const [annual,setAnnual]=useState(false);
   const [editingCode,setEditingCode]=useState<string|null>(null);
+  const [availabilityBusy,setAvailabilityBusy]=useState<string|null>(null);
+  const [availabilityError,setAvailabilityError]=useState('');
+
+  async function togglePurchases(plan:ClientPlan) {
+    if(!canEdit || availabilityBusy || plan.code==='trial')return;
+    const available=plan.available_for_purchase!==false;
+    const verb=available?'Disable new purchases':'Enable new purchases';
+    const reason=window.prompt(verb+' for '+plan.name+'? Enter an audit reason (at least 8 characters).');
+    if(reason===null)return;
+    if(reason.trim().length<8){setAvailabilityError('Provide an audit reason of at least eight characters.');return;}
+    if(!window.confirm(verb+' for '+plan.name+'? Existing subscribers keep their current access.'))return;
+    setAvailabilityBusy(plan.code);setAvailabilityError('');
+    try{
+      const savedPlan=await api<ClientPlan>(
+        '/platform/website-plans/'+encodeURIComponent(plan.code)+'/availability',token,{
+        method:'PATCH',
+        body:JSON.stringify({availableForPurchase:!available,reason:reason.trim()}),
+      });
+      await onUpdated(savedPlan);
+    }catch(err){
+      setAvailabilityError(err instanceof Error?err.message:'Could not update plan availability');
+    }finally{setAvailabilityBusy(null);}
+  }
+
   const current=plans.find(p=>p.code===editingCode)??null;
 
   return <section className="website-subscriptions" aria-label="Website subscriptions">
@@ -64,6 +89,7 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
             onClick={()=>setAnnual(true)}>Yearly</button>
         </div>
       </div>
+      {availabilityError&&<p role="alert" className="alert">{availabilityError}</p>}
       {plans.length?<div className="website-subscription-plans">
         {plans.map(plan=><article key={plan.code}>
           <span className="eyebrow">{plan.code}</span>
@@ -76,6 +102,14 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
           {canEdit&&plan.code!=='trial'&&
             <button type="button" className="secondary-button website-plan-edit-btn"
               onClick={()=>setEditingCode(plan.code)}>Edit plan</button>}
+          {plan.available_for_purchase===false&&<small role="status">Unavailable for new signups</small>}
+          {canEdit&&plan.code!=='trial'&&
+            <button type="button" className="secondary-button"
+              disabled={availabilityBusy!==null}
+              onClick={()=>void togglePurchases(plan)}>
+              {availabilityBusy===plan.code?'Saving…':
+                plan.available_for_purchase===false?'Enable new purchases':'Disable new purchases'}
+            </button>}
           {plan.code==='trial'&&<small>Built-in trial plan · restricted</small>}
         </article>)}
       </div>:<p className="muted">No website plans are currently configured.</p>}

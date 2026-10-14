@@ -7,6 +7,7 @@ export type ClientPlan = {
   code:string;name:string;max_sessions:number;daily_messages:number|null;
   monthly_messages:number|null;max_api_keys:number;
   monthly_price_cents:number;annual_price_cents:number;currency:string;
+  available_for_purchase?:boolean;
 };
 export type ClientSubscription = {
   organization_id:string;organization_name:string;plan_code:string;status:string;
@@ -67,6 +68,23 @@ export function PlatformClientSubscriptionEditor({
       await onUpdated();
       onClose();
     }catch(err){setError(err instanceof Error?err.message:'Subscription could not be saved');}
+    finally{setBusy(false);}
+  }
+
+  async function pauseAccess() {
+    if(!subscription||!canEdit||busy||subscription.status==='paused')return;
+    if(reason.trim().length<8){setError('Enter an audit reason of at least eight characters.');return;}
+    if(!window.confirm('Pause messaging access for '+client.name+
+      '? Connected WhatsApp sessions remain linked. This does not cancel Stripe billing or refund payments.'))return;
+    setBusy(true);setError('');
+    try {
+      await api('/platform/subscriptions/'+encodeURIComponent(client.id),token,{
+        method:'PATCH',
+        body:JSON.stringify({planCode:subscription.plan_code,status:'paused',reason:reason.trim()}),
+      });
+      await onUpdated();
+      onClose();
+    }catch(err){setError(err instanceof Error?err.message:'Subscription could not be paused');}
     finally{setBusy(false);}
   }
 
@@ -147,9 +165,14 @@ export function PlatformClientSubscriptionEditor({
             value={reason} onChange={e=>setReason(e.target.value)}/>
         </label>
         <p className="muted">The update is audited and takes effect for client API quotas and new outbound dispatch.
-          Connected WhatsApp sessions remain linked. No payment is collected by this action.</p>
+          Connected WhatsApp sessions remain linked. No payment is collected by this action. Pausing access does not automatically cancel Stripe billing.</p>
         {error&&<p role="alert" className="alert">{error}</p>}
         <div className="platform-subscription-actions">
+          {subscription&&['active','trialing','past_due'].includes(subscription.status)&&
+            <button type="button" className="secondary-button" disabled={busy}
+              onClick={()=>void pauseAccess()}>
+              Pause client access
+            </button>}
           <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" className="primary-button" disabled={busy||plans.length===0}>
             {busy?'Applying…':subscription?'Save subscription':'Assign subscription'}

@@ -32,7 +32,7 @@ export class OnboardingService {
         `SELECT code, name, max_sessions, monthly_messages, max_api_keys,
                 monthly_price_cents, annual_price_cents, currency
          FROM subscription_plans
-         WHERE active = true
+         WHERE active = true AND available_for_purchase = true
          ORDER BY CASE code WHEN 'trial' THEN 0 WHEN 'starter' THEN 1 WHEN 'growth' THEN 2 WHEN 'scale' THEN 3 ELSE 9 END,
                   monthly_price_cents ASC NULLS LAST`,
       ),
@@ -89,7 +89,7 @@ export class OnboardingService {
   async selectPlan(organizationId: string, input: SelectPlanDto) {
     const planResult = await this.db.query<any>(
       `SELECT code, monthly_price_cents, annual_price_cents, currency
-       FROM subscription_plans WHERE code = $1 AND active = true LIMIT 1`,
+       FROM subscription_plans WHERE code = $1 AND active = true AND available_for_purchase = true LIMIT 1`,
       [input.planCode],
     );
     const plan = planResult.rows[0];
