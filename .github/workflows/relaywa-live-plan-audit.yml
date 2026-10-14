@@ -80,6 +80,21 @@ jobs:
                 }
               }
             }
+            if(worker==='relaywa-web'){
+              for(const key of ['ssr/_next/static/page-Gh6edkTR.js','recovery-assets.mjs']){
+                const entry=form.get(key);
+                if(!entry)continue;
+                const contents=typeof entry==='string'?entry:await entry.text();
+                for(const needle of ['Save website plan','reason.trim().length<8','Audit reason','website-plans','Create website plan']){
+                  let from=0,occurrences=0;
+                  while((from=contents.indexOf(needle,from))>=0 && occurrences<3){
+                    const context=contents.slice(Math.max(0,from-320),Math.min(contents.length,from+290));
+                    console.log('WEB_FRAGMENT '+key+' '+needle+' '+occurrences+' '+JSON.stringify(context));
+                    from+=needle.length;occurrences++;
+                  }
+                }
+              }
+            }
             console.log('WORKER_MODULES '+worker+' '+JSON.stringify(worker==='relaywa-web'?moduleStats.filter(m=>m.webEditor||m.webPlan).slice(0,20):moduleStats));
             const deployment=await jsonCall(root+'/workers/scripts/'+worker+'/deployments').catch(()=>null);
             console.log('DEPLOYMENTS '+worker+' '+JSON.stringify((deployment?.deployments??[]).slice(0,2).map(d=>({id:d.id,versions:d.versions}))));
