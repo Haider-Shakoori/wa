@@ -32,7 +32,7 @@ test('production command/webhook loop keeps active responsiveness while backing 
   const code=await readFile(new URL('../command-loop.js',import.meta.url),'utf8');
   assert.match(code,/SESSION_IDLE_COMMAND_POLL_MS.*30000/);
   assert.match(code,/SESSION_IDLE_WEBHOOK_POLL_MS.*60000/);
-  assert.match(code,/active \? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS/);
+  assert.match(code,/activeSessions \? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS/);
   assert.match(code,/const activeSessions = hasActiveSessions\(sessions\)/);
   assert.match(code,/nextCommandPoll = Date\.now\(\) \+ \(activeSessions \? ACTIVE_POLL_MS : IDLE_POLL_MS\)/);
   assert.match(code,/await sleep\(ACTIVE_POLL_MS, signal\)/);
