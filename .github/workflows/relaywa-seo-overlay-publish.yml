@@ -1,0 +1,79 @@
+name: Publish RelayWA SEO pages to Cloudflare exact routes
+on:
+  push:
+    branches: [feat/cloudflare-seo-overlay-release]
+    paths:
+      - .github/workflows/relaywa-seo-overlay-publish.yml
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-seo-production-routes
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install source dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build the reviewed Next application
+        run: pnpm --filter @wa/web build
+      - name: Verify SSR page content and compile standalone SEO Worker
+        shell: bash
+        run: |
+          pnpm --filter @wa/web exec next start -p 3000 > /tmp/relaywa-seo-production-build.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node ops/seo-overlay/build.mjs
+          node --check ops/seo-overlay/dist/index.mjs
+          node --test ops/seo-overlay/test.mjs
+      - name: Confirm production custom domain and no conflicting routes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 ops/seo-overlay/routes.py check
+      - name: Upload isolated Worker only, preserving live Worker and bindings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy --config ops/seo-overlay/wrangler.toml
+      - name: Verify preview across propagated Cloudflare edge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 ops/seo-overlay/smoke.py preview
+      - name: Release exactly four public SEO routes and rollback on verification failure
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -e
+          python3 ops/seo-overlay/routes.py apply
+          SUCCESS=0
+          for i in $(seq 1 10); do
+            if python3 ops/seo-overlay/smoke.py live && python3 ops/seo-overlay/routes.py verify; then
+              SUCCESS=1
+              break
+            fi
+            echo "Edge propagation or live check incomplete ($i/10); retrying without additional route changes"
+            sleep 5
+          done
+          if [ "$SUCCESS" != 1 ]; then
+            echo "LIVE CHECK FAILED: restoring original Worker routes created in this run"
+            python3 ops/seo-overlay/routes.py rollback
+            exit 1
+          fi
+          echo "SUCCESS: All SEO pages and combined sitemap live; unrelated production Worker paths unchanged."

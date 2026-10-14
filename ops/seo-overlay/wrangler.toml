@@ -1,0 +1,8 @@
+name = "relaywa-seo-pages"
+main = "./dist/index.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# This is an isolated public-page overlay only.
+# Do NOT attach custom domains; preserve relaywa-web, relaywa-api and relaywa-platform.
+# Exact production routes are managed and verified by ops/seo-overlay/routes.py.
