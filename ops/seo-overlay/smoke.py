@@ -41,7 +41,7 @@ def get(path):
         "Accept": "text/html,application/xml,text/plain"
     })
     with urlopen(req, timeout=25) as res:
-        return res.status, dict(res.headers), res.read(1_500_000).decode("utf-8", "replace")
+        return res.status, {k.lower(): v for k, v in res.headers.items()}, res.read(1_500_000).decode("utf-8", "replace")
 
 for path in PATHS:
     status, headers, html = get(path)
