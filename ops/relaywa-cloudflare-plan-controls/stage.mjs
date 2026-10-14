@@ -6,8 +6,7 @@ if(!account||!token)throw Error('Cloudflare account token unavailable');
 const base='https://api.cloudflare.com/client/v4/accounts/'+account;
 const headers={authorization:'Bearer '+token};
 const manifest=[
-  ['relaywa-platform',new Map([['index.js',patchPlatform]])],
-  ['relaywa-api',new Map([['index.js',patchApi]])],
+  // Platform/API versions have already been staged; retry only the assets-backed website.
   ['relaywa-web',new Map([
     ['ssr/_next/static/page-Gh6edkTR.js',patchWebsitePage],
     ['recovery-assets.mjs',patchWebsitePage],
@@ -30,7 +29,8 @@ for(const [script,patchers] of manifest){
   const form=new FormData();
   const metadata={
     main_module:'index.js',
-    bindings:settings.bindings.map(b=>({type:'inherit',name:b.name})),
+    bindings:settings.bindings.map(b=>b.type==='assets'?{type:'assets',name:b.name}:{type:'inherit',name:b.name}),
+    ...(script==='relaywa-web'?{keep_assets:true}:{}),
     ...(settings.compatibility_date?{compatibility_date:settings.compatibility_date}:{}),
     ...(settings.compatibility_flags?{compatibility_flags:settings.compatibility_flags}:{}),
     annotations:{'workers/message':'RelayWA website plan edit, disable and safe delete - staged, not deployed'},
