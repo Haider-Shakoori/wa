@@ -1,10 +1,14 @@
 import { deliverWebhook } from './webhook-delivery.js';
+import { hasActiveSessions, boundedInterval } from './adaptive-poll.js';
 
-const POLL_MS = Math.max(15000, Number(process.env.SESSION_COMMAND_POLL_MS ?? 15000));
+const ACTIVE_POLL_MS = boundedInterval(process.env.SESSION_COMMAND_POLL_MS, 15000);
+const IDLE_POLL_MS = boundedInterval(process.env.SESSION_IDLE_COMMAND_POLL_MS, 30000, ACTIVE_POLL_MS);
+const IDLE_WEBHOOK_POLL_MS = boundedInterval(process.env.SESSION_IDLE_WEBHOOK_POLL_MS, 60000, IDLE_POLL_MS);
 
 export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
   let nextWorkerHeartbeat = 0;
   let nextHealthScan = 0;
+  let nextWebhookScan = 0;
   const healthScanIntervalMs = Math.max(30_000, Number(process.env.OPERATIONAL_HEALTH_SCAN_MS || 60_000));
   while (!signal.aborted) {
     try {
@@ -44,17 +48,23 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
       }
     }
 
-    await store.enqueueWebhookDeliveries();
-    const delivery = await store.claimNextWebhookDelivery();
-    if (delivery) {
-      await deliverWebhook(store, delivery);
-      continue;
+    // Idle workers do not need to check the webhook queue on every command poll.
+    // With any active session, preserve original 15s delivery responsiveness.
+    const active = hasActiveSessions(sessions);
+    if (active || Date.now() >= nextWebhookScan) {
+      nextWebhookScan = Date.now() + (active ? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS);
+      await store.enqueueWebhookDeliveries();
+      const delivery = await store.claimNextWebhookDelivery();
+      if (delivery) {
+        await deliverWebhook(store, delivery);
+        continue;
+      }
     }
 
     } catch (error) {
       console.error('[command-loop] bridge unavailable:', error instanceof Error ? error.message : String(error));
     }
-    await sleep(POLL_MS, signal);
+    await sleep(hasActiveSessions(sessions) ? ACTIVE_POLL_MS : IDLE_POLL_MS, signal);
   }
 }
 
