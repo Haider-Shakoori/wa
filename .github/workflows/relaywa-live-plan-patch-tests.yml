@@ -54,6 +54,13 @@ jobs:
             const old=webform.get(name);
             if(!old)throw Error('Missing live website module '+name);
             const source=typeof old==='string'?old:await old.text();
+            for(const [label,contents] of [['original',source],['editor-only',patchWebsitePage(source,false)]]){
+              const checkPath='/tmp/'+label+'-'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
+              await writeFile(checkPath,contents);
+              try{execFileSync('node',['--check',checkPath],{stdio:'pipe',timeout:25000});
+                console.log('WEB_SYNTAX_PASS '+name+' '+label);
+              }catch(e){const message=String(e.stderr??'');console.log('WEB_SYNTAX_FAIL '+name+' '+label+' '+(message.match(/SyntaxError:[^\n]+/)||[])[0]);throw Error('Baseline or edit-only syntax invalid');}
+            }
             const updated=patchWebsitePage(source);
             if(updated===source)throw Error('Web module was not changed');
             const path='/tmp/'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
