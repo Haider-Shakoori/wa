@@ -102,6 +102,11 @@ jobs:
               const b=await get('/d1/database/'+encodeURIComponent(id)+'/time_travel/bookmark');
               console.log('Preflight Time Travel bookmark: '+(b?.bookmark?'available':'unavailable'));
 
+              const adminEmails=await query("SELECT email,is_platform_admin,platform_role,CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END AS enabled FROM users WHERE is_platform_admin=1 ORDER BY email");
+              console.log('Masked admin identities: '+JSON.stringify((adminEmails??[]).map(a=>({
+                email:String(a.email).replace(/^(.{2}).*(@.*)$/,'$1***$2'),
+                role:a.platform_role,enabled:a.enabled
+              }))));
               const adminStats=await query("SELECT count(*) AS total, sum(CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END) AS enabled FROM users WHERE is_platform_admin=1");
               console.log('Platform admins summary: '+JSON.stringify(adminStats??[]));
               const qaisMatches=await query("SELECT count(*) AS total FROM users WHERE lower(email) LIKE '%qais%' OR lower(name) LIKE '%qais%'");
