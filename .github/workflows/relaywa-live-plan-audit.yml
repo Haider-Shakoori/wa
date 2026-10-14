@@ -65,6 +65,21 @@ jobs:
                 editPlan:source.includes('updateWebsitePlan'),availability:source.includes('available_for_purchase'),
                 planList:source.includes('subscription_plans'),route:source.includes('/platform/website-plans/:code')});
             }
+            const mainFile=form.get('index.js');
+            if(mainFile){
+              const source=await mainFile.text();
+              const needles=worker==='relaywa-platform'?
+                ['async function subscriptionPlans(','async function updateWebsitePlan(','async function createWebsitePlan(','/platform/website-plans/:code','/platform/subscription-plans']:
+                ['FROM subscription_plans','subscription_plans WHERE','SELECT code, name, max_sessions','plan_code','/billing/checkout'];
+              for(const needle of needles){
+                let offset=0,count=0;
+                while((offset=source.indexOf(needle,offset))>=0 && count<10){
+                  const snippet=source.slice(Math.max(0,offset-220),Math.min(source.length,offset+390));
+                  console.log('CODE_CONTEXT '+worker+' '+needle+' '+count+' '+JSON.stringify(snippet));
+                  offset+=needle.length;count++;
+                }
+              }
+            }
             console.log('WORKER_MODULES '+worker+' '+JSON.stringify(moduleStats));
             const deployment=await jsonCall(root+'/workers/scripts/'+worker+'/deployments').catch(()=>null);
             console.log('DEPLOYMENTS '+worker+' '+JSON.stringify((deployment?.deployments??[]).slice(0,2).map(d=>({id:d.id,versions:d.versions}))));
