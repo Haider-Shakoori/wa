@@ -1,0 +1,58 @@
+name: RelayWA Website Plans Live Read-Only Audit
+on:
+  push:
+    branches: [fix/relaywa-cloudflare-plan-controls-20261014]
+    paths: [.github/workflows/relaywa-live-plan-audit.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check D1 plan schema and currently deployed platform Worker without mutations
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!account||!token)throw Error('Cloudflare credentials unavailable');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+account;
+          const headers={authorization:'Bearer '+token,'content-type':'application/json'};
+          async function jsonCall(url,body){
+            const resp=await fetch(url,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(20000)});
+            const parsed=await resp.json();
+            if(!resp.ok||!parsed.success)throw Error('Cloudflare API '+resp.status+' '+JSON.stringify(parsed.errors?.map(e=>e.code)));
+            return parsed.result;
+          }
+          const found=(await jsonCall(root+'/d1/database?per_page=100')).filter(d=>d.name==='relaywa');
+          if(found.length!==1)throw Error('D1 relaywa match count not one');
+          const db=root+'/d1/database/'+found[0].uuid;
+          async function q(sql){const result=await jsonCall(db+'/query',{sql});return result?.[0]?.results??[];}
+          const tables=await q("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('subscription_plans','organization_subscriptions','payments','platform_admin_audit_logs')");
+          if(tables.length!==4)throw Error('Expected core subscription tables missing');
+          for(const name of ['subscription_plans','organization_subscriptions','payments']){
+            const schema=await q("SELECT sql FROM sqlite_master WHERE type='table' AND name='"+name+"'");
+            console.log('SCHEMA '+name+': '+String(schema[0]?.sql??'').replace(/\s+/g,' ').slice(0,2500));
+          }
+          const refs=await q("SELECT p.code, p.name, p.active, count(DISTINCT s.organization_id) AS subscribers, count(DISTINCT pay.id) AS payments FROM subscription_plans p LEFT JOIN organization_subscriptions s ON s.plan_code=p.code LEFT JOIN payments pay ON pay.plan_code=p.code GROUP BY p.code,p.name,p.active ORDER BY p.code");
+          console.log('PLAN_REFERENCE_COUNTS '+JSON.stringify(refs));
+          const audit=await q("SELECT action,count(*) AS n FROM platform_admin_audit_logs WHERE action LIKE 'website.plan.%' GROUP BY action");
+          console.log('PLAN_MUTATION_AUDITS '+JSON.stringify(audit));
+          const meta=await jsonCall(root+'/workers/scripts/relaywa-platform/settings').catch(err=>{console.log('PLATFORM_SETTINGS_UNAVAILABLE '+err.message);return null});
+          if(meta){
+            console.log('PLATFORM_WORKER_BINDINGS '+JSON.stringify((meta.bindings??[]).map(b=>({name:b.name,type:b.type}))));
+          }
+          const source=await fetch(root+'/workers/scripts/relaywa-platform',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});
+          console.log('PLATFORM_WORKER_SCRIPT_READ HTTP '+source.status+' CONTENT_TYPE '+source.headers.get('content-type'));
+          if(source.ok){
+            const content=await source.text();
+            console.log('PLATFORM_SCRIPT_BYTES '+content.length);
+            console.log('HAS_UPDATE_PLAN_FUNCTION '+content.includes('updateWebsitePlan'));
+            console.log('HAS_AVAILABLE_FOR_PURCHASE '+content.includes('available_for_purchase'));
+            console.log('HAS_AVAILABILITY_ROUTE '+content.includes('/website-plans/:code/availability'));
+          }
+          console.log('READ_ONLY_PLAN_AUDIT_COMPLETED');
+          NODE
