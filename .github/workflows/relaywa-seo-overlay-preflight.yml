@@ -27,7 +27,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Build original Next application
         run: pnpm --filter @wa/web build
-      - name: Render static SEO snapshots from production Next output
+      - name: Render SEO snapshots including Next 16 Turbopack CSS
         shell: bash
         run: |
           pnpm --filter @wa/web exec next start -p 3000 > /tmp/relaywa-seo-snapshot-server.log 2>&1 &
