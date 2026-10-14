@@ -1,0 +1,66 @@
+name: RelayWA Protected Accounts D1 Preflight
+on:
+  push:
+    branches: [maintenance/relaywa-d1-audit-20261014]
+    paths:
+      - .github/workflows/relaywa-d1-protected-preflight.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read-only account, payment, and foreign key audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const acc=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!acc||!token)throw Error('Cloudflare credentials not available');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+acc+'/d1/database';
+          const headers={Authorization:'Bearer '+token,'Content-Type':'application/json'};
+          async function cf(url,options={}) {
+            const response=await fetch(url,{headers,...options,signal:AbortSignal.timeout(20000)});
+            const json=await response.json();
+            if(!response.ok||!json.success)throw Error('Cloudflare error '+response.status+' / '+JSON.stringify(json.errors?.map(x=>x.code)));
+            return json.result;
+          }
+          const dbs=await cf(base+'?per_page=100');
+          const d=dbs.filter(x=>x.name==='relaywa');
+          if(d.length!==1)throw Error('Expected one live relaywa D1 database');
+          const id=d[0].uuid;
+          console.log('Verified Cloudflare D1 database: relaywa');
+          async function query(sql) {
+            const res=await cf(base+'/'+id+'/query',{method:'POST',body:JSON.stringify({sql})});
+            return res?.[0]?.results??[];
+          }
+          const protectedUsers=await query("SELECT lower(email) AS email, is_platform_admin AS admin, platform_role AS role, CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END AS enabled FROM users WHERE lower(email) IN ('haider@relaywa.com','mr.qkay@relaywa.com') ORDER BY email");
+          console.log('Protected identities: '+JSON.stringify(protectedUsers));
+          if(protectedUsers.length!==2 || protectedUsers.some(x=>x.admin!==1||x.enabled!==1)){
+            throw Error('Both exact protected accounts must exist and be enabled admins');
+          }
+          const extras=await query("SELECT count(*) AS n FROM users WHERE is_platform_admin=1 AND lower(email) NOT IN ('haider@relaywa.com','mr.qkay@relaywa.com')");
+          console.log('Additional platform administrator count: '+extras[0]?.n);
+          const tables=await query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+          for(const item of tables) {
+            const name=item.name;
+            const safe=name.replace(/'/g,"''");
+            const fk=await query("SELECT \"table\" AS parent,\"from\" AS col,on_delete FROM pragma_foreign_key_list('"+safe+"')");
+            if(fk.length) console.log('FK '+name+': '+fk.map(x=>x.col+'>'+x.parent+'('+x.on_delete+')').join(', '));
+          }
+          for(const name of ['users','organizations','organization_memberships','organization_subscriptions','whatsapp_sessions','payments','user_auth_identities','platform_admin_audit_logs','enterprise_accounts']) {
+            const rows=await query('SELECT count(*) AS n FROM "'+name+'"');
+            console.log('COUNT '+name+'='+rows[0]?.n);
+          }
+          const payment=await query('SELECT provider,status,count(*) AS n FROM payments GROUP BY provider,status ORDER BY provider,status');
+          console.log('Local payment record groups: '+JSON.stringify(payment));
+          const bookmark=await cf(base+'/'+id+'/time_travel/bookmark');
+          if(!bookmark?.bookmark)throw Error('No recovery bookmark is available');
+          console.log('Time Travel recovery bookmark available: yes');
+          console.log('READ_ONLY_PREFLIGHT_PASS');
+          NODE
