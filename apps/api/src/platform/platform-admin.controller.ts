@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdateMessageHistoryStorageDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, WebsitePlanDto, UpdateAlertAcknowledgementDto, UpdateAlertResolutionDto, ArchiveDiagnosticDto } from './platform-admin.dto';
+import { AddPlatformAdministratorDto, PlatformSupportQuestionDto, UpdateGithubAuthProviderDto, UpdateGoogleAuthProviderDto, UpdateMessagingEngineDto, UpdateMessagingSafetyDto, UpdateMessageHistoryStorageDto, UpdatePlatformSubscriptionDto, UpdateTenantMemberStatusDto, UpdateTenantSuspensionDto, UpdatePlatformAdminRoleDto, WebsitePlanDto, WebsitePlanAvailabilityDto, UpdateAlertAcknowledgementDto, UpdateAlertResolutionDto, ArchiveDiagnosticDto } from './platform-admin.dto';
 import { type AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -129,6 +129,13 @@ export class PlatformAdminController {
   @PlatformRoles('super_admin','billing_admin')
   createWebsitePlan(@Body() body: WebsitePlanDto, @Req() request: AuthenticatedRequest) {
     return this.platform.createWebsitePlan(body, request.auth.sub);
+  }
+
+  @Patch('website-plans/:code/availability')
+  @PlatformRoles('super_admin','billing_admin')
+  updateWebsitePlanAvailability(@Param('code') code: string,
+    @Body() body: WebsitePlanAvailabilityDto, @Req() request: AuthenticatedRequest) {
+    return this.platform.updateWebsitePlanAvailability(code, body, request.auth.sub);
   }
 
   @Patch('website-plans/:code')
