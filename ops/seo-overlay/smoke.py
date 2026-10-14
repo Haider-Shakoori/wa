@@ -52,7 +52,14 @@ def get(path):
             time.sleep(2)
 
 for path in PATHS:
-    status, headers, html = get(path)
+    # A Cloudflare deploy can return a 200 from the preceding Worker version
+    # briefly; wait for the exact new build marker before considering it ready.
+    for attempt in range(12):
+        status, headers, html = get(path)
+        if 'src="/relaywa-cookie-message.js"' in html or not PREVIEW or attempt == 11:
+            break
+        print(f"Waiting for new Worker version on {path}: {attempt+1}/12")
+        time.sleep(2)
     assert status == 200, f"{path} HTTP {status}"
     assert headers.get("x-relaywa-seo-overlay") == "1", f"{path} did not hit the isolated Worker"
     assert headers.get("content-type", "").startswith("text/html"), path
