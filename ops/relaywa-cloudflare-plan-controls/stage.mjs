@@ -14,7 +14,7 @@ const manifest=[
   ])],
 ];
 async function apiJson(url,options={}){
-  const res=await fetch(url,{headers:{...headers,...options.headers},...options,signal:AbortSignal.timeout(35000)});
+  const res=await fetch(url,{...options,headers:{...headers,...options.headers},signal:AbortSignal.timeout(35000)});
   const data=await res.json();
   if(!res.ok||!data.success)throw Error('Cloudflare API error '+res.status+': '+JSON.stringify(data.errors?.map(e=>({code:e.code,message:String(e.message).slice(0,130)}))));
   return data.result;
