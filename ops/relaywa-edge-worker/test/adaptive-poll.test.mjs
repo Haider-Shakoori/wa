@@ -33,7 +33,10 @@ test('production command/webhook loop keeps active responsiveness while backing 
   assert.match(code,/SESSION_IDLE_COMMAND_POLL_MS.*30000/);
   assert.match(code,/SESSION_IDLE_WEBHOOK_POLL_MS.*60000/);
   assert.match(code,/active \? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS/);
-  assert.match(code,/hasActiveSessions\(sessions\) \? ACTIVE_POLL_MS : IDLE_POLL_MS/);
+  assert.match(code,/const activeSessions = hasActiveSessions\(sessions\)/);
+  assert.match(code,/nextCommandPoll = Date\.now\(\) \+ \(activeSessions \? ACTIVE_POLL_MS : IDLE_POLL_MS\)/);
+  assert.match(code,/await sleep\(ACTIVE_POLL_MS, signal\)/);
+  assert.match(code,/signal\.removeEventListener\('abort', finish\)/);
   assert.match(code,/await store\.claimNextCommand\(\)/);
   assert.match(code,/await store\.heartbeatWorker\(\)/);
   assert.match(code,/await store\.claimNextWebhookDelivery\(\)/);
@@ -45,4 +48,5 @@ test('outbound direct dispatch continues while passive worker polls less',async(
   assert.match(code,/await store\.pollDirectMessage\(\)/);
   assert.match(code,/sessions\.sendText\(/);
   assert.match(code,/sessions\.sendMedia\(/);
+  assert.match(code,/signal\?\.removeEventListener\('abort', finish\)/);
 });
