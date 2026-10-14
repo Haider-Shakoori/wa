@@ -58,7 +58,13 @@ jobs:
             if(updated===source)throw Error('Web module was not changed');
             const path='/tmp/'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
             await writeFile(path,updated);
-            execFileSync('node',['--check',path],{stdio:'pipe',timeout:25000});
+            try {
+              execFileSync('node',['--check',path],{stdio:'pipe',timeout:25000});
+            } catch(err) {
+              const output=String(err.stderr||'');
+              console.log('WEB_SYNTAX_ERROR '+name+' '+output.slice(-1100));
+              throw Error('Website module syntax check failed; no deploy');
+            }
             console.log('SAFE_WEB_PATCH '+name+' before='+source.length+' after='+updated.length);
           }
           console.log('PATCH_VALIDATED_NO_PRODUCTION_WRITES');
