@@ -96,7 +96,7 @@ jobs:
               console.log('Protected account memberships: '+JSON.stringify(membership??[]));
               const schema=await query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
               for(const t of schema??[]) {
-                const fk=await query("SELECT \\"table\\" AS ref,\\\"from\\\" AS source,\\\"to\\\" AS target,on_delete FROM pragma_foreign_key_list('"+t.name+"')");
+                const fk=await query("SELECT name FROM pragma_foreign_key_list('"+t.name+"')");
                 if((fk??[]).length)console.log('FK '+t.name+': '+JSON.stringify(fk));
               }
               const b=await get('/d1/database/'+encodeURIComponent(id)+'/time_travel/bookmark');
