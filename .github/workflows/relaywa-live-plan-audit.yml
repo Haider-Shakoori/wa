@@ -54,14 +54,14 @@ jobs:
             console.log('HAS_AVAILABLE_FOR_PURCHASE '+content.includes('available_for_purchase'));
             console.log('HAS_AVAILABILITY_ROUTE '+content.includes('/website-plans/:code/availability'));
           }
-          for(const worker of ['relaywa-platform','relaywa-api']){
+          for(const worker of ['relaywa-platform','relaywa-api','relaywa-web']){
             const res=await fetch(root+'/workers/scripts/'+worker,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});
             if(!res.ok){console.log('SCRIPT '+worker+' unavailable='+res.status);continue;}
             const form=await res.formData();
             const moduleStats=[];
             for(const [key,value] of form.entries()){
               const source=typeof value==='string'?value:await value.text();
-              moduleStats.push({module:key,length:source.length,type:value?.type||'text',
+              moduleStats.push({module:key,length:source.length,type:value?.type||'text',webEditor:source.includes('Save website plan'),webPlan:source.includes('Website subscription catalog'),
                 editPlan:source.includes('updateWebsitePlan'),availability:source.includes('available_for_purchase'),
                 planList:source.includes('subscription_plans'),route:source.includes('/platform/website-plans/:code')});
             }
@@ -80,7 +80,7 @@ jobs:
                 }
               }
             }
-            console.log('WORKER_MODULES '+worker+' '+JSON.stringify(moduleStats));
+            console.log('WORKER_MODULES '+worker+' '+JSON.stringify(worker==='relaywa-web'?moduleStats.filter(m=>m.webEditor||m.webPlan).slice(0,20):moduleStats));
             const deployment=await jsonCall(root+'/workers/scripts/'+worker+'/deployments').catch(()=>null);
             console.log('DEPLOYMENTS '+worker+' '+JSON.stringify((deployment?.deployments??[]).slice(0,2).map(d=>({id:d.id,versions:d.versions}))));
           }
