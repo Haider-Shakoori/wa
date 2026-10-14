@@ -32,7 +32,7 @@ if PREVIEW:
     subdomain = info.get("subdomain", "")
     if not subdomain or not re.fullmatch(r"[A-Za-z0-9-]+", subdomain):
         raise RuntimeError("Cannot verify stage Worker: account workers.dev subdomain unavailable")
-    origin = "https://relaywa-seo-pages." + subdomain + ".workers.dev"
+    origin = "https://" + os.environ.get("SEO_PREVIEW_WORKER", "relaywa-seo-pages") + "." + subdomain + ".workers.dev"
 else:
     origin = "https://relaywa.com"
 
