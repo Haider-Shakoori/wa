@@ -1,0 +1,32 @@
+name: RelayWA Publish Plan Controls Once
+on:
+  push:
+    branches: [fix/relaywa-cloudflare-plan-controls-20261014]
+    paths: [.github/workflows/relaywa-publish-plan-controls-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-cloudflare-plan-controls-production-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Publish guarded RelayWA plan controls October 14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RELAYWA_RELEASE_CONFIRM: APPLY_RELAYWA_PLAN_CONTROLS_20261014
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify release source syntax
+        run: |
+          node --check ops/relaywa-cloudflare-plan-controls/release.mjs
+          node --check ops/relaywa-cloudflare-plan-controls/preflight.mjs
+      - name: Check exact live versions before changing production
+        run: node ops/relaywa-cloudflare-plan-controls/preflight.mjs
+      - name: Apply D1 migration and deploy protected production Worker versions
+        run: node ops/relaywa-cloudflare-plan-controls/release.mjs
