@@ -25,15 +25,15 @@ function flattenAssets(html) {
   // different production Worker build.
   html = html.replace(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi, tag => {
     const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
-    if (!href?.startsWith('/_next/static/css/')) return tag;
-    const filename = href.slice('/_next/static/css/'.length);
+    if (!href?.startsWith('/_next/static/') || !href.endsWith('.css')) return tag;
+    const filename = href.slice('/_next/static/'.length);
     if (!/^[a-zA-Z0-9._/-]+\.css$/.test(filename) || filename.includes('..')) {
       throw new Error('Invalid CSS filename: ' + href);
     }
-    const file = join(appRoot, '.next/static/css', filename);
+    const file = join(appRoot, '.next/static', filename);
     assert.ok(existsSync(file), 'Cannot embed Next production CSS: ' + file);
     const css = dataInlineCss(readFileSync(file, 'utf8')).replace(/<\/style/gi, '<\\/style');
-    return '<style data-cuebizz-no="false" data-relaywa-css="inlined">' + css + '</style>';
+    return '<style data-relaywa-css="inlined">' + css + '</style>';
   });
   html = html.replace(/<link\b[^>]*\brel=["'](?:modulepreload|preload)["'][^>]*>/gi, '');
   html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, tag =>
