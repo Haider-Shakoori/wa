@@ -1,0 +1,56 @@
+name: RelayWA Worker Request Rate Readonly
+on:
+  push:
+    branches: [fix/relaywa-edge-adaptive-idle-20261014]
+    paths: [.github/workflows/relaywa-worker-analytics-check.yml]
+permissions:
+  contents: read
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read five-minute Cloudflare Worker request buckets
+        run: |
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!account||!token)throw Error('Cloudflare credentials unavailable');
+          const end=new Date(Date.now()-90_000);
+          const start=new Date(end.getTime()-60*60*1000);
+          const q=`{ viewer { accounts(filter: {accountTag:"${account}"}) {
+            workersInvocationsAdaptive(limit: 500,
+            filter: {scriptName:"relaywa-api",datetime_geq:"${start.toISOString()}",datetime_leq:"${end.toISOString()}"}) {
+              dimensions {datetimeFiveMinutes scriptName}
+              sum {requests errors}
+            }
+          } } }`;
+          const r=await fetch('https://api.cloudflare.com/client/v4/graphql',{
+            method:'POST',
+            headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+            body:JSON.stringify({query:q}),
+            signal:AbortSignal.timeout(20000),
+          });
+          const data=await r.json();
+          if(!r.ok||data.errors?.length){
+            console.log('GRAPHQL_UNAVAILABLE status='+r.status+' error='+JSON.stringify(data.errors?.map(e=>String(e.message).slice(0,200))??[]));
+            process.exit(0);
+          }
+          const rows=data.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive??[];
+          const byTime=new Map();
+          for(const row of rows) {
+            const t=row.dimensions?.datetimeFiveMinutes;
+            if(!t)continue;
+            const v=byTime.get(t)??{requests:0,errors:0};
+            v.requests+=Number(row.sum?.requests??0);
+            v.errors+=Number(row.sum?.errors??0);
+            byTime.set(t,v);
+          }
+          for(const [time,metrics] of [...byTime.entries()].sort(([a],[b])=>a.localeCompare(b))){
+            console.log('RELAYWA_API_FIVE_MIN '+time+' '+JSON.stringify(metrics));
+          }
+          console.log('METRIC_BUCKETS '+byTime.size+' range='+start.toISOString()+' to '+end.toISOString());
+          NODE
