@@ -5,6 +5,7 @@ import sys
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 import re
+import time
 from html import unescape
 
 PATHS = [
@@ -40,8 +41,15 @@ def get(path):
         "User-Agent": "RelayWA-SEO-GitHub-Release-Verification/1.0",
         "Accept": "text/html,application/xml,text/plain"
     })
-    with urlopen(req, timeout=25) as res:
-        return res.status, {k.lower(): v for k, v in res.headers.items()}, res.read(1_500_000).decode("utf-8", "replace")
+    for attempt in range(12):
+        try:
+            with urlopen(req, timeout=25) as res:
+                return res.status, {k.lower(): v for k, v in res.headers.items()}, res.read(1_500_000).decode("utf-8", "replace")
+        except HTTPError as error:
+            if error.code not in (404, 429, 502, 503) or attempt == 11:
+                raise
+            print(f"Retrying transient edge HTTP {error.code} for {path}: {attempt+1}/12")
+            time.sleep(2)
 
 for path in PATHS:
     status, headers, html = get(path)
