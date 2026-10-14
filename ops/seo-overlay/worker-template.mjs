@@ -20,6 +20,7 @@ export function augmentSitemap(xml, hostname='relaywa.com') {
   const additions = SEO_PATHS.filter(path => !xml.includes('<loc>https://' + hostname + path + '</loc>'))
     .map(path => '  <url><loc>' + escapeXml('https://' + hostname + path) + '</loc></url>')
     .join('\n');
+  if (!additions) return xml;
   return xml.replace('</urlset>', additions + '\n</urlset>');
 }
 const responseHeaders = {
