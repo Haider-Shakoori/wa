@@ -1,0 +1,45 @@
+name: RelayWA Current D1 Data Confirmation
+on:
+  push:
+    branches: [maintenance/relaywa-d1-audit-20261014]
+    paths: [.github/workflows/d1-current-counts-confirm.yml]
+permissions:
+  contents: read
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Count live RelayWA rows (read only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!account||!token)throw Error('Missing Cloudflare credentials');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database';
+          const headers={authorization:'Bearer '+token,'content-type':'application/json'};
+          async function call(url,body) {
+            const r=await fetch(url,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});
+            const payload=await r.json();
+            if(!r.ok||!payload.success)throw Error('Cloudflare read failed '+r.status);
+            return payload.result;
+          }
+          const dbs=(await call(base+'?per_page=100')).filter(x=>x.name==='relaywa');
+          if(dbs.length!==1)throw Error('relaywa D1 database not uniquely identified');
+          async function query(sql) {
+            const out=await call(base+'/'+dbs[0].uuid+'/query',{sql});
+            return out?.[0]?.results??[];
+          }
+          console.log('LIVE_RELAYWA_CHECK');
+          for(const table of ['users','organizations','organization_memberships','organization_subscriptions','whatsapp_sessions','api_keys','whatsapp_messages','payments']) {
+            const rows=await query('SELECT count(*) AS total FROM "'+table+'"');
+            console.log('COUNT '+table+'='+rows[0]?.total);
+          }
+          const admins=await query("SELECT lower(email) AS email,is_platform_admin,CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END AS enabled FROM users WHERE lower(email) IN ('haider@relaywa.com','mr.qkay@relaywa.com') ORDER BY email");
+          console.log('PROTECTED_ADMIN_LOGINS '+JSON.stringify(admins));
+          console.log('READ_ONLY_CONFIRMATION_COMPLETE');
+          NODE
