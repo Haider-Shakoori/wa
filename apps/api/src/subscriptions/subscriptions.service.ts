@@ -141,7 +141,7 @@ export class SubscriptionsService {
       `SELECT code, name, max_sessions, daily_messages, monthly_messages, max_api_keys,
               monthly_price_cents, annual_price_cents, currency
        FROM subscription_plans
-       WHERE active = true
+       WHERE active = true AND available_for_purchase = true
        ORDER BY CASE code
          WHEN 'trial' THEN 1
          WHEN 'starter' THEN 2
