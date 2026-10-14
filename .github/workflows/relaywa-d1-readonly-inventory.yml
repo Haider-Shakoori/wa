@@ -88,6 +88,26 @@ jobs:
                 const count=await query('SELECT count(*) AS total FROM "'+table+'"');
                 console.log('Table '+table+' rowcount: '+(count?.[0]?.total??'unavailable'));
               }
+              const adminStats=await query("SELECT count(*) AS total, sum(CASE WHEN disabled_at IS NULL THEN 1 ELSE 0 END) AS enabled FROM users WHERE is_platform_admin=1");
+              console.log('Platform admins summary: '+JSON.stringify(adminStats??[]));
+              const qaisMatches=await query("SELECT count(*) AS total FROM users WHERE lower(email) LIKE '%qais%' OR lower(name) LIKE '%qais%'");
+              console.log('Potential Qais-name matches (count only): '+JSON.stringify(qaisMatches??[]));
+              const haiderOrg=await query("SELECT count(*) AS total FROM organization_memberships WHERE user_id IN (SELECT id FROM users WHERE lower(email)='haider@relaywa.com')");
+              console.log('Protected Haider membership count: '+JSON.stringify(haiderOrg??[]));
+              const protectedOrg=await query("SELECT count(DISTINCT organization_id) AS total FROM organization_memberships WHERE user_id IN (SELECT id FROM users WHERE lower(email) IN ('haider@relaywa.com','qais@relaywa.com'))");
+              console.log('Organizations containing protected accounts: '+JSON.stringify(protectedOrg??[]));
+              const subscriptionStates=await query("SELECT coalesce(provider,'internal') AS provider,status,count(*) AS total FROM organization_subscriptions GROUP BY coalesce(provider,'internal'),status ORDER BY provider,status");
+              console.log('Subscriptions by provider and status: '+JSON.stringify(subscriptionStates??[]));
+              const paymentStates=await query("SELECT provider,status,count(*) AS total FROM payments GROUP BY provider,status ORDER BY provider,status");
+              console.log('Payments by provider and status: '+JSON.stringify(paymentStates??[]));
+              const referential=await query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+              for(const record of referential??[]) {
+                const table=record.name;
+                const fk=await query("SELECT \"table\" AS target FROM pragma_foreign_key_list('"+table+"')");
+                const relevant=(fk??[]).map(r=>r.target).filter(x=>['users','organizations','organization_subscriptions','whatsapp_sessions'].includes(x));
+                if(relevant.length) console.log('Dependency '+table+' -> '+relevant.join(','));
+              }
+
               if(tables.includes('users')) {
                 const cols=(await query("SELECT name FROM pragma_table_info('users')"))?.map(r=>r.name)??[];
                 if(cols.includes('email')) {
