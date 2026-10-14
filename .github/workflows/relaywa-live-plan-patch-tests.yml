@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Validate patcher syntax
         run: node --check ops/relaywa-cloudflare-plan-controls/patch.mjs
+      - name: Validate live website bundle patcher syntax
+        run: node --check ops/relaywa-cloudflare-plan-controls/patch-web.mjs
       - name: Patch live Worker copies in memory and syntax-check without deploying
         shell: bash
         run: |
@@ -43,6 +45,21 @@ jobs:
             execFileSync('node',['--check',filename],{stdio:'pipe'});
             console.log('SAFE_PATCH '+worker+' before='+source.length+' after='+updated.length);
             console.log('PRESERVED_WORKER_OTHER_MODULES '+(Array.from(form.keys()).length-1));
+          }
+          const {patchWebsitePage}=await import('./ops/relaywa-cloudflare-plan-controls/patch-web.mjs');
+          const webres=await fetch(root+'relaywa-web',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(30000)});
+          if(!webres.ok)throw Error('Cannot read Vinext website Worker');
+          const webform=await webres.formData();
+          for(const name of ['ssr/_next/static/page-Gh6edkTR.js','recovery-assets.mjs']){
+            const old=webform.get(name);
+            if(!old)throw Error('Missing live website module '+name);
+            const source=typeof old==='string'?old:await old.text();
+            const updated=patchWebsitePage(source);
+            if(updated===source)throw Error('Web module was not changed');
+            const path='/tmp/'+name.replace(/[^a-z0-9]/gi,'-')+'.mjs';
+            await writeFile(path,updated);
+            execFileSync('node',['--check',path],{stdio:'pipe',timeout:25000});
+            console.log('SAFE_WEB_PATCH '+name+' before='+source.length+' after='+updated.length);
           }
           console.log('PATCH_VALIDATED_NO_PRODUCTION_WRITES');
           NODE
