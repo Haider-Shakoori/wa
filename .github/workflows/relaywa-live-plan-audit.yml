@@ -85,10 +85,10 @@ jobs:
                 const entry=form.get(key);
                 if(!entry)continue;
                 const contents=typeof entry==='string'?entry:await entry.text();
-                for(const needle of ['Save website plan','reason.trim().length<8','Audit reason','website-plans','Create website plan']){
+                for(const needle of ['Edit plan','useState)(``','function D({plans','Save website plan','Audit reason']){
                   let from=0,occurrences=0;
                   while((from=contents.indexOf(needle,from))>=0 && occurrences<3){
-                    const context=contents.slice(Math.max(0,from-320),Math.min(contents.length,from+290));
+                    const context=contents.slice(Math.max(0,from-680),Math.min(contents.length,from+930));
                     console.log('WEB_FRAGMENT '+key+' '+needle+' '+occurrences+' '+JSON.stringify(context));
                     from+=needle.length;occurrences++;
                   }
