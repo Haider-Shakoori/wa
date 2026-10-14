@@ -1,4 +1,4 @@
-"""Release only four exact Cloudflare Worker routes; never change the live app Worker."""
+"""Manage only explicit RelayWA public marketing routes; never replace the live app Worker."""
 import json
 import os
 import sys
@@ -12,6 +12,18 @@ PATHS = [
   "/whatsapp-webhooks",
   "/guides/whatsapp-web-vs-cloud-api",
   "/sitemap.xml",
+  # Exact marketing HTML URLs, no private account routes or wildcard:
+  "/",
+  "/pricing",
+  "/api-docs",
+  "/help",
+  "/blog",
+  "/blog/nodejs-whatsapp-api-send-webhooks",
+  "/blog/laravel-whatsapp-api-order-notifications",
+  "/blog/whatsapp-api-qr-session-troubleshooting",
+  # Same-origin static resources for the message (CSP-compatible):
+  "/relaywa-cookie-message.js",
+  "/relaywa-cookie-message.css",
 ]
 PATTERNS = ["relaywa.com" + path for path in PATHS]
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
@@ -96,7 +108,7 @@ def main():
         missing = [x for x in PATTERNS if x not in mine]
         if missing:
             raise RuntimeError("Missing SEO overlay routes: " + repr(missing))
-        print("All four exact SEO routes are assigned to isolated Worker.")
+        print("All public SEO and cookie-message exact routes are assigned to isolated Worker.")
         return
     # idempotent apply, writing rollback metadata as each route is created.
     added = []
@@ -127,7 +139,7 @@ def main():
             except Exception as error:
                 print("Rollback error:", type(error).__name__, str(error)[:170])
         raise
-    print("Published exactly four isolated SEO routes; existing Worker untouched.")
+    print("Published exact public SEO and cookie-message routes; existing Worker untouched.")
 
 if __name__ == "__main__":
     try:
