@@ -65,6 +65,17 @@ jobs:
                 editPlan:source.includes('updateWebsitePlan'),availability:source.includes('available_for_purchase'),
                 planList:source.includes('subscription_plans'),route:source.includes('/platform/website-plans/:code')});
             }
+            if(worker==='relaywa-web'){
+              const names=[];
+              let total=0;
+              for(const [key,value] of form.entries()){
+                const bytes=typeof value==='string'?value.length:value.size;
+                total+=bytes;names.push({key,bytes,type:typeof value==='string'?'string':value.type});
+              }
+              console.log('WEB_MODULE_SUMMARY '+JSON.stringify({total,count:names.length,names:names.sort((a,b)=>b.bytes-a.bytes).slice(0,20)}));
+              const workerSettings=await jsonCall(root+'/workers/scripts/relaywa-web/settings').catch(()=>null);
+              console.log('WEB_SETTINGS '+JSON.stringify({date:workerSettings?.compatibility_date,flags:workerSettings?.compatibility_flags,bindings:workerSettings?.bindings?.map(b=>({name:b.name,type:b.type}))}));
+            }
             const mainFile=form.get('index.js');
             if(mainFile){
               const source=typeof mainFile==='string'?mainFile:await mainFile.text();
