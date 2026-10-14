@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '../lib/api';
 import type { ClientPlan } from './platform-client-subscription-editor';
 import { PlatformWebsitePlanEditor } from './platform-website-plan-editor';
 
@@ -20,17 +21,63 @@ const money=(cents:number,currency='USD')=>new Intl.NumberFormat('en-US',{
   style:'currency',currency:currency||'USD',
 }).format((Number(cents)||0)/100);
 
-export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpdated,onPayments}:{
+export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,canDelete,onUpdated,onDeleted,onPayments}:{
   plans:ClientPlan[];
   payments:Payment[];
   token:string;
   canEdit:boolean;
+  canDelete:boolean;
   onUpdated:(savedPlan:ClientPlan)=>Promise<void>;
+  onDeleted:(code:string)=>Promise<void>;
   onPayments:()=>void;
 }) {
   const [annual,setAnnual]=useState(false);
   const [editingCode,setEditingCode]=useState<string|null>(null);
+  const [actionBusy,setActionBusy]=useState<string|null>(null);
+  const [actionError,setActionError]=useState('');
+  const [actionNotice,setActionNotice]=useState('');
   const current=plans.find(p=>p.code===editingCode)??null;
+  const isPurchasable=(plan:ClientPlan)=>plan.available_for_purchase!==false&&plan.available_for_purchase!==0;
+
+  async function togglePurchases(plan:ClientPlan) {
+    if(actionBusy||!canEdit||plan.code==='trial'||plan.code==='enterprise_b2b')return;
+    const next=!isPurchasable(plan);
+    const reason=window.prompt((next?'Enable':'Disable')+' new purchases for '+plan.name+'? Enter a reason (8+ characters):');
+    if(reason===null)return;
+    if(reason.trim().length<8){setActionError('Enter an audit reason of at least 8 characters.');return;}
+    if(!window.confirm((next?'Enable':'Disable')+' new purchases for '+plan.name+'? Existing subscribers retain access.'))return;
+    setActionBusy(plan.code);setActionError('');setActionNotice('');
+    try {
+      const saved=await api<ClientPlan>('/platform/website-plans/'+encodeURIComponent(plan.code)+'/availability',token,{
+        method:'PATCH',body:JSON.stringify({availableForPurchase:next,reason:reason.trim()}),
+      });
+      await onUpdated(saved);
+      setActionNotice(next?plan.name+' is available for new purchases.':plan.name+' is hidden from new purchases.');
+    } catch(error){setActionError(error instanceof Error?error.message:'Could not update plan availability.');}
+    finally{setActionBusy(null);}
+  }
+
+  async function deletePlan(plan:ClientPlan) {
+    if(actionBusy||!canDelete||plan.code==='trial'||plan.code==='enterprise_b2b')return;
+    const code=window.prompt('Type the exact plan code '+plan.code+' to permanently delete this unused plan:');
+    if(code===null)return;
+    if(code.trim()!==plan.code){setActionError('Plan code did not match. No changes made.');return;}
+    const reason=window.prompt('Reason for deleting '+plan.name+' (8+ characters):');
+    if(reason===null)return;
+    if(reason.trim().length<8){setActionError('Enter an audit reason of at least 8 characters.');return;}
+    if(!window.confirm('Permanently delete '+plan.name+'? It cannot be restored without a backup. Plans with subscriber or payment references cannot be deleted.'))return;
+    setActionBusy(plan.code);setActionError('');setActionNotice('');
+    try{
+      await api('/platform/website-plans/'+encodeURIComponent(plan.code),token,{
+        method:'DELETE',body:JSON.stringify({reason:reason.trim()}),
+      });
+      await onDeleted(plan.code);
+      setActionNotice('Plan '+plan.name+' was deleted.');
+      if(editingCode===plan.code)setEditingCode(null);
+    }catch(error){setActionError(error instanceof Error?error.message:'Could not delete plan. Disable purchases instead.');}
+    finally{setActionBusy(null);}
+  }
+
 
   return <section className="website-subscriptions" aria-label="Website subscriptions">
     <div className="panel website-subscriptions-head">
@@ -64,6 +111,8 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
             onClick={()=>setAnnual(true)}>Yearly</button>
         </div>
       </div>
+      {actionError&&<p role="alert" className="alert">{actionError}</p>}
+      {actionNotice&&<p role="status" className="muted">{actionNotice}</p>}
       {plans.length?<div className="website-subscription-plans">
         {plans.map(plan=><article key={plan.code}>
           <span className="eyebrow">{plan.code}</span>
@@ -76,6 +125,13 @@ export function PlatformWebsiteSubscriptions({plans,payments,token,canEdit,onUpd
           {canEdit&&plan.code!=='trial'&&
             <button type="button" className="secondary-button website-plan-edit-btn"
               onClick={()=>setEditingCode(plan.code)}>Edit plan</button>}
+          {!isPurchasable(plan)&&<small role="status">Unavailable for new purchases</small>}
+          {canEdit&&plan.code!=='trial'&&plan.code!=='enterprise_b2b'&&
+            <button type="button" className="secondary-button" disabled={actionBusy!==null}
+              onClick={()=>void togglePurchases(plan)}>{actionBusy===plan.code?'Saving…':isPurchasable(plan)?'Disable new purchases':'Enable new purchases'}</button>}
+          {canDelete&&plan.code!=='trial'&&plan.code!=='enterprise_b2b'&&
+            <button type="button" className="secondary-button" disabled={actionBusy!==null}
+              onClick={()=>void deletePlan(plan)}>Delete unused plan</button>}
           {plan.code==='trial'&&<small>Built-in trial plan · restricted</small>}
         </article>)}
       </div>:<p className="muted">No website plans are currently configured.</p>}
