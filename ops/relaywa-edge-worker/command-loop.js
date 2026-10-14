@@ -9,6 +9,7 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
   let nextWorkerHeartbeat = 0;
   let nextHealthScan = 0;
   let nextWebhookScan = 0;
+  let nextCommandPoll = 0;
   const healthScanIntervalMs = Math.max(30_000, Number(process.env.OPERATIONAL_HEALTH_SCAN_MS || 60_000));
   while (!signal.aborted) {
     try {
@@ -29,10 +30,14 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
         console.error('[monitoring] health scan failed:', error instanceof Error ? error.message : String(error));
       }
     }
-    const command = await store.claimNextCommand();
-    if (command) {
-      await handleCommand({ store, sessions, command });
-      continue;
+    const activeSessions = hasActiveSessions(sessions);
+    if (activeSessions || Date.now() >= nextCommandPoll) {
+      nextCommandPoll = Date.now() + (activeSessions ? ACTIVE_POLL_MS : IDLE_POLL_MS);
+      const command = await store.claimNextCommand();
+      if (command) {
+        await handleCommand({ store, sessions, command });
+        continue;
+      }
     }
 
     if (alertMailer?.isConfigured()) {
@@ -50,9 +55,8 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
 
     // Idle workers do not need to check the webhook queue on every command poll.
     // With any active session, preserve original 15s delivery responsiveness.
-    const active = hasActiveSessions(sessions);
-    if (active || Date.now() >= nextWebhookScan) {
-      nextWebhookScan = Date.now() + (active ? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS);
+    if (activeSessions || Date.now() >= nextWebhookScan) {
+      nextWebhookScan = Date.now() + (activeSessions ? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS);
       await store.enqueueWebhookDeliveries();
       const delivery = await store.claimNextWebhookDelivery();
       if (delivery) {
@@ -64,7 +68,8 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
     } catch (error) {
       console.error('[command-loop] bridge unavailable:', error instanceof Error ? error.message : String(error));
     }
-    await sleep(hasActiveSessions(sessions) ? ACTIVE_POLL_MS : IDLE_POLL_MS, signal);
+    // Wake every 15s to preserve the independent worker liveness heartbeat.
+    await sleep(ACTIVE_POLL_MS, signal);
   }
 }
 
@@ -88,11 +93,13 @@ async function handleCommand({ store, sessions, command }) {
 function sleep(ms, signal) {
   return new Promise((resolve) => {
     if (signal.aborted) return resolve();
-    const timer = setTimeout(resolve, ms);
-    timer.unref();
-    signal.addEventListener('abort', () => {
+    const finish = () => {
       clearTimeout(timer);
+      signal.removeEventListener('abort', finish);
       resolve();
-    }, { once: true });
+    };
+    const timer = setTimeout(finish, ms);
+    timer.unref();
+    signal.addEventListener('abort', finish, { once: true });
   });
 }
