@@ -41,6 +41,24 @@ jobs:
               const joined=files.map(f=>f.source).join('\n');
               const patterns=['/whatsapp-sessions/:sessionId/events','/whatsapp-sessions/:id/events','/internal/worker/commands','/internal/worker/messages/poll','/internal/worker/heartbeat','text/event-stream','session.reconnecting','session.connected'];
               console.log('WORKER_SOURCE '+name+' MODULES='+files.length+' FLAGS='+JSON.stringify(Object.fromEntries(patterns.map(p=>[p,joined.includes(p)]))));
+              if(name==='relaywa-api') {
+                for(const file of files) {
+                  for(const needle of ['text/event-stream','/events','relaywa.heartbeat','session.qr_updated','session.reconnecting','lastEventId']) {
+                    let cursor=0;
+                    for(let i=0;i<3;i++) {
+                      const at=file.source.indexOf(needle,cursor);
+                      if(at<0)break;
+                      const snippet=file.source.slice(Math.max(0,at-200),Math.min(file.source.length,at+300));
+                      console.log('API_ROUTE_CONTEXT '+file.name+' '+needle+' '+i+' '+JSON.stringify(snippet));
+                      cursor=at+needle.length;
+                    }
+                  }
+                }
+              }
+              if(name==='relaywa-web') {
+                const needles=['relaywa-session-updated','SESSION_STREAM_STALE_MS','session-poll-policy','/whatsapp-sessions/','text/event-stream'];
+                console.log('LIVE_WEB_MARKERS '+JSON.stringify(Object.fromEntries(needles.map(p=>[p,joined.includes(p)]))));
+              }
             }catch(e){console.log('WORKER_AUDIT_ERROR '+name+' '+e.message);}
           }
           try {
