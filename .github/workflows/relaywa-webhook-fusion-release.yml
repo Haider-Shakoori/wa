@@ -1,0 +1,28 @@
+name: RelayWA guarded webhook fusion release
+on:
+  push:
+    branches: [perf/relaywa-webhook-claim-fusion]
+    paths: ['.github/workflows/relaywa-webhook-fusion-release.yml']
+permissions: {contents: read}
+concurrency: {group: relaywa-api-webhook-fusion-release, cancel-in-progress: false}
+jobs:
+  release:
+    if: github.event.head_commit.message == 'Activate guarded RelayWA webhook fusion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RELAYWA_WEBHOOK_DEPLOY_CONFIRM: APPLY_RELAYWA_WEBHOOK_FUSION_20261015
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify deployment and fallback source
+        run: |
+          node --check ops/relaywa-webhook-fusion/release-api.mjs
+          bash -n ops/relaywa-webhook-fusion/deploy-vps.sh
+          node --test ops/relaywa-webhook-fusion/test/*.test.mjs
+          node --test ops/relaywa-edge-worker/test/*.test.mjs
+      - name: Activate pre-staged API with health, auth and rollback checks
+        run: node ops/relaywa-webhook-fusion/release-api.mjs
