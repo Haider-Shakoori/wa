@@ -51,10 +51,13 @@ jobs:
           const entry=form.get('index.js');
           if(!entry)throw Error('Live relaywa-api missing index.js');
           const source=typeof entry==='string'?entry:await entry.text();
-          const patch=applyCommandHeartbeatPatch(source);
+          const staged=source.includes("X-RelayWA-Heartbeat-Combined");
+          if(staged && !source.includes("relaywa_worker_heartbeats"))
+            throw Error('Staged Worker heartbeat marker without database operation');
+          const patch=staged?source:applyCommandHeartbeatPatch(source);
           acorn.parse(patch,{ecmaVersion:'latest',sourceType:'module'});
           if(patch.length-source.length>2000)throw Error('Unexpected patch size');
-          console.log('LIVE_CLOUDFLARE_API_PATCH_VALID syntax=true bytesAdded='+String(patch.length-source.length));
+          console.log('CLOUDFLARE_API_PATCH_VALID syntax=true alreadyUploaded='+staged);
           const dbList=await fetch(prefix+'/d1/database?per_page=100',{headers,signal:AbortSignal.timeout(12000)});
           if(!dbList.ok)throw Error('D1 discovery failed');
           const list=(await dbList.json()).result??[];
