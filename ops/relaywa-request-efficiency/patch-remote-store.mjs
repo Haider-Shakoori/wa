@@ -2,6 +2,8 @@
 // unless the Cloudflare API explicitly confirms a combined command heartbeat.
 export function patchRemoteStore(original) {
   let source = String(original);
+  if (source.includes('commandClaimHeartbeatVerified()') || source.includes('commandHeartbeatConfirmedAt'))
+    throw Error('Unexpected RemoteStore layout: patch already present');
   const constructorAnchor = '    this.cooldownUntil = 0;';
   const closeAnchor = '  async close() { /* no persistent connections */ }';
   const returnAnchor = '        return payload;';
