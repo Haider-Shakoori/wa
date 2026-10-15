@@ -13,6 +13,7 @@ type StreamOptions = {
   token: string;
   signal: AbortSignal;
   onOpen: () => void;
+  onActivity: () => void;
   onEvents: (events: SessionStreamEvent[]) => void;
 };
 
@@ -21,7 +22,7 @@ type StreamOptions = {
  * One open SSE stream replaces repeated public HTTP status requests.
  */
 export async function watchSessionEvents(options: StreamOptions): Promise<void> {
-  const { sessionId, token, signal, onOpen, onEvents } = options;
+  const { sessionId, token, signal, onOpen, onActivity, onEvents } = options;
   const response = await fetch(
     API_BASE + '/whatsapp-sessions/' + encodeURIComponent(sessionId) + '/events',
     {
@@ -40,7 +41,7 @@ export async function watchSessionEvents(options: StreamOptions): Promise<void> 
   const decoder = new TextDecoder();
   let pending = '';
   let frameData: string[] = [];
-  onOpen();
+  let opened = false;
   try {
     while (!signal.aborted) {
       const { value, done } = await reader.read();
@@ -52,6 +53,8 @@ export async function watchSessionEvents(options: StreamOptions): Promise<void> 
         pending = pending.slice(newline + 1);
         if (line === '') {
           if (frameData.length) {
+            if (!opened) { opened = true; onOpen(); }
+            onActivity();
             try {
               const value: unknown = JSON.parse(frameData.join('\n'));
               if (Array.isArray(value)) {
