@@ -33,6 +33,7 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
 
  useEffect(() => {
    if (!token || view !== 'session' || !sessionId) return;
+   const streamSessionId = sessionId;
    let cancelled = false;
    let polling = false;
    let pendingRefresh = false;
@@ -99,7 +100,7 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
      }
      keepAlive();
      void watchSessionEvents({
-       sessionId,
+       sessionId: streamSessionId,
        token,
        signal: controller.signal,
        onOpen: () => {
