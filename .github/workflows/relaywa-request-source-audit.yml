@@ -42,6 +42,11 @@ jobs:
               const patterns=['/whatsapp-sessions/:sessionId/events','/whatsapp-sessions/:id/events','/internal/worker/commands','/internal/worker/messages/poll','/internal/worker/heartbeat','text/event-stream','session.reconnecting','session.connected'];
               console.log('WORKER_SOURCE '+name+' MODULES='+files.length+' FLAGS='+JSON.stringify(Object.fromEntries(patterns.map(p=>[p,joined.includes(p)]))));
               if(name==='relaywa-api') {
+                const found=files.find(v=>v.name==='index.js')??files[0];
+                for(const key of ['/internal/worker','/heartbeat','/commands/claim','/messages/poll','/webhooks/enqueue','/webhooks/claim','export{','export default']) {
+                  const offset=found.source.lastIndexOf(key);
+                  if(offset>=0) console.log('ROUTE_INJECTION_CONTEXT '+key+' '+JSON.stringify(found.source.slice(Math.max(0,offset-250),Math.min(found.source.length,offset+380))));
+                }
                 for(const file of files) {
                   for(const needle of ['text/event-stream','/events','relaywa.heartbeat','session.qr_updated','session.reconnecting','lastEventId']) {
                     let cursor=0;
