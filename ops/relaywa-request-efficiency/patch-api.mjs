@@ -12,6 +12,7 @@ export function applyCommandHeartbeatPatch(source) {
   const newHead=`f.post("/commands/claim", async (e) => {
   let t = await e.req.json(), n = A(t), r = nn(t);
   await e.env.DB.prepare(${JSON.stringify(heartbeatSql)}).bind(n).run();
+  e.header('X-RelayWA-Heartbeat-Combined','1');
   let s = await e.env.DB.prepare`;
   return source.replace(oldHead,newHead);
 }
