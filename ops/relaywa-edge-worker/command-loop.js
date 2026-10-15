@@ -1,5 +1,6 @@
 import { deliverWebhook } from './webhook-delivery.js';
 import { hasActiveSessions, boundedInterval } from './adaptive-poll.js';
+import { claimWebhookSafely } from './webhook-fusion.js';
 
 const ACTIVE_POLL_MS = boundedInterval(process.env.SESSION_COMMAND_POLL_MS, 15000);
 const IDLE_POLL_MS = boundedInterval(process.env.SESSION_IDLE_COMMAND_POLL_MS, 30000, ACTIVE_POLL_MS);
@@ -72,8 +73,7 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
     // With any active session, preserve original 15s delivery responsiveness.
     if (activeSessions || Date.now() >= nextWebhookScan) {
       nextWebhookScan = Date.now() + (activeSessions ? ACTIVE_POLL_MS : IDLE_WEBHOOK_POLL_MS);
-      await store.enqueueWebhookDeliveries();
-      const delivery = await store.claimNextWebhookDelivery();
+      const delivery = await claimWebhookSafely(store);
       if (delivery) {
         await deliverWebhook(store, delivery);
         continue;

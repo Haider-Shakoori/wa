@@ -1,0 +1,26 @@
+name: RelayWA webhook fusion inactive stage
+on:
+  push:
+    branches: [perf/relaywa-webhook-claim-fusion]
+    paths: ['.github/workflows/relaywa-webhook-fusion-stage.yml']
+permissions: {contents: read}
+concurrency: {group: relaywa-webhook-fusion-stage, cancel-in-progress: false}
+jobs:
+  stage:
+    if: github.event.head_commit.message == 'Stage inactive RelayWA webhook fusion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate patch and worker tests
+        run: |
+          node --check ops/relaywa-webhook-fusion/stage-api.mjs
+          node --test ops/relaywa-webhook-fusion/test/*.test.mjs
+          node --test ops/relaywa-edge-worker/test/*.test.mjs
+      - name: Stage inactive API version; leave production alone
+        run: node ops/relaywa-webhook-fusion/stage-api.mjs

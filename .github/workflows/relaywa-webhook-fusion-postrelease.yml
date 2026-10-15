@@ -1,0 +1,61 @@
+name: RelayWA webhook fusion production verification
+on:
+  push:
+    branches: [perf/relaywa-webhook-claim-fusion]
+    paths: ['.github/workflows/relaywa-webhook-fusion-postrelease.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify active Worker and D1 state without modifying data
+        run: |
+          node --input-type=module <<'NODE'
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!id||!token)throw Error('Cloudflare token not available');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+id;
+          const headers={authorization:'Bearer '+token};
+          async function cf(url,init={}){
+            const r=await fetch(url,{...init,headers:{...headers,...init.headers},signal:AbortSignal.timeout(16000)});
+            const x=await r.json();
+            if(!r.ok||!x.success)throw Error('Cloudflare request failed HTTP '+r.status+' '+JSON.stringify(x.errors?.map(y=>y.code)));
+            return x.result;
+          }
+          const dep=await cf(root+'/workers/scripts/relaywa-api/deployments');
+          const version=dep.deployments?.[0]?.versions;
+          if(version?.length!==1||version[0].percentage!==100||version[0].version_id!=='6f6ee844-9f76-4967-bfc7-0753ccf35cdf')
+            throw Error('Unexpected API deployment');
+          const databases=await cf(root+'/d1/database?per_page=100');
+          const db=databases.filter(x=>x.name==='relaywa');
+          if(db.length!==1)throw Error('No unique RelayWA database');
+          async function query(sql){
+            for(let attempt=0;attempt<3;attempt++){
+              try{
+                const records=await cf(root+'/d1/database/'+db[0].uuid+'/query',{
+                  method:'POST',headers:{'content-type':'application/json'},
+                  body:JSON.stringify({sql})});
+                if(!Array.isArray(records?.[0]?.results))throw Error('D1 response missing results');
+                return records[0].results;
+              }catch(error){
+                if(attempt===2)throw error;
+                await new Promise(done=>setTimeout(done,700));
+              }
+            }
+          }
+          const sessions=await query("SELECT status,COUNT(*) AS count FROM whatsapp_sessions WHERE deleted_at IS NULL GROUP BY status");
+          const valid=await query("SELECT COUNT(*) AS count FROM whatsapp_sessions WHERE status='connected' AND worker_lease_expires_at>datetime('now')");
+          const workers=await query("SELECT COUNT(*) AS count FROM relaywa_worker_heartbeats WHERE last_seen_at>=datetime('now','-90 seconds')");
+          const webhooks=await query("SELECT status,COUNT(*) AS count FROM webhook_deliveries GROUP BY status ORDER BY status");
+          console.log('ACTIVE_WEBHOOK_FUSION_VERSION_CONFIRMED');
+          console.log('SESSION_STATES '+JSON.stringify(sessions));
+          console.log('CONNECTED_VALID_LEASES '+Number(valid[0]?.count??0));
+          console.log('FRESH_WORKER_HEARTBEATS '+Number(workers[0]?.count??0));
+          console.log('WEBHOOK_DELIVERY_STATES '+JSON.stringify(webhooks));
+          if(Number(valid[0]?.count??0)<1||Number(workers[0]?.count??0)<1)
+            throw Error('Connected session or fresh worker heartbeat missing');
+          console.log('WEBHOOK_FUSION_PRODUCTION_VERIFICATION_PASSED');
+          NODE

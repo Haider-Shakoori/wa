@@ -1,0 +1,24 @@
+name: RelayWA webhook fusion safety
+on:
+  push:
+    branches: [perf/relaywa-webhook-claim-fusion]
+    paths: ['ops/relaywa-webhook-fusion/**','ops/relaywa-edge-worker/**','.github/workflows/relaywa-webhook-fusion-tests.yml']
+  pull_request:
+    paths: ['ops/relaywa-webhook-fusion/**','ops/relaywa-edge-worker/**']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate production worker files
+        run: |
+          node --check ops/relaywa-webhook-fusion/patch-api.mjs
+          node --check ops/relaywa-webhook-fusion/patch-remote-store.mjs
+          node --check ops/relaywa-edge-worker/webhook-fusion.js
+          node --check ops/relaywa-edge-worker/command-loop.js
+          node --test ops/relaywa-webhook-fusion/test/*.test.mjs
+          node --test ops/relaywa-edge-worker/test/*.test.mjs
