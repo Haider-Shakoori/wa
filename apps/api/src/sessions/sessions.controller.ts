@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, Sse, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Req, Sse, UseGuards } from '@nestjs/common';
 import { ApiAccessGuard, type ApiAuthenticatedRequest } from '../auth/api-access.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { PERMISSIONS } from '../auth/permissions';
@@ -29,6 +29,8 @@ export class SessionsController {
     return this.sessions.create(request.auth.org, request.auth.sub, body);
   }
 
+  @Header('Cache-Control', 'no-cache, no-transform')
+  @Header('X-Accel-Buffering', 'no')
   @Sse(':sessionId/events')
   @RequirePermissions(PERMISSIONS.SESSIONS_READ)
   streamEvents(

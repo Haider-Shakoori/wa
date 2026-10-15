@@ -6,6 +6,8 @@ import { FeatherIcon, type FeatherName } from './feather-icon';
 import { FormEvent, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
+import { SESSION_FALLBACK_POLL_MS, SESSION_STREAM_RETRY_MS, SESSION_STREAM_STALE_MS } from '../lib/session-poll-policy';
+import { watchSessionEvents } from '../lib/session-events';
 import { Brand, Badge, PlanCards, type Plan } from './marketing-primitives';
 export { Brand, Badge, PlanCards } from './marketing-primitives';
 export type { Plan } from './marketing-primitives';
@@ -27,14 +29,141 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
  useEffect(()=>{if(!token)return;const update=()=>void refresh(token);const storage=(event:StorageEvent)=>{if(event.key==='relaywa_billing_updated')update();};window.addEventListener('focus',update);window.addEventListener('relaywa-billing-updated',update);window.addEventListener('storage',storage);return()=>{window.removeEventListener('focus',update);window.removeEventListener('relaywa-billing-updated',update);window.removeEventListener('storage',storage);};},[token]);
  async function refresh(current=token){if(!current)return;try{const results=await Promise.allSettled([api<Session[]>('/whatsapp-sessions',current).then(setSessions),api<any>('/billing/subscription',current).then(setBilling),api<any[]>('/api-keys',current).then(setKeys),api<any[]>('/webhooks',current).then(setWebhooks),api<Plan[]>('/public/plans').then(setPlans),api<any[]>('/billing/payments',current).then(setPayments),api<any[]>('/billing/providers',current).then(setProviders)]);const failed=results.find(r=>r.status==='rejected');if(failed?.status==='rejected')setError('Some workspace information could not be refreshed. Please try Refresh.');else setError('');}finally{setLoading(false);}}
  useEffect(()=>{const current=localStorage.getItem('relaywa_access_token');if(!current){router.replace('/login');return;}setToken(current);void api<any>('/auth/me',current).then(r=>{setEmail(r.user?.email||r.auth.email);setAccountName(r.user?.name||'');}).catch(()=>{localStorage.removeItem('relaywa_access_token');router.replace('/login');});void refresh(current);},[router,view]);
- useEffect(()=>{if(!token||view!=='session'||!sessionId)return;let cancelled=false;let polling=false;setQr(null);setQrError('');setQrRequested(false);async function poll(){if(polling)return;polling=true;try{const latest=await api<Session>('/whatsapp-sessions/'+sessionId,token);if(cancelled)return;setSessions(previous=>previous.some(s=>s.id===latest.id)?previous.map(s=>s.id===latest.id?latest:s):[...previous,latest]);if(latest.status==='connected'){setQr(null);setQrRequested(false);setQrError('');setNotice(previous=>previous==='Preparing your WhatsApp QR code…'||previous.startsWith('Request queued.')?'WhatsApp connected successfully.':previous);return;}try{const result=await api<any>('/whatsapp-sessions/'+sessionId+'/qrcode',token);if(!cancelled){setQr(result);if(result.available)setQrError('');}}catch{if(!cancelled)setQrError('Unable to load the QR code. Retrying automatically…');}}catch{if(!cancelled)setQrError('Unable to refresh connection status. Retrying automatically…');}finally{polling=false;}}void poll();const timer=setInterval(()=>void poll(),2000);void api<any[]>('/whatsapp-sessions/'+sessionId+'/logs',token).then(r=>{if(!cancelled)setLogs(r);}).catch(()=>{});return()=>{cancelled=true;clearInterval(timer);};},[token,view,sessionId]);
+
+
+ useEffect(() => {
+   if (!token || view !== 'session' || !sessionId) return;
+   const streamSessionId = sessionId;
+   let cancelled = false;
+   let polling = false;
+   let pendingRefresh = false;
+   let healthyStream = false;
+   let pollTimer: ReturnType<typeof setTimeout> | undefined;
+   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+   let streamController: AbortController | undefined;
+
+   setQr(null);
+   setQrError('');
+   setQrRequested(false);
+
+   function schedulePoll(delayMs: number) {
+     if (pollTimer !== undefined) clearTimeout(pollTimer);
+     pollTimer = undefined;
+     if (cancelled || document.visibilityState !== 'visible') return;
+     pollTimer = setTimeout(() => void poll(), delayMs);
+   }
+   async function poll() {
+     if (cancelled || document.visibilityState !== 'visible') return;
+     if (polling) { pendingRefresh = true; return; }
+     polling = true;
+     try {
+       const latest = await api<Session>('/whatsapp-sessions/' + sessionId, token);
+       if (cancelled) return;
+       setSessions(previous => previous.some(s => s.id === latest.id)
+         ? previous.map(s => s.id === latest.id ? latest : s)
+         : [...previous, latest]);
+       if (latest.status === 'connected') {
+         setQr(null);
+         setQrRequested(false);
+         setQrError('');
+         setNotice(previous => previous === 'Preparing your WhatsApp QR code…' || previous.startsWith('Request queued.')
+           ? 'WhatsApp connected successfully.' : previous);
+       } else {
+         try {
+           const result = await api<any>('/whatsapp-sessions/' + sessionId + '/qrcode', token);
+           if (!cancelled) {
+             setQr(result);
+             if (result.available) setQrError('');
+           }
+         } catch {
+           if (!cancelled) setQrError('Unable to load the QR code. Retrying automatically…');
+         }
+       }
+     } catch {
+       if (!cancelled) setQrError('Unable to refresh connection status. Retrying automatically…');
+     } finally {
+       polling = false;
+       if (!cancelled) {
+         if (pendingRefresh) { pendingRefresh = false; schedulePoll(0); }
+         else if (!healthyStream) schedulePoll(SESSION_FALLBACK_POLL_MS);
+       }
+     }
+   }
+   function startStream() {
+     if (cancelled || streamController || document.visibilityState !== 'visible') return;
+     const controller = new AbortController();
+     let streamWatchdog: ReturnType<typeof setTimeout> | undefined;
+     streamController = controller;
+     function keepAlive() {
+       if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
+       streamWatchdog = setTimeout(() => controller.abort(), SESSION_STREAM_STALE_MS);
+     }
+     keepAlive();
+     void watchSessionEvents({
+       sessionId: streamSessionId,
+       token,
+       signal: controller.signal,
+       onOpen: () => {
+         if (cancelled || controller.signal.aborted) return;
+         healthyStream = true;
+         if (pollTimer !== undefined) clearTimeout(pollTimer);
+         pollTimer = undefined;
+       },
+       onActivity: keepAlive,
+       onEvents: events => {
+         if (cancelled || controller.signal.aborted) return;
+         if (events.some(event => event.type.startsWith('session.'))) schedulePoll(0);
+       },
+     }).catch(() => {}).finally(() => {
+       if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
+       streamWatchdog = undefined;
+       if (streamController !== controller) return;
+       streamController = undefined;
+       healthyStream = false;
+       if (cancelled || document.visibilityState !== 'visible') return;
+       schedulePoll(0); // Restore 2-second polling immediately if SSE is unavailable.
+       retryTimer = setTimeout(startStream, SESSION_STREAM_RETRY_MS);
+     });
+   }
+   function onVisibilityChange() {
+     if (document.visibilityState === 'visible') {
+       schedulePoll(0);
+       startStream();
+     } else {
+       if (pollTimer !== undefined) clearTimeout(pollTimer);
+       pollTimer = undefined;
+       if (retryTimer !== undefined) clearTimeout(retryTimer);
+       retryTimer = undefined;
+       streamController?.abort();
+       streamController = undefined;
+       healthyStream = false;
+     }
+   }
+   function requestRefresh() {
+     if (document.visibilityState === 'visible') schedulePoll(0);
+   }
+   document.addEventListener('visibilitychange', onVisibilityChange);
+   window.addEventListener('relaywa-session-updated', requestRefresh);
+   onVisibilityChange();
+   void api<any[]>('/whatsapp-sessions/' + sessionId + '/logs', token)
+     .then(result => { if (!cancelled) setLogs(result); })
+     .catch(() => {});
+   return () => {
+     cancelled = true;
+     if (pollTimer !== undefined) clearTimeout(pollTimer);
+     if (retryTimer !== undefined) clearTimeout(retryTimer);
+     streamController?.abort();
+     document.removeEventListener('visibilitychange', onVisibilityChange);
+     window.removeEventListener('relaywa-session-updated', requestRefresh);
+   };
+ }, [token, view, sessionId]);
  useEffect(()=>{if(session){setName(session.name);setPhone(session.phone_hint||'');}},[session?.id]);
  useEffect(()=>{if(!token||view!=='session'||!sessionId||!session)return;const query=new URLSearchParams(window.location.search);if(query.get('connect')!=='true')return;window.history.replaceState(window.history.state,'','/whatsapp/'+sessionId);if(['pending','logged_out'].includes(session.status))void lifecycle('connect');},[token,view,sessionId,session?.id]);
  useEffect(()=>{if(view!=='subscription'||!plans.length)return;const query=new URLSearchParams(window.location.search);const selected=plans.find(p=>p.code===query.get('plan'));if(selected)router.replace('/checkout?plan='+selected.code+'&interval='+(query.get('interval')==='annual'?'annual':'monthly')); if(query.get('interval')==='annual')setAnnual(true);},[view,plans.length]);
  useEffect(()=>{if(!qrRequested||qrVisible||qrExpired||session?.status==='connected')return;const timer=setTimeout(()=>setQrError('QR preparation is taking longer than expected. Retry to request a fresh code.'),45000);return()=>clearTimeout(timer);},[qrRequested,qr?.available,session?.status]);
  async function action(work:()=>Promise<unknown>,success:string){setBusy(true);setError('');setNotice('');try{await work();setNotice(success);await refresh();}catch(e){setError(e instanceof Error?e.message:'Unable to complete action.');}finally{setBusy(false);}}
  async function create(e:FormEvent){e.preventDefault();await action(async()=>{const result=await api<Session>('/whatsapp-sessions',token,{method:'POST',body:JSON.stringify({name,phoneHint:phone})});router.push('/whatsapp/'+result.id);},'Session created.');}
- async function lifecycle(kind:string,confirmed=false){if(!session)return;if(kind==='logout'&&!confirmed){setConfirmation({message:'Disconnect this WhatsApp number? A new QR scan will be required.',confirm:()=>void lifecycle(kind,true)});return;}if(kind!=='logout'){setQr(null);setQrError('');setQrRequested(true);}else{setQrRequested(false);setQr(null);}await action(async()=>{try{await api('/whatsapp-sessions/'+session.id+'/'+(kind==='logout'?'disconnect':kind),token,{method:'POST'});}catch(e){setQrRequested(false);throw e;}},kind==='connect'?'Preparing your WhatsApp QR code…':'Request queued. The worker will update your session shortly.');}
+ async function lifecycle(kind:string,confirmed=false){if(!session)return;if(kind==='logout'&&!confirmed){setConfirmation({message:'Disconnect this WhatsApp number? A new QR scan will be required.',confirm:()=>void lifecycle(kind,true)});return;}if(kind!=='logout'){setQr(null);setQrError('');setQrRequested(true);}else{setQrRequested(false);setQr(null);}await action(async()=>{try{await api('/whatsapp-sessions/'+session.id+'/'+(kind==='logout'?'disconnect':kind),token,{method:'POST'});window.dispatchEvent(new Event('relaywa-session-updated'));}catch(e){setQrRequested(false);throw e;}},kind==='connect'?'Preparing your WhatsApp QR code…':'Request queued. The worker will update your session shortly.');}
  async function createKey(bound?:string){await action(async()=>{const r=await api<any>('/api-keys',token,{method:'POST',body:JSON.stringify({name:bound?session?.name+' session key':keyName,tokenType:bound?'session':'organization',...(bound?{sessionId:bound}:{}),scopes:bound?['sessions.read','messages.read','messages.send','contacts.read','chats.read','groups.read']:selectedScopes})});setNewKey(r.token);setKeyCopied(false);setKeyModal(true);setKeyName('');},'Key created. Copy it now; it is shown only once.');}
  async function copy(value:string){try{await navigator.clipboard.writeText(value);setNotice('Copied to clipboard.');}catch{setError('Select and copy the value manually.');}}
  function revoke(id:string){setConfirmation({message:'Revoke this key? Applications using it will stop working.',confirm:()=>void action(()=>api('/api-keys/'+id,token,{method:'DELETE'}),'Key revoked.')});}
