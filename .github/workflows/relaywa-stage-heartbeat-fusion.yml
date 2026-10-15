@@ -4,6 +4,7 @@ on:
     branches: [perf/relaywa-request-efficiency]
     paths:
       - '.github/workflows/relaywa-stage-heartbeat-fusion.yml'
+      - 'ops/relaywa-request-efficiency/stage-api.mjs'
 permissions:
   contents: read
 concurrency:
