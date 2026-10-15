@@ -37,7 +37,7 @@ console.log('RELAYWA_API_DEPLOY_PREFLIGHT_PASS');
 // Applying only existing API Worker script. Any error after activation rolls back.
 let activated=false;
 try {
-  await activate(candidate,'RelayWA worker command heartbeat request reduction');
+  await activate(candidate,'RelayWA combined webhook enqueue and claim');
   activated=true;
   const url='https://relaywa.com/api/health';
   const response=await fetch(url,{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(12000)});
@@ -49,7 +49,7 @@ try {
     body:'{}',signal:AbortSignal.timeout(10000)});
   console.log('UNAUTHORIZED_COMBINED_WEBHOOK_HTTP '+protectedRequest.status);
   if(![401,403].includes(protectedRequest.status))
-    throw Error('Auth guard on worker command route failed');
+    throw Error('Auth guard on combined webhook route failed');
   console.log('RELAYWA_WEBHOOK_FUSION_ACTIVE '+candidate);
 }catch(error){
   console.error('WEBHOOK_FUSION_RELEASE_FAILED '+String(error.message).slice(0,260));
