@@ -1,0 +1,33 @@
+name: RelayWA Heartbeat Fusion Inactive Cloudflare Stage
+on:
+  push:
+    branches: [perf/relaywa-request-efficiency]
+    paths:
+      - '.github/workflows/relaywa-stage-heartbeat-fusion.yml'
+      - 'ops/relaywa-request-efficiency/stage-api.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-heartbeat-fusion-inactive-stage
+  cancel-in-progress: false
+jobs:
+  stage:
+    if: github.event.head_commit.message == 'Stage inactive RelayWA heartbeat API version'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm safe patch syntax and regression tests
+        run: |
+          node --check ops/relaywa-request-efficiency/stage-api.mjs
+          node --check ops/relaywa-request-efficiency/patch-api.mjs
+          node --check ops/relaywa-edge-worker/command-loop.js
+          node --test ops/relaywa-request-efficiency/test/*.test.mjs
+      - name: Upload inactive Cloudflare API version; do not deploy
+        run: node ops/relaywa-request-efficiency/stage-api.mjs

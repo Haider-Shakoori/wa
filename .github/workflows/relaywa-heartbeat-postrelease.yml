@@ -1,0 +1,59 @@
+name: RelayWA Heartbeat Fusion Post-Release Audit
+on:
+  push:
+    branches: [perf/relaywa-request-efficiency]
+    paths: ['.github/workflows/relaywa-heartbeat-postrelease.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify live worker and D1 heartbeat / session health (read-only)
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN,acct=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!token||!acct)throw Error('Cloudflare credentials missing');
+          const headers={authorization:'Bearer '+token};
+          const root='https://api.cloudflare.com/client/v4/accounts/'+acct;
+          async function get(url,options={}){
+            const r=await fetch(url,{...options,headers:{...headers,...options.headers},signal:AbortSignal.timeout(20000)});
+            const p=await r.json();
+            if(!r.ok||!p.success)throw Error('Cloudflare API '+r.status+' '+JSON.stringify(p.errors?.map(e=>e.code)));
+            return p.result;
+          }
+          const deployment=await get(root+'/workers/scripts/relaywa-api/deployments');
+          const active=deployment.deployments?.[0]?.versions?.find(x=>x.percentage===100)?.version_id;
+          if(active!=='492d3e3f-33e5-4c1b-921c-6b0e8a446e28')
+            throw Error('Expected heartbeat fusion version not active');
+          const databases=await get(root+'/d1/database?per_page=100');
+          const database=databases.filter(x=>x.name==='relaywa');
+          if(database.length!==1)throw Error('RelayWA D1 database ambiguous');
+          async function query(sql){
+            for(let attempt=0;attempt<3;attempt++){
+              const r=await fetch(root+'/d1/database/'+database[0].uuid+'/query',{
+                method:'POST',headers:{...headers,'content-type':'application/json'},
+                body:JSON.stringify({sql}),signal:AbortSignal.timeout(20000)});
+              const data=await r.json();
+              const batch=data.result?.[0];
+              if(r.ok&&data.success&&batch?.success!==false&&Array.isArray(batch?.results))
+                return batch.results;
+              if(attempt===2)throw Error('D1 query unavailable: '+JSON.stringify(data.errors?.map(x=>x.code)));
+              await new Promise(resolve=>setTimeout(resolve,800));
+            }
+          }
+          const tables=await query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('whatsapp_sessions','relaywa_worker_heartbeats')");
+          if(tables.length!==2)throw Error('Session and heartbeat tables not both present');
+          const statuses=await query("SELECT status,COUNT(*) AS count FROM whatsapp_sessions WHERE deleted_at IS NULL GROUP BY status ORDER BY status");
+          const healthy=await query("SELECT COUNT(*) AS count FROM whatsapp_sessions WHERE status='connected' AND worker_lease_expires_at > datetime('now')");
+          const recentWorker=await query("SELECT COUNT(*) AS count FROM relaywa_worker_heartbeats WHERE last_seen_at >= datetime('now','-90 seconds')");
+          console.log('SESSION_STATE_COUNTS '+JSON.stringify(statuses));
+          console.log('CONNECTED_WITH_VALID_LEASES '+Number(healthy[0]?.count??0));
+          console.log('LIVE_WORKERS_WITH_FRESH_HEARTBEATS '+Number(recentWorker[0]?.count??0));
+          if(Number(recentWorker[0]?.count??0)<1)throw Error('No recent worker heartbeat');
+          console.log('HEARTBEAT_FUSION_PRODUCTION_AUDIT_PASS');
+          NODE

@@ -1,0 +1,74 @@
+name: RelayWA Heartbeat Fusion Safety Tests
+on:
+  push:
+    branches: [perf/relaywa-request-efficiency]
+    paths:
+      - 'ops/relaywa-request-efficiency/**'
+      - 'ops/relaywa-edge-worker/command-loop.js'
+      - '.github/workflows/relaywa-heartbeat-fusion.yml'
+  pull_request:
+    paths:
+      - 'ops/relaywa-request-efficiency/**'
+      - 'ops/relaywa-edge-worker/command-loop.js'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check scripts and regression tests
+        run: |
+          node --check ops/relaywa-request-efficiency/patch-api.mjs
+          node --check ops/relaywa-request-efficiency/patch-remote-store.mjs
+          node --check ops/relaywa-edge-worker/command-loop.js
+          node --test ops/relaywa-request-efficiency/test/*.test.mjs
+          node --test ops/relaywa-edge-worker/test/*.test.mjs
+      - name: Install tiny parser for live-source syntax validation
+        run: npm install --prefix /tmp/relaywa-heartbeat-parse --no-audit --no-fund --silent acorn@8
+      - name: Audit deployed Cloudflare bundle and patch in memory (read only)
+        run: |
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { applyCommandHeartbeatPatch } from './ops/relaywa-request-efficiency/patch-api.mjs';
+          const require=createRequire(import.meta.url);
+          const acorn=require('/tmp/relaywa-heartbeat-parse/node_modules/acorn');
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!account||!token)throw Error('Missing Cloudflare audit credentials');
+          const prefix='https://api.cloudflare.com/client/v4/accounts/'+account;
+          const headers={authorization:'Bearer '+token};
+          const res=await fetch(prefix+'/workers/scripts/relaywa-api',{headers,signal:AbortSignal.timeout(25000)});
+          if(!res.ok)throw Error('Unable to inspect deployed API Worker: '+res.status);
+          const form=await res.formData();
+          const entry=form.get('index.js');
+          if(!entry)throw Error('Live relaywa-api missing index.js');
+          const source=typeof entry==='string'?entry:await entry.text();
+          const staged=source.includes("X-RelayWA-Heartbeat-Combined");
+          if(staged && !source.includes("relaywa_worker_heartbeats"))
+            throw Error('Staged Worker heartbeat marker without database operation');
+          const patch=staged?source:applyCommandHeartbeatPatch(source);
+          acorn.parse(patch,{ecmaVersion:'latest',sourceType:'module'});
+          if(patch.length-source.length>2000)throw Error('Unexpected patch size');
+          console.log('CLOUDFLARE_API_PATCH_VALID syntax=true alreadyUploaded='+staged);
+          const dbList=await fetch(prefix+'/d1/database?per_page=100',{headers,signal:AbortSignal.timeout(12000)});
+          if(!dbList.ok)throw Error('D1 discovery failed');
+          const list=(await dbList.json()).result??[];
+          const database=list.find(x=>x.name==='relaywa');
+          if(!database)throw Error('RelayWA D1 missing');
+          const query=await fetch(prefix+'/d1/database/'+database.uuid+'/query',{method:'POST',
+            headers:{...headers,'content-type':'application/json'},
+            body:JSON.stringify({sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='relaywa_worker_heartbeats'"}),
+            signal:AbortSignal.timeout(12000)});
+          const record=await query.json();
+          if(!query.ok||record.result?.[0]?.results?.[0]?.name!=='relaywa_worker_heartbeats')
+            throw Error('Worker heartbeat table missing from live D1');
+          console.log('LIVE_D1_HEARTBEAT_TABLE_VERIFIED');
+          NODE
