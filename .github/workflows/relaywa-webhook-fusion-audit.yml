@@ -1,0 +1,20 @@
+name: RelayWA webhook batch compatibility audit
+on:
+  push:
+    branches: [perf/relaywa-webhook-claim-fusion]
+    paths: ['.github/workflows/relaywa-webhook-fusion-audit.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Read-only live route compatibility check
+        run: node ops/relaywa-webhook-fusion/audit.mjs
