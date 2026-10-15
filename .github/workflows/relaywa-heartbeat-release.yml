@@ -1,0 +1,30 @@
+name: RelayWA Activate Heartbeat Fusion API (guarded)
+on:
+  push:
+    branches: [perf/relaywa-request-efficiency]
+    paths: ['.github/workflows/relaywa-heartbeat-release.yml']
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-heartbeat-api-production-deploy
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.event.head_commit.message == 'Activate RelayWA heartbeat API version'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RELAYWA_HEARTBEAT_DEPLOY_CONFIRM: APPLY_RELAYWA_HEARTBEAT_FUSION_20261015
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate rollback-protected Cloudflare deployment
+        run: |
+          node --check ops/relaywa-request-efficiency/release-api.mjs
+          node --test ops/relaywa-request-efficiency/test/*.test.mjs
+      - name: Activate staged API Worker with health and authorization checks
+        run: node ops/relaywa-request-efficiency/release-api.mjs
