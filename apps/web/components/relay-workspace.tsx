@@ -40,7 +40,6 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
    let healthyStream = false;
    let pollTimer: ReturnType<typeof setTimeout> | undefined;
    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-   let streamWatchdog: ReturnType<typeof setTimeout> | undefined;
    let streamController: AbortController | undefined;
 
    setQr(null);
@@ -93,6 +92,7 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
    function startStream() {
      if (cancelled || streamController || document.visibilityState !== 'visible') return;
      const controller = new AbortController();
+     let streamWatchdog: ReturnType<typeof setTimeout> | undefined;
      streamController = controller;
      function keepAlive() {
        if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
@@ -152,7 +152,6 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
      cancelled = true;
      if (pollTimer !== undefined) clearTimeout(pollTimer);
      if (retryTimer !== undefined) clearTimeout(retryTimer);
-     if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
      streamController?.abort();
      document.removeEventListener('visibilitychange', onVisibilityChange);
      window.removeEventListener('relaywa-session-updated', requestRefresh);
