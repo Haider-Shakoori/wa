@@ -39,7 +39,10 @@ test('production command/webhook loop keeps active responsiveness while backing 
   assert.match(code,/signal\.removeEventListener\('abort', finish\)/);
   assert.match(code,/await store\.claimNextCommand\(\)/);
   assert.match(code,/await store\.heartbeatWorker\(\)/);
-  assert.match(code,/await store\.claimNextWebhookDelivery\(\)/);
+  assert.match(code,/await claimWebhookSafely\(store\)/);
+  const combined=await readFile(new URL('../webhook-fusion.js',import.meta.url),'utf8');
+  assert.match(combined,/await store\.enqueueWebhookDeliveries\(\)/);
+  assert.match(combined,/return store\.claimNextWebhookDelivery\(\)/);
 });
 test('outbound direct dispatch continues while passive worker polls less',async()=>{
   const code=await readFile(new URL('../outbound-poll.js',import.meta.url),'utf8');
