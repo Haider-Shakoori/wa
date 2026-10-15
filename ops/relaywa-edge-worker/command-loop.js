@@ -13,13 +13,6 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
   const healthScanIntervalMs = Math.max(30_000, Number(process.env.OPERATIONAL_HEALTH_SCAN_MS || 60_000));
   while (!signal.aborted) {
     try {
-    // This process heartbeat is separate from WhatsApp session ownership.
-    // An idle worker or reconnecting session still has a live worker process.
-    if (Date.now() >= nextWorkerHeartbeat) {
-      nextWorkerHeartbeat = Date.now() + 15_000;
-      try { await store.heartbeatWorker(); }
-      catch (error) { console.error('[monitoring] worker heartbeat failed:',error instanceof Error?error.message:String(error)); }
-    }
     // Checks run even under a heavy command load. Failures must never interrupt
     // WhatsApp command processing or webhook delivery.
     if (Date.now() >= nextHealthScan) {
@@ -31,13 +24,35 @@ export async function runCommandLoop({ store, sessions, alertMailer, signal }) {
       }
     }
     const activeSessions = hasActiveSessions(sessions);
+    let command = null;
+    let commandClaimSucceeded = false;
     if (activeSessions || Date.now() >= nextCommandPoll) {
       nextCommandPoll = Date.now() + (activeSessions ? ACTIVE_POLL_MS : IDLE_POLL_MS);
-      const command = await store.claimNextCommand();
-      if (command) {
-        await handleCommand({ store, sessions, command });
-        continue;
+      try {
+        command = await store.claimNextCommand();
+        commandClaimSucceeded = true;
+      } catch (error) {
+        console.error('[command-loop] command claim failed:', error instanceof Error ? error.message : String(error));
       }
+    }
+
+    // Every 15 seconds a connected worker already claims commands. When the
+    // Cloudflare response confirms the same request refreshed process liveness,
+    // avoid a redundant /heartbeat request. Missing acknowledgement, an old API,
+    // a failed claim, and passive workers all preserve the ORIGINAL heartbeat.
+    if (Date.now() >= nextWorkerHeartbeat) {
+      nextWorkerHeartbeat = Date.now() + 15_000;
+      const combined = activeSessions && commandClaimSucceeded &&
+        store.commandClaimHeartbeatVerified?.() === true;
+      if (!combined) {
+        try { await store.heartbeatWorker(); }
+        catch (error) { console.error('[monitoring] worker heartbeat failed:', error instanceof Error ? error.message : String(error)); }
+      }
+    }
+
+    if (command) {
+      await handleCommand({ store, sessions, command });
+      continue;
     }
 
     if (alertMailer?.isConfigured()) {
