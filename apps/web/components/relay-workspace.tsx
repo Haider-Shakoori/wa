@@ -6,7 +6,8 @@ import { FeatherIcon, type FeatherName } from './feather-icon';
 import { FormEvent, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
-import { nextSessionPollDelay } from '../lib/session-poll-policy';
+import { SESSION_FALLBACK_POLL_MS, SESSION_STREAM_RETRY_MS, SESSION_STREAM_STALE_MS } from '../lib/session-poll-policy';
+import { watchSessionEvents } from '../lib/session-events';
 import { Brand, Badge, PlanCards, type Plan } from './marketing-primitives';
 export { Brand, Badge, PlanCards } from './marketing-primitives';
 export type { Plan } from './marketing-primitives';
@@ -29,37 +30,35 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
  async function refresh(current=token){if(!current)return;try{const results=await Promise.allSettled([api<Session[]>('/whatsapp-sessions',current).then(setSessions),api<any>('/billing/subscription',current).then(setBilling),api<any[]>('/api-keys',current).then(setKeys),api<any[]>('/webhooks',current).then(setWebhooks),api<Plan[]>('/public/plans').then(setPlans),api<any[]>('/billing/payments',current).then(setPayments),api<any[]>('/billing/providers',current).then(setProviders)]);const failed=results.find(r=>r.status==='rejected');if(failed?.status==='rejected')setError('Some workspace information could not be refreshed. Please try Refresh.');else setError('');}finally{setLoading(false);}}
  useEffect(()=>{const current=localStorage.getItem('relaywa_access_token');if(!current){router.replace('/login');return;}setToken(current);void api<any>('/auth/me',current).then(r=>{setEmail(r.user?.email||r.auth.email);setAccountName(r.user?.name||'');}).catch(()=>{localStorage.removeItem('relaywa_access_token');router.replace('/login');});void refresh(current);},[router,view]);
 
+
  useEffect(() => {
    if (!token || view !== 'session' || !sessionId) return;
    let cancelled = false;
    let polling = false;
-   let refreshRequested = false;
-   let timeout: ReturnType<typeof setTimeout> | undefined;
-   let lastStatus = 'pending';
-   let consecutiveFailures = 0;
+   let pendingRefresh = false;
+   let healthyStream = false;
+   let pollTimer: ReturnType<typeof setTimeout> | undefined;
+   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+   let streamWatchdog: ReturnType<typeof setTimeout> | undefined;
+   let streamController: AbortController | undefined;
+
    setQr(null);
    setQrError('');
    setQrRequested(false);
 
-   function schedule(delayMs: number) {
-     if (timeout !== undefined) clearTimeout(timeout);
-     timeout = undefined;
+   function schedulePoll(delayMs: number) {
+     if (pollTimer !== undefined) clearTimeout(pollTimer);
+     pollTimer = undefined;
      if (cancelled || document.visibilityState !== 'visible') return;
-     timeout = setTimeout(() => void poll(), delayMs);
+     pollTimer = setTimeout(() => void poll(), delayMs);
    }
-
    async function poll() {
      if (cancelled || document.visibilityState !== 'visible') return;
-     if (polling) {
-       refreshRequested = true;
-       return;
-     }
+     if (polling) { pendingRefresh = true; return; }
      polling = true;
      try {
        const latest = await api<Session>('/whatsapp-sessions/' + sessionId, token);
        if (cancelled) return;
-       consecutiveFailures = 0;
-       lastStatus = latest.status;
        setSessions(previous => previous.some(s => s.id === latest.id)
          ? previous.map(s => s.id === latest.id ? latest : s)
          : [...previous, latest]);
@@ -69,52 +68,91 @@ export default function RelayWorkspace({view='dashboard',sessionId}:{view?:View;
          setQrError('');
          setNotice(previous => previous === 'Preparing your WhatsApp QR code…' || previous.startsWith('Request queued.')
            ? 'WhatsApp connected successfully.' : previous);
-         return;
-       }
-       try {
-         const result = await api<any>('/whatsapp-sessions/' + sessionId + '/qrcode', token);
-         if (!cancelled) {
-           setQr(result);
-           if (result.available) setQrError('');
+       } else {
+         try {
+           const result = await api<any>('/whatsapp-sessions/' + sessionId + '/qrcode', token);
+           if (!cancelled) {
+             setQr(result);
+             if (result.available) setQrError('');
+           }
+         } catch {
+           if (!cancelled) setQrError('Unable to load the QR code. Retrying automatically…');
          }
-       } catch {
-         if (!cancelled) setQrError('Unable to load the QR code. Retrying automatically…');
        }
      } catch {
-       if (!cancelled) {
-         consecutiveFailures += 1;
-         setQrError('Unable to refresh connection status. Retrying automatically…');
-       }
+       if (!cancelled) setQrError('Unable to refresh connection status. Retrying automatically…');
      } finally {
        polling = false;
        if (!cancelled) {
-         const delay = refreshRequested ? 0 : nextSessionPollDelay(lastStatus, consecutiveFailures);
-         refreshRequested = false;
-         schedule(delay);
+         if (pendingRefresh) { pendingRefresh = false; schedulePoll(0); }
+         else if (!healthyStream) schedulePoll(SESSION_FALLBACK_POLL_MS);
        }
      }
    }
-
-   function requestRefresh() {
-     if (document.visibilityState === 'visible') schedule(0);
+   function startStream() {
+     if (cancelled || streamController || document.visibilityState !== 'visible') return;
+     const controller = new AbortController();
+     streamController = controller;
+     function keepAlive() {
+       if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
+       streamWatchdog = setTimeout(() => controller.abort(), SESSION_STREAM_STALE_MS);
+     }
+     keepAlive();
+     void watchSessionEvents({
+       sessionId,
+       token,
+       signal: controller.signal,
+       onOpen: () => {
+         if (cancelled || controller.signal.aborted) return;
+         healthyStream = true;
+         if (pollTimer !== undefined) clearTimeout(pollTimer);
+         pollTimer = undefined;
+       },
+       onActivity: keepAlive,
+       onEvents: events => {
+         if (cancelled || controller.signal.aborted) return;
+         if (events.some(event => event.type.startsWith('session.'))) schedulePoll(0);
+       },
+     }).catch(() => {}).finally(() => {
+       if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
+       streamWatchdog = undefined;
+       if (streamController !== controller) return;
+       streamController = undefined;
+       healthyStream = false;
+       if (cancelled || document.visibilityState !== 'visible') return;
+       schedulePoll(0); // Restore 2-second polling immediately if SSE is unavailable.
+       retryTimer = setTimeout(startStream, SESSION_STREAM_RETRY_MS);
+     });
    }
    function onVisibilityChange() {
      if (document.visibilityState === 'visible') {
-       requestRefresh();
-     } else if (timeout !== undefined) {
-       clearTimeout(timeout);
-       timeout = undefined;
+       schedulePoll(0);
+       startStream();
+     } else {
+       if (pollTimer !== undefined) clearTimeout(pollTimer);
+       pollTimer = undefined;
+       if (retryTimer !== undefined) clearTimeout(retryTimer);
+       retryTimer = undefined;
+       streamController?.abort();
+       streamController = undefined;
+       healthyStream = false;
      }
+   }
+   function requestRefresh() {
+     if (document.visibilityState === 'visible') schedulePoll(0);
    }
    document.addEventListener('visibilitychange', onVisibilityChange);
    window.addEventListener('relaywa-session-updated', requestRefresh);
-   schedule(0);
+   onVisibilityChange();
    void api<any[]>('/whatsapp-sessions/' + sessionId + '/logs', token)
      .then(result => { if (!cancelled) setLogs(result); })
      .catch(() => {});
    return () => {
      cancelled = true;
-     if (timeout !== undefined) clearTimeout(timeout);
+     if (pollTimer !== undefined) clearTimeout(pollTimer);
+     if (retryTimer !== undefined) clearTimeout(retryTimer);
+     if (streamWatchdog !== undefined) clearTimeout(streamWatchdog);
+     streamController?.abort();
      document.removeEventListener('visibilitychange', onVisibilityChange);
      window.removeEventListener('relaywa-session-updated', requestRefresh);
    };
