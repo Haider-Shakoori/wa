@@ -58,6 +58,15 @@ jobs:
               if(name==='relaywa-web') {
                 const needles=['relaywa-session-updated','SESSION_STREAM_STALE_MS','session-poll-policy','/whatsapp-sessions/','text/event-stream'];
                 console.log('LIVE_WEB_MARKERS '+JSON.stringify(Object.fromEntries(needles.map(p=>[p,joined.includes(p)]))));
+                for(const file of files) {
+                  if(!file.source.includes('/qrcode'))continue;
+                  const hits=['/qrcode','/logs','2e3','setInterval','/events'];
+                  for(const token of hits){
+                    const at=file.source.indexOf(token);
+                    if(at<0)continue;
+                    console.log('LIVE_WEB_BUNDLE '+file.name+' '+token+' '+JSON.stringify(file.source.slice(Math.max(0,at-850),Math.min(file.source.length,at+950))));
+                  }
+                }
               }
             }catch(e){console.log('WORKER_AUDIT_ERROR '+name+' '+e.message);}
           }
