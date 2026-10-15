@@ -44,8 +44,8 @@ form.append('metadata',JSON.stringify({
 }));
 for(const [name,value] of modules.entries()){
   if(name==='index.js')form.append(name,new Blob([updated],{type:'application/javascript+module'}),name);
-  else if(typeof value==='string')form.append(name,value);
-  else form.append(name,value,name);
+  else if(typeof value==='string')form.append(name,new Blob([value],{type:'application/javascript+module'}),name);
+  else form.append(name,new Blob([await value.arrayBuffer()],{type:'application/javascript+module'}),name);
 }
 if(await activeVersion()!==active)throw Error('Live API changed before staging');
 const staged=await json(api+'/workers/scripts/relaywa-api/versions?bindings_inherit=strict',{method:'POST',body:form});
