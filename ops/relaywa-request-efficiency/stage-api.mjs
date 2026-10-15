@@ -10,7 +10,7 @@ const headers={authorization:'Bearer '+token};
 async function json(url,init={}){
   const r=await fetch(url,{...init,headers:{...headers,...init.headers},signal:AbortSignal.timeout(30000)});
   const v=await r.json();
-  if(!r.ok||!v.success)throw Error('Cloudflare endpoint returned HTTP '+r.status+' '+JSON.stringify(v.errors?.map(x=>x.code)));
+  if(!r.ok||!v.success)throw Error('Cloudflare endpoint returned HTTP '+r.status+' '+JSON.stringify(v.errors?.map(x=>({code:x.code,message:String(x.message||'').slice(0,350)}))));
   return v.result;
 }
 async function activeVersion() {
