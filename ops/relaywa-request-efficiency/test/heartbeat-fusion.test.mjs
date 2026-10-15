@@ -40,5 +40,7 @@ test('worker preserves 15-second checks and sends normal heartbeat on unpatched 
   assert.match(content,/await store\.heartbeatWorker\(\)/);
   assert.match(content,/await store\.claimNextCommand\(\)/);
   assert.match(content,/Date\.now\(\) \+ 15_000/);
-  assert.match(content,/await store\.claimNextWebhookDelivery\(\)/);
+  assert.match(content,/await claimWebhookSafely\(store\)/);
+  const webhookHelper=await readFile(new URL('../../relaywa-edge-worker/webhook-fusion.js',import.meta.url),'utf8');
+  assert.match(webhookHelper,/return store\.claimNextWebhookDelivery\(\)/);
 });
