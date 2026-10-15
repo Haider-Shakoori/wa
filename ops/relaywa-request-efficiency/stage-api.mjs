@@ -27,6 +27,7 @@ if(!Array.isArray(settings.bindings)||!settings.bindings.some(x=>x.name==='DB'&&
 const original=await fetch(api+'/workers/scripts/relaywa-api',{headers,signal:AbortSignal.timeout(30000)});
 if(!original.ok)throw Error('Cannot retrieve currently deployed Worker');
 const modules=await original.formData();
+// Diagnostic module inventory contains only filenames and MIME types, never code or secrets.
 if(!modules.has('index.js'))throw Error('Cloudflare index.js is missing');
 console.log('CLOUDFLARE_BUNDLE_MODULE_TYPES '+JSON.stringify(Array.from(modules.entries()).map(([name,value])=>({name,filename:typeof value==='string'?'':value.name,mime:typeof value==='string'?'string':value.type,size:typeof value==='string'?value.length:value.size}))));
 const input=modules.get('index.js');
