@@ -1,3 +1,5 @@
+import {writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 import {patchWeb} from './patch-web.mjs';
 import { patchApi } from './patch.mjs';
 const id=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
@@ -83,6 +85,13 @@ if(process.env.RELEASE_PHASE==='stage'){
  for(const [name,value] of webModules.entries()){
    const sourceText=typeof value==='string'?value:await value.text();
    const after=required.includes(name)?(sourceText.includes('RELAYWA_STATS_UI_V1')?sourceText:patchWeb(sourceText)):sourceText;
+   if(required.includes(name)){
+    const safe='/tmp/relaywa-web-validation.mjs';
+    writeFileSync(safe,after);
+    const syntax=spawnSync(process.execPath,['--check',safe],{encoding:'utf8'});
+    console.log('LOCAL_WEB_SYNTAX',name,syntax.status);
+    if(syntax.status!==0)throw Error('Web candidate JS syntax invalid '+name+': '+String(syntax.stderr).slice(-450));
+   }
    if(after!==sourceText)changed++;
    uploadWeb.append(name,new Blob([after],{type:'application/javascript+module'}),name);
  }
