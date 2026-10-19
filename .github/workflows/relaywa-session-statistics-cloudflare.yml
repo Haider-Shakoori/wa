@@ -3,7 +3,9 @@ name: RelayWA Session Statistics Cloudflare
 on:
   push:
     branches: [feat/cloudflare-session-statistics-release]
-    paths: [.github/workflows/relaywa-session-statistics-cloudflare.yml]
+    paths:
+      - .github/workflows/relaywa-session-statistics-cloudflare.yml
+      - ops/relaywa-session-statistics/**
   workflow_dispatch:
     inputs:
       phase:
