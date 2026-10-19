@@ -24,7 +24,7 @@ const original=modules.get('index.js');
 if(!original)throw Error('Missing deployed API main module');
 const content=typeof original==='string'?original:await original.text();
 if(process.env.RELEASE_PHASE==='stage'){
- const updated=patchApi(content); const upload=new FormData();
+ const updated=content.includes('RELAYWA_SESSION_STATISTICS_V1')?null:patchApi(content); const upload=new FormData();
  upload.append('metadata',JSON.stringify({
    main_module:'index.js',
    bindings:settings.bindings.map(b=>b.type==='assets'?{type:'assets',name:b.name}:{type:'inherit',name:b.name}),
@@ -33,10 +33,10 @@ if(process.env.RELEASE_PHASE==='stage'){
    annotations:{'workers/message':'RelayWA session statistics staged inactive'}
  }));
  for(const [name,value] of modules.entries()){
-   const body=name==='index.js'?updated:typeof value==='string'?value:await value.text();
+   const body=name==='index.js'?(updated??content):typeof value==='string'?value:await value.text();
    upload.append(name,new Blob([body],{type:'application/javascript+module'}),name);
  }
- const staged=await cf('/versions?bindings_inherit=strict',{method:'POST',body:upload});
+ const staged=updated?await cf('/versions?bindings_inherit=strict',{method:'POST',body:upload}):{id:'already-staged'};
  if(await active()!==old)throw Error('Production changed during stage');
  console.log('STAGED_API_VERSION',staged.id??staged.version?.id,'PREVIOUS',old);
  const webUrl='https://api.cloudflare.com/client/v4/accounts/'+id+'/workers/scripts/relaywa-web';
