@@ -112,5 +112,54 @@ if(process.env.RELEASE_PHASE==='stage'){
  const verify=await verifyResponse.json();
  if(verify.result?.deployments?.[0]?.versions?.[0]?.version_id!==originalWeb)throw Error('Live web version changed during stage');
 }else if(process.env.RELEASE_PHASE==='publish'){
- throw Error('Publish disabled until staged candidate ID, website bundle and production smoke tests are verified; no production changes made');
+ 
+ const expected=[
+  {name:'relaywa-api',old:'6f6ee844-9f76-4967-bfc7-0753ccf35cdf',candidate:'a017041e-333d-4bcd-8053-48eb3debb21c'},
+  {name:'relaywa-web',old:'96b215ef-8208-4e3f-804d-bc74918d1053',candidate:'e8de7e2a-b4c8-4749-8102-34fac1b438a5'}
+ ];
+ const base='https://api.cloudflare.com/client/v4/accounts/'+id+'/workers/scripts/';
+ async function cfJson(url,options={}){
+  const res=await fetch(url,{...options,headers:{...headers,...options.headers},signal:AbortSignal.timeout(30000)});
+  const body=await res.json();
+  if(!res.ok||!body.success)throw Error('Cloudflare request failed '+res.status+' '+JSON.stringify(body.errors?.map(x=>x.code)));
+  return body.result;
+ }
+ async function version(name){
+  const data=await cfJson(base+name+'/deployments');
+  const versions=data.deployments?.[0]?.versions;
+  if(versions?.length!==1||versions[0].percentage!==100)throw Error('Unexpected traffic split '+name);
+  return versions[0].version_id;
+ }
+ async function activate(name,target,reason){
+  await cfJson(base+name+'/deployments',{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({strategy:'percentage',versions:[{version_id:target,percentage:100}],
+    annotations:{'workers/message':reason}})});
+  if(await version(name)!==target)throw Error('Activation mismatch '+name);
+ }
+ for(const item of expected){
+  if(await version(item.name)!==item.old)throw Error('ABORT: live '+item.name+' version drift');
+  const candidate=await cfJson(base+item.name+'/versions/'+item.candidate);
+  if(candidate?.id!==item.candidate)throw Error('Candidate version missing '+item.name);
+ }
+ console.log('PUBLISH_PREFLIGHT_PASSED');
+ const activated=[];
+ try {
+  // Activate API first: the older UI remains compatible with the new read-only endpoint.
+  for(const item of expected){await activate(item.name,item.candidate,'RelayWA session message statistics release');activated.push(item);console.log('ACTIVATED',item.name,item.candidate);}
+  for(const item of expected)if(await version(item.name)!==item.candidate)throw Error('Post-activation drift '+item.name);
+  const health=await fetch('https://relaywa.com/api/health',{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(15000)});
+  const json=await health.json().catch(()=>null);
+  if(health.status!==200||json?.status!=='ok'||json?.db!=='up')throw Error('Production API health check failed');
+  const authProbe=await fetch('https://relaywa.com/api/whatsapp-sessions/00000000-0000-0000-0000-000000000000/statistics',
+    {headers:{'cache-control':'no-cache'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if(![401,403].includes(authProbe.status))throw Error('Statistics route does not enforce authentication: '+authProbe.status);
+  const webProbe=await fetch('https://relaywa.com/login',{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(15000)});
+  if(webProbe.status!==200)throw Error('Customer login page unavailable: '+webProbe.status);
+  console.log('CLOUDFLARE_STATISTICS_PRODUCTION_PUBLISHED',expected.map(x=>x.candidate).join(' '));
+ } catch(error){
+  console.error('PUBLISH_FAILED_AND_ROLLING_BACK',String(error.message).slice(0,260));
+  for(const item of activated.reverse())try{await activate(item.name,item.old,'Automatic rollback RelayWA session statistics');console.log('ROLLED_BACK',item.name)}catch(e){console.error('MANUAL_ROLLBACK_REQUIRED',item.name,String(e.message).slice(0,150))}
+  throw error;
+ }
+
 }else throw Error('Invalid phase');
