@@ -1,0 +1,29 @@
+name: RelayWA Session Statistics Cloudflare
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: stage or publish
+        required: true
+        type: choice
+        options: [stage, publish]
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-session-statistics-cloudflare
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RELEASE_PHASE: ${{ inputs.phase }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check ops/relaywa-session-statistics/patch.mjs && node --check ops/relaywa-session-statistics/release.mjs
+      - run: node ops/relaywa-session-statistics/release.mjs
