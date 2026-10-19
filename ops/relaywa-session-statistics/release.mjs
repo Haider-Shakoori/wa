@@ -39,6 +39,17 @@ if(process.env.RELEASE_PHASE==='stage'){
  const staged=await cf('/versions?bindings_inherit=strict',{method:'POST',body:upload});
  if(await active()!==old)throw Error('Production changed during stage');
  console.log('STAGED_API_VERSION',staged.id??staged.version?.id,'PREVIOUS',old);
+ const webUrl='https://api.cloudflare.com/client/v4/accounts/'+id+'/workers/scripts/relaywa-web';
+ const web=await fetch(webUrl,{headers,signal:AbortSignal.timeout(30000)});
+ if(!web.ok)throw Error('Could not inspect deployed web worker');
+ const webModules=await web.formData();
+ for(const [name,value] of webModules.entries()){
+   const text=typeof value==='string'?value:await value.text();
+   const probes=['One number. One isolated session','Manage session','Last connected','rw-session-grid','Your workspace','Connected numbers','Message activity','rw-session-card-actions'];
+   const hits=probes.filter(p=>text.includes(p));
+   if(hits.length)console.log('WEB_BUNDLE_CANDIDATE',name,'BYTES',text.length,'MATCHES',hits.join('|'));
+ }
+ console.log('WEB_MODULE_COUNT',Array.from(webModules.keys()).length);
 }else if(process.env.RELEASE_PHASE==='publish'){
  throw Error('Publish disabled until staged candidate ID, website bundle and production smoke tests are verified; no production changes made');
 }else throw Error('Invalid phase');
