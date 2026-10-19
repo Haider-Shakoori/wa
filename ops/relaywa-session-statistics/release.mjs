@@ -1,3 +1,4 @@
+import {patchWeb} from './patch-web.mjs';
 import { patchApi } from './patch.mjs';
 const id=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
 if(!id||!token)throw Error('Missing Cloudflare credentials');
@@ -55,6 +56,46 @@ if(process.env.RELEASE_PHASE==='stage'){
    }
  }
  console.log('WEB_MODULE_COUNT',Array.from(webModules.keys()).length);
+ const settingsWebResponse=await fetch(webUrl+'/settings',{headers,signal:AbortSignal.timeout(30000)});
+ const settingsWebBody=await settingsWebResponse.json();
+ if(!settingsWebResponse.ok||!settingsWebBody.success)throw Error('Cannot retrieve Web Worker settings');
+ const settingsWeb=settingsWebBody.result;
+ const deploymentsResponse=await fetch(webUrl+'/deployments',{headers,signal:AbortSignal.timeout(30000)});
+ const deploymentsBody=await deploymentsResponse.json();
+ if(!deploymentsResponse.ok||!deploymentsBody.success)throw Error('Cannot retrieve Web Worker active deployment');
+ const webActive=deploymentsBody.result.deployments?.[0]?.versions;
+ if(webActive?.length!==1||webActive[0].percentage!==100)throw Error('Web Worker traffic is split');
+ const originalWeb=webActive[0].version_id;
+ const required=['ssr/_next/static/relay-workspace-ChKJxgxv.js','recovery-assets.mjs'];
+ const webAlready=required.every(key=>{const value=webModules.get(key);return Boolean(value)});
+ if(!webAlready)throw Error('Live Web Worker missing required session assets');
+ const uploadWeb=new FormData();
+ uploadWeb.append('metadata',JSON.stringify({
+   main_module:'index.js',
+   bindings:settingsWeb.bindings.map(b=>b.type==='assets'?{type:'assets',name:b.name}:{type:'inherit',name:b.name}),
+   keep_assets:true,
+   ...(settingsWeb.compatibility_date?{compatibility_date:settingsWeb.compatibility_date}:{}),
+   ...(settingsWeb.compatibility_flags?{compatibility_flags:settingsWeb.compatibility_flags}:{}),
+   annotations:{'workers/message':'RelayWA session statistics UI staged inactive'}
+ }));
+ let changed=0;
+ for(const [name,value] of webModules.entries()){
+   const sourceText=typeof value==='string'?value:await value.text();
+   const after=required.includes(name)?(sourceText.includes('RELAYWA_STATS_UI_V1')?sourceText:patchWeb(sourceText)):sourceText;
+   if(after!==sourceText)changed++;
+   uploadWeb.append(name,new Blob([after],{type:'application/javascript+module'}),name);
+ }
+ if(changed===0){console.log('WEB_UI_ALREADY_STAGED');}
+ else{
+  if(changed!==required.length)throw Error('Did not patch all required customer modules');
+  const response=await fetch(webUrl+'/versions?bindings_inherit=strict',{method:'POST',headers,body:uploadWeb,signal:AbortSignal.timeout(60000)});
+  const result=await response.json();
+  if(!response.ok||!result.success)throw Error('Web staging failed '+response.status+' '+JSON.stringify(result.errors?.map(e=>e.code)));
+  console.log('WEB_STAGED_VERSION',result.result.id??result.result.version?.id,'PREVIOUS',originalWeb);
+ }
+ const verifyResponse=await fetch(webUrl+'/deployments',{headers,signal:AbortSignal.timeout(30000)});
+ const verify=await verifyResponse.json();
+ if(verify.result?.deployments?.[0]?.versions?.[0]?.version_id!==originalWeb)throw Error('Live web version changed during stage');
 }else if(process.env.RELEASE_PHASE==='publish'){
  throw Error('Publish disabled until staged candidate ID, website bundle and production smoke tests are verified; no production changes made');
 }else throw Error('Invalid phase');
