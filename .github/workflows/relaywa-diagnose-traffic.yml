@@ -2,7 +2,7 @@ name: RelayWA Diagnose Current Traffic Asset
 on:
   push:
     branches: [fix/admin-live-traffic-chunk]
-    paths: [.github/workflows/relaywa-diagnose-traffic.yml]
+    paths: [.github/workflows/relaywa-diagnose-traffic.yml, ops/relaywa-platform-statistics/diagnose-traffic.mjs]
 permissions: {contents: read}
 jobs:
   inspect:
