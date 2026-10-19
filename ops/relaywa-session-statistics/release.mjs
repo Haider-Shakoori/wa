@@ -49,6 +49,7 @@ if(process.env.RELEASE_PHASE==='stage'){
    const probes=['One number. One isolated session','Manage session','Last connected','rw-session-grid','Your workspace','Connected numbers','Message activity','rw-session-card-actions'];
    const hits=probes.filter(p=>text.includes(p));
    if(hits.length)console.log('WEB_BUNDLE_CANDIDATE',name,'BYTES',text.length,'MATCHES',hits.join('|'));
+   if(name==='recovery-assets.mjs'){for(const marker of ['function Qf({view:e=','rw-session-card-actions']){const at=text.indexOf(marker);if(at>=0)console.log('ASSET_SAMPLE',marker,'OFFSET',at,JSON.stringify(text.slice(at-180,at+160)));}}
    if(name==='ssr/_next/static/relay-workspace-ChKJxgxv.js'){
      for(const marker of ['rw-session-card-actions','rw-session-info','Session information','rw-modal-head']){
        const at=text.indexOf(marker); if(at>=0)console.log('WEB_SAMPLE',marker,JSON.stringify(text.slice(Math.max(0,at-270),at+600)));
