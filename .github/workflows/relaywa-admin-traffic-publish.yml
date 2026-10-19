@@ -1,0 +1,22 @@
+name: Publish Live RelayWA Admin Statistics Chunk
+on:
+  push:
+    branches: [fix/admin-live-traffic-chunk]
+    paths: [.github/workflows/relaywa-admin-traffic-publish.yml]
+permissions: {contents: read}
+concurrency: {group: relaywa-live-admin-chunk-release, cancel-in-progress: false}
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Publish verified RelayWA admin traffic chunk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RELAYWA_TRAFFIC_CANDIDATE: 5568b15b-9f76-4e3e-beb6-4996126f2371
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check ops/relaywa-platform-statistics/publish-traffic.mjs
+      - run: node ops/relaywa-platform-statistics/publish-traffic.mjs
