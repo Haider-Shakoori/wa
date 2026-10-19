@@ -36,7 +36,8 @@ for(const target of targets){
  for(const [name,value] of modules.entries()){
   const before=typeof value==='string'?value:await value.text();
   const fn=target.patches[name];
-  const after=fn?fn(before):before;
+  const already=fn && ((target.name==='relaywa-platform'&&before.includes('RELAYWA_PLATFORM_SESSION_STATS_V1'))||(target.name==='relaywa-web'&&before.includes('RELAYWA_PLATFORM_STATS_UI_V1')));
+  const after=fn&&!already?fn(before):before;
   if(fn){patched++;
    writeFileSync('/tmp/relaywa-statistics-validation.mjs',after);
    const test=spawnSync(process.execPath,['--check','/tmp/relaywa-statistics-validation.mjs'],{encoding:'utf8'});
@@ -45,7 +46,7 @@ for(const target of targets){
   upload.append(name,new Blob([after],{type:'application/javascript+module'}),name);
  }
  if(patched!==Object.keys(target.patches).length)throw Error('Missing required live modules '+target.name);
- const staged=await cf(root+target.name+'/versions?bindings_inherit=strict',{method:'POST',body:upload});
+ const staged=target.name==='relaywa-platform'&&patched===1&&Array.from(modules.entries()).some(([name,value])=>name==='index.js'&&typeof value!=='string')&&false?{id:'already-staged'}:await cf(root+target.name+'/versions?bindings_inherit=strict',{method:'POST',body:upload});
  if(await active(target.name)!==target.expected)throw Error('Unexpected production activation '+target.name);
  console.log('STAGED',target.name,'PREVIOUS',target.expected,'CANDIDATE',staged.id??staged.version?.id);
 }
