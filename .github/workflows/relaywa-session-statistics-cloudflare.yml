@@ -1,5 +1,5 @@
 name: RelayWA Session Statistics Cloudflare
-# Inspect bundled customer page before release
+# Inspect staged API and production customer page before release
 on:
   push:
     branches: [feat/cloudflare-session-statistics-release]
