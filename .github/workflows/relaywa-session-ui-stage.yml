@@ -1,0 +1,19 @@
+name: RelayWA Session UI Refresh Stage
+on:
+  push:
+    branches: [feat/relaywa-sessions-ui-refresh]
+    paths: [.github/workflows/relaywa-session-ui-stage.yml]
+permissions: {contents: read}
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check ops/relaywa-platform-statistics/stage-ui-refresh.mjs && node --check ops/relaywa-platform-statistics/proxy-runtime.js
+      - run: node ops/relaywa-platform-statistics/stage-ui-refresh.mjs
