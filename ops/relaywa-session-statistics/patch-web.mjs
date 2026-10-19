@@ -58,5 +58,10 @@ function RelaySessionStats({session:e}){
  ]});
 }
 `;
- return original.replace(needle,helper+needle);
+ const card='className:`rw-session-card-actions`,children:[(0,f.jsxs)(a,';
+ if(original.split(card).length!==2)throw Error('Session card actions fingerprint mismatch');
+ const withButton=original.replace('className:`rw-session-card-actions`,children:[','className:`rw-session-card-actions`,children:[(0,f.jsx)(RelaySessionStats,{session:e}),');
+ const detail='className:`rw-button-row`,children:[V.status';
+ const inDetail=withButton.includes(detail)?withButton.replace(detail,'className:`rw-button-row`,children:[(0,f.jsx)(RelaySessionStats,{session:V}),V.status'):withButton;
+ return inDetail.replace(needle,helper+needle);
 }
