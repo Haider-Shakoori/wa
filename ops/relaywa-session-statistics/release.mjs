@@ -90,7 +90,12 @@ if(process.env.RELEASE_PHASE==='stage'){
     writeFileSync(safe,after);
     const syntax=spawnSync(process.execPath,['--check',safe],{encoding:'utf8'});
     console.log('LOCAL_WEB_SYNTAX',name,syntax.status);
-    if(syntax.status!==0)throw Error('Web candidate JS syntax invalid '+name+': '+String(syntax.stderr).slice(-450));
+    if(syntax.status!==0){
+      const match=String(syntax.stderr).match(/:(\\d+):(\\d+)/);
+      const col=Number(match?.[2]??0);
+      console.log('WEB_SYNTAX_LOCATION',name,match?.[0]??'unknown','NEIGHBOR',JSON.stringify(after.slice(Math.max(0,col-160),col+160)));
+      throw Error('Web candidate JS syntax invalid '+name+' '+String(syntax.stderr).match(/SyntaxError:[^\\n]+/)?.[0]);
+    }
    }
    if(after!==sourceText)changed++;
    uploadWeb.append(name,new Blob([after],{type:'application/javascript+module'}),name);
