@@ -43,7 +43,8 @@ export function patchRecoveryAssets(source){
  if(!source.startsWith(prefix))throw Error('Recovery asset format changed');
  const assets=JSON.parse(source.slice(prefix.length).trim().replace(/;$/,''));
  const key=Object.keys(assets).filter(x=>typeof assets[x]==='string'&&assets[x].includes('All linked sessions')&&assets[x].includes('session-admin-row'));
- if(key.length!==1)throw Error('Expected exactly one platform page recovery asset; got '+key.length);
- assets[key[0]]=patchPlatformPage(assets[key[0]]);
+ const target=key.filter(x=>x.includes('page-Gh6edkTR.js'));
+ if(target.length!==1)throw Error('Expected exact admin page asset: '+JSON.stringify(key));
+ assets[target[0]]=patchPlatformPage(assets[target[0]]);
  return prefix+JSON.stringify(assets)+';\n';
 }
