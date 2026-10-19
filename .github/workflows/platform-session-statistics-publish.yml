@@ -1,0 +1,22 @@
+name: Publish RelayWA Admin Session Statistics
+on:
+  push:
+    branches: [fix/platform-session-statistics]
+    paths:
+      - .github/workflows/platform-session-statistics-publish.yml
+permissions: {contents: read}
+concurrency: {group: relaywa-platform-statistics-publish, cancel-in-progress: false}
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Publish RelayWA platform admin statistics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check ops/relaywa-platform-statistics/publish.mjs
+      - run: node ops/relaywa-platform-statistics/publish.mjs
