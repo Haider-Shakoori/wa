@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';import {spawnSync} from 'node:child_process';
+import {readFileSync,writeFileSync} from 'node:fs';import {spawnSync} from 'node:child_process';
 const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;if(!id||!token)throw Error('Missing Cloudflare access');
 const root='https://api.cloudflare.com/client/v4/accounts/'+id+'/workers/scripts/relaywa-platform';
 const headers={authorization:'Bearer '+token};
