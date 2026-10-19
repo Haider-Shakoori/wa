@@ -1,0 +1,17 @@
+name: Publish RelayWA Rendered Statistics
+on:
+  push:
+    branches: [fix/relaywa-platform-stats-render]
+    paths: [.github/workflows/relaywa-visible-stats-publish.yml]
+permissions: {contents: read}
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node ops/relaywa-platform-statistics/publish-render.mjs
