@@ -1,6 +1,6 @@
 import {writeFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {patchWeb} from './patch-web.mjs';
+import {patchWeb,patchRecoveryAssets} from './patch-web.mjs';
 import { patchApi } from './patch.mjs';
 const id=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
 if(!id||!token)throw Error('Missing Cloudflare credentials');
@@ -84,7 +84,7 @@ if(process.env.RELEASE_PHASE==='stage'){
  let changed=0;
  for(const [name,value] of webModules.entries()){
    const sourceText=typeof value==='string'?value:await value.text();
-   const after=required.includes(name)?(sourceText.includes('RELAYWA_STATS_UI_V1')?sourceText:patchWeb(sourceText)):sourceText;
+   const after=required.includes(name)?(sourceText.includes('RELAYWA_STATS_UI_V1')?sourceText:(name==='recovery-assets.mjs'?patchRecoveryAssets(sourceText):patchWeb(sourceText))):sourceText;
    if(required.includes(name)){
     const safe='/tmp/relaywa-web-validation.mjs';
     writeFileSync(safe,after);

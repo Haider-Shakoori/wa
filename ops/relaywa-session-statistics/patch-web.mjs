@@ -65,3 +65,17 @@ function RelaySessionStats({session:e}){
  const inDetail=withButton.includes(detail)?withButton.replace(detail,'className:`rw-button-row`,children:[(0,f.jsx)(RelaySessionStats,{session:V}),V.status'):withButton;
  return inDetail.replace(needle,helper+needle);
 }
+
+export function patchRecoveryAssets(original){
+ const prefix='export default ';
+ if(!original.startsWith(prefix))throw Error('Unexpected recovery assets structure');
+ const raw=original.slice(prefix.length).trim().replace(/;$/, '');
+ const assets=JSON.parse(raw);
+ const matched=Object.entries(assets).filter(([key,value])=>
+   typeof value==='string' && value.includes('function Qf({view:e=') &&
+   value.includes('rw-session-card-actions'));
+ if(matched.length!==1)throw Error('Unexpected recovered workspace asset matches '+matched.length);
+ const [key,value]=matched[0];
+ assets[key]=patchWeb(value);
+ return prefix+JSON.stringify(assets)+';\n';
+}
