@@ -1,0 +1,22 @@
+name: Inspect RelayWA Platform Statistics Release
+on:
+  push:
+    branches: [fix/platform-session-statistics]
+    paths:
+      - .github/workflows/platform-session-statistics.yml
+      - ops/relaywa-platform-statistics/**
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency: {group: relaywa-platform-statistics, cancel-in-progress: false}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node ops/relaywa-platform-statistics/inspect.mjs
