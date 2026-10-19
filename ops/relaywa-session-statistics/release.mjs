@@ -90,7 +90,7 @@ if(process.env.RELEASE_PHASE==='stage'){
   if(changed!==required.length)throw Error('Did not patch all required customer modules');
   const response=await fetch(webUrl+'/versions?bindings_inherit=strict',{method:'POST',headers,body:uploadWeb,signal:AbortSignal.timeout(60000)});
   const result=await response.json();
-  if(!response.ok||!result.success)throw Error('Web staging failed '+response.status+' '+JSON.stringify(result.errors?.map(e=>e.code)));
+  if(!response.ok||!result.success)throw Error('Web staging failed '+response.status+' '+JSON.stringify(result.errors?.map(e=>({code:e.code,message:String(e.message).slice(0,400)}))));
   console.log('WEB_STAGED_VERSION',result.result.id??result.result.version?.id,'PREVIOUS',originalWeb);
  }
  const verifyResponse=await fetch(webUrl+'/deployments',{headers,signal:AbortSignal.timeout(30000)});
