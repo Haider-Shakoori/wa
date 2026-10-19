@@ -97,6 +97,48 @@ export class SessionsService {
     return result.rows[0];
   }
 
+  async statistics(organizationId: string, sessionId: string) {
+    const session = await this.get(organizationId, sessionId);
+    const counts = await this.db.query<{
+      total: string; successful: string; failed: string; pending: string;
+      last_sent_at: string | null; last_failed_at: string | null;
+    }>(
+      `SELECT
+         COUNT(*)::text AS total,
+         COUNT(*) FILTER (WHERE status = 'sent')::text AS successful,
+         COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
+         COUNT(*) FILTER (WHERE status NOT IN ('sent', 'failed'))::text AS pending,
+         MAX(sent_at) AS last_sent_at,
+         MAX(failed_at) AS last_failed_at
+       FROM whatsapp_messages
+       WHERE organization_id = $1 AND session_id = $2 AND direction = 'outbound'`,
+      [organizationId, sessionId],
+    );
+    const latest = await this.db.query<{
+      id: string; message_type: string; text_body: string | null;
+      media_caption: string | null; recipient_phone: string;
+      status: string; created_at: string; sent_at: string | null; failed_at: string | null;
+      last_error: string | null;
+    }>(
+      `SELECT id, message_type, text_body, media_caption, recipient_phone,
+              status, created_at, sent_at, failed_at, last_error
+       FROM whatsapp_messages
+       WHERE organization_id = $1 AND session_id = $2 AND direction = 'outbound'
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [organizationId, sessionId],
+    );
+    const row = counts.rows[0];
+    return {
+      sessionId: session.id, status: session.status, engine: session.engine,
+      phoneNumber: session.phone_number, lastConnectedAt: session.last_connected_at,
+      lastDisconnectedAt: session.last_disconnected_at, createdAt: session.created_at,
+      total: Number(row?.total ?? 0), successful: Number(row?.successful ?? 0),
+      failed: Number(row?.failed ?? 0), pending: Number(row?.pending ?? 0),
+      lastSentAt: row?.last_sent_at ?? null, lastFailedAt: row?.last_failed_at ?? null,
+      latestMessage: latest.rows[0] ?? null,
+    };
+  }
+
   async requestLifecycle(
     organizationId: string,
     sessionId: string,

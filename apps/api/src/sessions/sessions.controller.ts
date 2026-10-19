@@ -44,6 +44,12 @@ export class SessionsController {
     return this.qr.get(request.auth.org, sessionId);
   }
 
+  @Get(':sessionId/statistics')
+  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  statistics(@Req() request: ApiAuthenticatedRequest, @Param('sessionId') sessionId: string) {
+    return this.sessions.statistics(request.auth.org, sessionId);
+  }
+
   @Get(':sessionId')
   @RequirePermissions(PERMISSIONS.SESSIONS_READ)
   get(@Req() request: ApiAuthenticatedRequest, @Param('sessionId') sessionId: string) {
