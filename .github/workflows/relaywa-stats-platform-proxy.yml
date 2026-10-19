@@ -2,7 +2,7 @@ name: Stage RelayWA Stats Platform Proxy
 on:
   push:
     branches: [fix/relaywa-stats-platform-proxy]
-    paths: [.github/workflows/relaywa-stats-platform-proxy.yml]
+    paths: [.github/workflows/relaywa-stats-platform-proxy.yml, ops/relaywa-platform-statistics/stage-proxy.mjs]
 permissions: {contents: read}
 jobs:
   stage:
