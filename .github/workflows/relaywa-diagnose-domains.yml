@@ -1,0 +1,17 @@
+name: Diagnose RelayWA Custom Domain Routing
+on:
+  push:
+    branches: [fix/relaywa-stats-platform-proxy]
+    paths: [.github/workflows/relaywa-diagnose-domains.yml]
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node ops/relaywa-platform-statistics/diagnose-domain.mjs
