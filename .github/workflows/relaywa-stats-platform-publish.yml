@@ -2,7 +2,7 @@ name: Release RelayWA Platform Statistics Proxy
 on:
   push:
     branches: [fix/relaywa-stats-platform-proxy]
-    paths: [.github/workflows/relaywa-stats-platform-publish.yml]
+    paths: [.github/workflows/relaywa-stats-platform-publish.yml, ops/relaywa-platform-statistics/publish-proxy.mjs]
 permissions: {contents: read}
 jobs:
   publish:

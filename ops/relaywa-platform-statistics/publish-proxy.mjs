@@ -9,11 +9,16 @@ if((await cf('/versions/'+next)).id!==next)throw Error('Candidate absent');
 let activated=false;
 try{
  await deploy(next,'Fix RelayWA platform Sessions Statistics button in true platform proxy');activated=true;
- const html=await fetch('https://platform.relaywa.com/platform?verify='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(15000)});
- const text=await html.text();console.log('PLATFORM_HTML',html.status,html.headers.get('cache-control'),'SCRIPT_PRESENT',text.includes('relaywa-platform-stats-20261020.js'));
- if(html.status!==200||!text.includes('relaywa-platform-stats-20261020.js'))throw Error('New platform HTML missing loader');
- const js=await fetch('https://platform.relaywa.com/relaywa-platform-stats-20261020.js',{signal:AbortSignal.timeout(15000)});
- const body=await js.text();console.log('LOADER',js.status,body.length,body.includes('data-relaywa-stats'));
- if(js.status!==200||!body.includes('data-relaywa-stats'))throw Error('Runtime loader unavailable');
+ let verified=false;
+ for(let attempt=1;attempt<=12;attempt++){
+  const html=await fetch('https://platform.relaywa.com/platform?verify='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(15000)});
+  const text=await html.text();
+  const js=await fetch('https://platform.relaywa.com/relaywa-platform-stats-20261020.js?verify='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(15000)});
+  const body=await js.text();
+  console.log('EDGE_ATTEMPT',attempt,'HTML',html.status,'SCRIPT',text.includes('relaywa-platform-stats-20261020.js'),'JS',js.status,'MARKER',body.includes('data-relaywa-stats'));
+  if(html.status===200&&text.includes('relaywa-platform-stats-20261020.js')&&js.status===200&&body.includes('data-relaywa-stats')){verified=true;break;}
+  await new Promise(r=>setTimeout(r,5000));
+ }
+ if(!verified)throw Error('Platform HTML and loader did not propagate within 60 seconds');
  console.log('PLATFORM_STATISTICS_PROXY_LIVE',next);
 }catch(error){console.error('RELEASE_ERROR',String(error.message));if(activated)await deploy(old,'Automatic rollback platform statistics').catch(e=>console.error('MANUAL_ROLLBACK_REQUIRED',String(e.message)));throw error}
