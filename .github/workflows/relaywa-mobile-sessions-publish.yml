@@ -1,0 +1,22 @@
+name: Publish RelayWA Mobile Sessions Layout
+on:
+  push:
+    branches: [feat/relaywa-responsive-sessions-20261020]
+    paths:
+      - .github/workflows/relaywa-mobile-sessions-publish.yml
+permissions: {contents: read}
+concurrency: {group: relaywa-mobile-sessions-production, cancel-in-progress: false}
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Publish responsive RelayWA platform Sessions UI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check ops/relaywa-platform-statistics/publish-mobile-sessions.mjs
+      - run: node ops/relaywa-platform-statistics/publish-mobile-sessions.mjs
