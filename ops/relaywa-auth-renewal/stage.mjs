@@ -18,11 +18,13 @@ async function active(){
  return versions[0].version_id;
 }
 const expected='d3c86ec8-9223-475b-be51-90d158e86410';
-if(await active()!==expected)throw Error('Unexpected production Worker version; abort staging');
+const actual=await active();
+if(actual==='4f84250b-a1c4-4e7a-a463-b78fcdfe0ef1'){console.log('SESSION_RENEWAL_ALREADY_LIVE');process.exit(0);}
+if(actual!==expected)throw Error('Unexpected production Worker version; abort staging');
 const live=await fetch(root,{headers,signal:AbortSignal.timeout(60000)});
 if(!live.ok)throw Error('Cannot retrieve current Worker');
 const modules=await live.formData(),settings=await cf('/settings');
-if(modules.has('relaywa-admin-renew-v1.mjs'))throw Error('Renewal module already exists');
+if(modules.has('relaywa-admin-renew-v1.mjs')){console.log('SESSION_RENEWAL_ALREADY_STAGED');process.exit(0);}
 const script=readFileSync('ops/relaywa-auth-renewal/browser-renewal.js','utf8');
 const check=spawnSync(process.execPath,['--check','ops/relaywa-auth-renewal/browser-renewal.js'],{encoding:'utf8'});
 if(check.status!==0)throw Error('Browser syntax check failed: '+String(check.stderr).slice(-300));
