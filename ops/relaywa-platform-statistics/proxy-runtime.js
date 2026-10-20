@@ -35,6 +35,98 @@
   .rw2-error{border:1px solid #a74755;background:#381b20;color:#ffb1ba;padding:14px;border-radius:10px}
   @media(max-width:800px){.rw2-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.rw2-body{padding:16px}.rw2-head{padding:16px}.session-admin-row .row-actions{gap:5px}}
   @media(max-width:390px){.rw2-number{font-size:22px}.rw2-details{grid-template-columns:1fr}.rw2-details dd{margin-bottom:8px}}
+
+  /* Mobile-only card presentation for the Sessions table. Desktop stays an eight-column grid. */
+  @media (max-width: 800px) {
+    .platform-shell .rw3-sessions-table{
+      width:100%!important;max-width:100%!important;min-width:0!important;
+      padding:0!important;background:transparent!important;border:0!important;
+      overflow:visible!important;display:grid!important;gap:12px!important;
+      box-sizing:border-box!important;
+    }
+    .platform-shell .rw3-sessions-table > .session-admin-row.platform-row-head{display:none!important}
+    .platform-shell .rw3-sessions-table > .rw3-session-card{
+      width:100%!important;min-width:0!important;max-width:100%!important;
+      display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+      gap:15px 12px!important;align-items:start!important;
+      margin:0!important;padding:17px!important;
+      background:#111f1b!important;border:1px solid #29473c!important;
+      border-radius:15px!important;box-shadow:0 8px 24px rgba(0,0,0,.13)!important;
+      box-sizing:border-box!important;color:#deece4!important;font-size:13px!important;
+      overflow-wrap:anywhere!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field{
+      display:flex!important;flex-direction:column!important;align-items:flex-start!important;
+      min-width:0!important;max-width:100%!important;margin:0!important;gap:5px!important;
+      overflow-wrap:anywhere!important;white-space:normal!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field::before{
+      content:attr(data-rw3-label);display:block;max-width:100%;
+      text-transform:uppercase;letter-spacing:.055em;
+      font-size:10px;font-weight:750;line-height:1.4;color:#91baa5;
+      white-space:normal;overflow-wrap:anywhere;
+    }
+    .platform-shell .rw3-session-card > .rw3-field:first-child{
+      grid-column:1/-1!important;padding-bottom:12px!important;
+      border-bottom:1px solid #29473c!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field:first-child strong{
+      font-size:16px!important;line-height:1.4!important;color:#f0fff6!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field:first-child small{
+      font-size:12px!important;margin-top:1px!important;color:#9eb9ae!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field.phone-cell{
+      font-size:13px!important;letter-spacing:0!important;color:#7eebae!important;
+      font-variant-numeric:tabular-nums;
+    }
+    .platform-shell .rw3-session-card > .rw3-field .table-select.engine-select{
+      width:100%!important;min-width:0!important;max-width:100%!important;
+      min-height:44px!important;font-size:13px!important;padding:9px 12px!important;
+      background:#14281f!important;color:#e8fff0!important;border:1px solid #345a47!important;
+      border-radius:10px!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field small{
+      display:block!important;font-size:11px!important;line-height:1.5!important;
+      color:#a9beb3!important;overflow-wrap:anywhere!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-actions{
+      grid-column:1/-1!important;display:grid!important;
+      grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      gap:9px!important;min-width:0!important;max-width:100%!important;
+      padding-top:13px!important;margin-top:1px!important;
+      border-top:1px solid #29473c!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-actions::before{
+      content:'Actions';display:block;grid-column:1/-1;
+      color:#91baa5;text-transform:uppercase;letter-spacing:.055em;
+      font-size:10px;font-weight:750;
+    }
+    .platform-shell .rw3-session-card > .rw3-actions .mini-button{
+      width:100%!important;min-width:0!important;max-width:100%!important;
+      min-height:44px!important;margin:0!important;padding:10px!important;
+      font-size:12px!important;justify-content:center!important;
+      text-align:center!important;white-space:normal!important;line-height:1.3!important;
+      border-radius:10px!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-actions [data-relaywa-stats]{
+      background:#087e54!important;color:#fff!important;border-color:#159b66!important;
+    }
+    .rw2-modal{max-width:calc(100vw - 16px)!important;max-height:calc(100dvh - 24px)!important;}
+    .rw2-footer{flex-direction:column!important;align-items:stretch!important;}
+    .rw2-refresh{width:100%!important;min-height:44px!important;}
+  }
+  @media (max-width: 390px) {
+    .platform-shell .rw3-sessions-table > .rw3-session-card{
+      grid-template-columns:minmax(0,1fr)!important;padding:14px!important;
+    }
+    .platform-shell .rw3-session-card > .rw3-field:first-child,
+    .platform-shell .rw3-session-card > .rw3-actions{grid-column:1!important;}
+    .platform-shell .rw3-session-card > .rw3-actions{
+      grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    }
+    .rw2-head h2{font-size:17px!important}
+  }
   `;
   document.head.append(style);
   const auth = () => localStorage.getItem('relaywa_access_token') || '';
@@ -89,9 +181,27 @@
     }
     void load();
   }
+  function decorateSessionRows(rows) {
+    for (const row of rows) {
+      const table=row.closest('.platform-table');
+      if (table && !table.classList.contains('rw3-sessions-table')) table.classList.add('rw3-sessions-table');
+      if (!row.classList.contains('rw3-session-card')) row.classList.add('rw3-session-card');
+      const labels=["Session","Client","WhatsApp number","Status","Engine","Worker","Last connected","Actions"];
+      Array.from(row.children).forEach((cell,index)=>{
+        if (!labels[index]) return;
+        if (index===7) {
+          if (!cell.classList.contains('rw3-actions')) cell.classList.add('rw3-actions');
+        } else {
+          if (!cell.classList.contains('rw3-field')) cell.classList.add('rw3-field');
+          if (cell.dataset.rw3Label!==labels[index]) cell.dataset.rw3Label=labels[index];
+        }
+      });
+    }
+  }
   async function mount() {
     const rows=Array.from(document.querySelectorAll('.session-admin-row:not(.platform-row-head)'));
     if (!rows.length) return;
+    decorateSessionRows(rows);
     const records=await sessions();
     for(const row of rows) {
       const actions=row.querySelector('.row-actions');if(!actions||actions.querySelector('[data-relaywa-stats]'))continue;
