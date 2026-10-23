@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { createSign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { getGa4AccessToken } from './ga4-service-account';
 
 const PROPERTY_ID = '558119248';
-const SERVICE_ACCOUNT_EMAIL = 'relaywa-analytics@relaywa-analytics.iam.gserviceaccount.com';
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const DATA_ENDPOINT = `https://analyticsdata.googleapis.com/v1beta/properties/${PROPERTY_ID}`;
 const REPORT_TTL_MS = 120_000;
 
@@ -63,10 +61,10 @@ export class GoogleAnalyticsReportingService {
       return { status: 'error', propertyId: PROPERTY_ID, days: 30, message: 'Choose 7, 30 or 90 days.' };
     }
 
-    if (!(process.env.GA4_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+    if (!(process.env.GA4_SERVICE_ACCOUNT_JSON || process.env.GA4_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
       return {
         status: 'not_configured', propertyId: PROPERTY_ID, days,
-        message: 'Google Analytics reporting needs a private service-account credential file on the API server.',
+        message: 'Google Analytics reporting needs a server-only service-account JSON secret or credential file.',
       };
     }
 
@@ -169,44 +167,18 @@ export class GoogleAnalyticsReportingService {
   }
 
   private async createToken(): Promise<string> {
-    // Never store the private key in Git, a frontend bundle or a public endpoint.
+    // Prefer an injected server-only JSON secret, including when provisioned through
+    // Cloudflare Worker env bindings. Keep the legacy restricted-file fallback for VPS.
+    const json = process.env.GA4_SERVICE_ACCOUNT_JSON;
     const file = process.env.GA4_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    if (!file) throw new Error('GA4 credential path missing');
-    const credentials = JSON.parse(await readFile(resolve(file), 'utf8')) as {
-      type?: string; client_email?: string; private_key?: string;
-    };
-    if (credentials.type !== 'service_account' ||
-      credentials.client_email !== SERVICE_ACCOUNT_EMAIL ||
-      !credentials.private_key?.includes('BEGIN PRIVATE KEY')) {
-      throw new Error('Invalid RelayWA GA4 service-account identity');
-    }
-    const now = Math.floor(Date.now() / 1000);
-    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-    const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({
-      iss: credentials.client_email,
-      scope: 'https://www.googleapis.com/auth/analytics.readonly',
-      aud: TOKEN_ENDPOINT,
-      iat: now,
-      exp: now + 3600,
-    })}`;
-    const signature = createSign('RSA-SHA256').update(unsigned).sign(credentials.private_key).toString('base64url');
-    const response = await fetch(TOKEN_ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: `${unsigned}.${signature}`,
-      }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) throw new Error('Google OAuth token request failed');
-    const result = await response.json() as { access_token?: string; expires_in?: number };
-    if (!result.access_token) throw new Error('Google OAuth returned no access token');
+    const credentials = json || (file ? await readFile(resolve(file), 'utf8') : null);
+    if (!credentials) throw new Error('GA4 service-account credential missing');
+    const { accessToken, expiresIn } = await getGa4AccessToken(credentials);
     this.token = {
-      accessToken: result.access_token,
-      expiresAt: Date.now() + Math.min(Math.max(result.expires_in ?? 3600, 120), 3600) * 1000,
+      accessToken,
+      expiresAt: Date.now() + expiresIn * 1000,
     };
-    return this.token.accessToken;
+    return accessToken;
   }
 
   private async googlePost<T>(url: string, token: string, body: Record<string, unknown>): Promise<T> {
