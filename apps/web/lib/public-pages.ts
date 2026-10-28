@@ -16,14 +16,14 @@ export const publicPages = [
   {
     path: '/pricing',
     title: 'WhatsApp API Pricing & Cost — QR Session Plans | RelayWA',
-    description: 'Compare RelayWA WhatsApp API pricing: monthly and annual plans for QR-linked sessions, REST messaging, signed webhooks and a 7-day trial.',
+    description: 'Compare RelayWA WhatsApp API pricing: monthly and annual QR-linked session plans, REST messaging, signed webhooks and a 7-day trial. Not Meta Cloud API.',
     changeFrequency: 'weekly',
     priority: 0.9,
   },
   {
     path: '/api-docs',
     title: 'WhatsApp REST API Documentation & Integration | RelayWA',
-    description: 'WhatsApp REST API docs for sending messages, QR-linked sessions, API keys and signed webhooks. HTTP integration examples for Node.js, Laravel, Python and .NET.',
+    description: 'Use RelayWA WhatsApp REST API documentation for QR-linked sessions, HTTP messaging and signed webhooks, with Node.js, Laravel, Python and .NET examples.',
     changeFrequency: 'monthly',
     priority: 0.9,
   },

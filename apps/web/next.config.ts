@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: '/docs', destination: '/api-docs', permanent: true },
+      // Canonicalize the www hostname without touching the rendered UI.
+      { source: '/:path*', has: [{ type: 'host', value: 'www.relaywa.com' }], destination: 'https://relaywa.com/:path*', permanent: true },
     ];
   },
 };
