@@ -16,7 +16,7 @@ export const publicPages = [
   {
     path: '/pricing',
     title: 'WhatsApp API Pricing & Cost — QR Session Plans | RelayWA',
-    description: 'Explore RelayWA WhatsApp Web API pricing for QR-linked sessions, REST messaging and signed webhooks. Compare monthly and annual plans with Meta Cloud API pricing.',
+    description: 'Compare RelayWA WhatsApp API pricing: monthly and annual QR-linked session plans, REST messaging, signed webhooks and a 7-day trial. Not Meta Cloud API.',
     changeFrequency: 'weekly',
     priority: 0.9,
   },
