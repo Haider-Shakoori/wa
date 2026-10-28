@@ -70,6 +70,14 @@ function trackable(request: NextRequest) {
 }
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
+  // Consolidate the www host for crawlers and visitors before analytics or routing.
+  // The edge must route www to this app or perform the same redirect upstream.
+  if (request.nextUrl.hostname.toLowerCase() === 'www.relaywa.com') {
+    const canonical = request.nextUrl.clone();
+    canonical.protocol = 'https:';
+    canonical.hostname = 'relaywa.com';
+    return NextResponse.redirect(canonical, 308);
+  }
   const response=NextResponse.next();
   // Preserve existing privacy-safe website analytics; do not let crawlers
   // index private account, session, checkout, or dashboard pages.
