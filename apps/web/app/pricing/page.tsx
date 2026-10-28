@@ -48,6 +48,20 @@ export default function Page() {
       </div>
       <p className="rw-topic-disclosure">RelayWA uses QR-linked WhatsApp Web sessions; it is not the official Meta WhatsApp Cloud API.</p>
     </section>
+    <section className="rw-site-section rw-developer-topics" aria-labelledby="pricing-faq-heading">
+      <div className="rw-section-intro">
+        <p className="rw-kicker">PRICING QUESTIONS</p>
+        <h2 id="pricing-faq-heading">Frequently asked questions about WhatsApp API pricing</h2>
+        <p>Check the current subscription cards above for actual RelayWA prices and allowances. The questions below explain what those prices cover and how this integration differs from Meta&apos;s official platform.</p>
+      </div>
+      <div className="rw-faq">
+        <details><summary>How much does the RelayWA WhatsApp API cost?</summary><p>The live pricing cards above show current monthly and annual subscription options. Choose based on the number of connected sessions you need, and confirm the displayed checkout total before subscribing. <Link href="/api-docs#sessions">See how sessions work</Link>.</p></details>
+        <details><summary>Is RelayWA the same as the WhatsApp Cloud API?</summary><p>No. RelayWA connects an authorized WhatsApp number through a QR-linked WhatsApp Web session. Meta&apos;s official Cloud API has a separate onboarding process, pricing structure and usage policies. <Link href="/guides/whatsapp-web-vs-cloud-api">Compare the two integration models</Link>.</p></details>
+        <details><summary>Does RelayWA charge per WhatsApp message?</summary><p>RelayWA&apos;s subscription is based on plan allowances rather than a separate per-message charge. WhatsApp account restrictions, session availability and responsible messaging limits still apply. <Link href="/api-docs#messages">Read the messaging API documentation</Link>.</p></details>
+        <details><summary>Can I integrate RelayWA with Node.js or Laravel?</summary><p>Yes. RelayWA provides HTTP REST endpoints for server-side integrations. Start with the <Link href="/blog/nodejs-whatsapp-api-send-webhooks">Node.js messaging and webhook guide</Link> or the <Link href="/blog/laravel-whatsapp-api-order-notifications">Laravel order notification guide</Link>.</p></details>
+        <details><summary>Are delivery and account availability guaranteed?</summary><p>No. A successful API response does not guarantee recipient delivery, and QR-linked unofficial sessions may disconnect or face account restrictions. Implement status checks, consent handling and application-owned retries. <Link href="/whatsapp-webhooks">Learn about webhook events</Link>.</p></details>
+      </div>
+    </section>
     <PublicFooter />
   </main>;
 }
