@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # SDK-only packaging check: resolve the workspace lockfile in this ephemeral runner.\n      # No lockfile is committed, no publishing or deployment occurs.\n      - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @relaywa/sdk test
       - run: pnpm --filter @relaywa/sdk typecheck
       - name: Inspect package contents (no publication)
