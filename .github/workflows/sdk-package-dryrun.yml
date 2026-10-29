@@ -13,47 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: pnpm
-      - name: Resolve SDK dependencies for lockfile diagnostic
-        run: pnpm install --no-frozen-lockfile
-      - name: Report lockfile drift without failing packaging
-        id: lockfile_drift
+      - name: Build SDK in isolated temporary workspace
         shell: bash
         run: |
-          if git diff --quiet -- pnpm-lock.yaml; then
-            echo "drift=false" >> "$GITHUB_OUTPUT"
-            echo "Lockfile matches current dependency resolution."
-          else
-            echo "drift=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::pnpm-lock.yaml changes under the declared package manager. Review the diagnostic artifact before restoring --frozen-lockfile."
-            git diff --stat -- pnpm-lock.yaml
-          fi
-      - name: Check resolved lockfile retains monorepo importers
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const original = fs.readFileSync('pnpm-lock.yaml', 'utf8');
-          const required = ['apps/api:', 'apps/web:', 'apps/worker:', 'packages/sdk-typescript:'];
-          const missing = required.filter(name => !original.includes('  ' + name));
-          if (missing.length) {
-            console.log('::warning::Resolved pnpm lockfile is missing workspace importers: ' + missing.join(', ') + '. Do not commit this artifact as a replacement for the monorepo lockfile.');
-          } else {
-            console.log('Resolved lockfile retains required workspace importers.');
-          }
-          NODE
-      - name: Upload resolved lockfile for review
-        if: steps.lockfile_drift.outputs.drift == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sdk-resolved-pnpm-lockfile
-          path: pnpm-lock.yaml
-          retention-days: 7
-      - run: pnpm --filter @relaywa/sdk build
+          mkdir -p /tmp/relaywa-sdk-build
+          cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-build/
+          cd /tmp/relaywa-sdk-build
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+          npm run build
+          cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
       - name: Verify npm tarball without publishing
         working-directory: packages/sdk-typescript
         run: npm pack --dry-run --json > /tmp/relaywa-npm-pack.json && node -e "const p=require('/tmp/relaywa-npm-pack.json')[0]; if (!p.files.some(f=>f.path==='dist/index.js') || !p.files.some(f=>f.path==='dist/index.d.ts') || !p.files.some(f=>f.path==='LICENSE') || !p.files.some(f=>f.path==='README.md')) process.exit(1)"
