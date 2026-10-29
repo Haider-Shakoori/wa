@@ -85,6 +85,45 @@ public sealed class RelayWAClient
     }
     public Task<JsonElement> SessionsAsync(CancellationToken cancellationToken = default) => GetAsync("whatsapp-sessions", cancellationToken);
     private static string SessionPath(string id) => !string.IsNullOrWhiteSpace(id) ? "whatsapp-sessions/" + Uri.EscapeDataString(id) : throw new ArgumentException("Session ID required");
+    private static void ValidateSessionInput(string? name, string? phoneHint, bool create)
+    {
+        if (create && name is null) throw new ArgumentException("Session name required");
+        if (name is not null && (name.Length < 2 || name.Length > 120)) throw new ArgumentException("Invalid session name");
+        if (phoneHint is not null && phoneHint.Length > 40) throw new ArgumentException("Invalid phone hint");
+    }
+    public async Task<JsonElement> CreateSessionAsync(string name, string? phoneHint = null, CancellationToken ct = default)
+    {
+        ValidateSessionInput(name, phoneHint, true);
+        using var response = await _http.PostAsJsonAsync("whatsapp-sessions", new { name, phoneHint }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public async Task<JsonElement> UpdateSessionAsync(string id, string? name = null, string? phoneHint = null, CancellationToken ct = default)
+    {
+        var path = SessionPath(id);
+        ValidateSessionInput(name, phoneHint, false);
+        var payload = new Dictionary<string, string>();
+        if (name is not null) payload["name"] = name;
+        if (phoneHint is not null) payload["phoneHint"] = phoneHint;
+        using var response = await _http.PatchAsJsonAsync(path, payload, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    private async Task<JsonElement> SessionActionAsync(string id, string action, CancellationToken ct)
+    {
+        using var response = await _http.PostAsync(SessionPath(id) + "/" + action, null, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public Task<JsonElement> ConnectSessionAsync(string id, CancellationToken ct = default) => SessionActionAsync(id, "connect", ct);
+    public Task<JsonElement> RestartSessionAsync(string id, CancellationToken ct = default) => SessionActionAsync(id, "restart", ct);
+    public Task<JsonElement> DisconnectSessionAsync(string id, CancellationToken ct = default) => SessionActionAsync(id, "disconnect", ct);
+    public async Task<JsonElement> DeleteSessionAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync(SessionPath(id), ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
     public Task<JsonElement> SessionAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id), ct);
     public Task<JsonElement> SessionQrCodeAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/qrcode", ct);
     public Task<JsonElement> SessionStatisticsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/statistics", ct);
