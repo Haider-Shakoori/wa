@@ -42,6 +42,25 @@ final class Client
         return $this->request('POST', '/send-' . $kind, $media);
     }
 
+    /** @param array<string,mixed> $payload */
+    private function sendAction(string $kind, array $payload): array
+    {
+        $to = $payload['to'] ?? null;
+        if (!is_string($to) || strlen($to) < 7 || strlen($to) > 32) throw new \InvalidArgumentException('Recipient must be 7-32 characters');
+        if ($kind === 'location' && (!isset($payload['latitude'], $payload['longitude']) || !is_numeric($payload['latitude']) || !is_numeric($payload['longitude']) || abs((float)$payload['latitude']) > 90 || abs((float)$payload['longitude']) > 180)) throw new \InvalidArgumentException('Invalid coordinates');
+        if ($kind === 'contact' && (!is_string($payload['displayName'] ?? null) || strlen($payload['displayName']) < 1 || strlen($payload['displayName']) > 160 || !is_string($payload['vcard'] ?? null) || strlen($payload['vcard']) < 10 || strlen($payload['vcard']) > 12000)) throw new \InvalidArgumentException('Invalid contact');
+        if ($kind === 'poll' && (!is_string($payload['question'] ?? null) || strlen($payload['question']) < 1 || strlen($payload['question']) > 255 || !is_array($payload['options'] ?? null) || count($payload['options']) < 2 || count($payload['options']) > 12 || count(array_filter($payload['options'], fn($x) => !is_string($x) || strlen($x) > 100)) > 0 || !is_int($payload['selectableCount'] ?? null) || $payload['selectableCount'] < 1 || $payload['selectableCount'] > count($payload['options']))) throw new \InvalidArgumentException('Invalid poll');
+        if ($kind === 'reply' && (!is_string($payload['text'] ?? null) || strlen($payload['text']) < 1 || strlen($payload['text']) > 4096 || !is_string($payload['quotedMessageId'] ?? null) || strlen($payload['quotedMessageId']) < 1 || strlen($payload['quotedMessageId']) > 180)) throw new \InvalidArgumentException('Invalid reply');
+        if ($kind === 'reaction' && (!is_string($payload['emoji'] ?? null) || strlen($payload['emoji']) > 32 || !is_string($payload['targetMessageId'] ?? null) || strlen($payload['targetMessageId']) < 1 || strlen($payload['targetMessageId']) > 180)) throw new \InvalidArgumentException('Invalid reaction');
+        return $this->request('POST', '/send-' . $kind, $payload);
+    }
+
+    public function sendLocation(array $payload): array { return $this->sendAction('location', $payload); }
+    public function sendContact(array $payload): array { return $this->sendAction('contact', $payload); }
+    public function sendPoll(array $payload): array { return $this->sendAction('poll', $payload); }
+    public function sendReply(array $payload): array { return $this->sendAction('reply', $payload); }
+    public function sendReaction(array $payload): array { return $this->sendAction('reaction', $payload); }
+
     public function sessions(): array { return $this->request('GET', '/whatsapp-sessions'); }
     private function sessionPath(string $id): string
     {

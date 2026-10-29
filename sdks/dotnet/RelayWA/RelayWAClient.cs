@@ -52,6 +52,37 @@ public sealed class RelayWAClient
     public Task<JsonElement> SendAudioAsync(MediaMessage media, CancellationToken ct = default) => SendMediaAsync("audio", media, ct);
     public Task<JsonElement> SendDocumentAsync(MediaMessage media, CancellationToken ct = default) => SendMediaAsync("document", media, ct);
 
+    private async Task<JsonElement> SendActionAsync(string kind, object payload, CancellationToken ct)
+    {
+        using var response = await _http.PostAsJsonAsync("send-" + kind, payload, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public Task<JsonElement> SendLocationAsync(string to, double latitude, double longitude, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || to.Length < 7 || to.Length > 32 || !double.IsFinite(latitude) || !double.IsFinite(longitude) || Math.Abs(latitude) > 90 || Math.Abs(longitude) > 180) throw new ArgumentException("Invalid location");
+        return SendActionAsync("location", new { to, latitude, longitude }, ct);
+    }
+    public Task<JsonElement> SendContactAsync(string to, string displayName, string vcard, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || to.Length < 7 || to.Length > 32 || string.IsNullOrEmpty(displayName) || displayName.Length > 160 || string.IsNullOrEmpty(vcard) || vcard.Length < 10 || vcard.Length > 12000) throw new ArgumentException("Invalid contact");
+        return SendActionAsync("contact", new { to, displayName, vcard }, ct);
+    }
+    public Task<JsonElement> SendPollAsync(string to, string question, string[] options, int selectableCount, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || to.Length < 7 || to.Length > 32 || string.IsNullOrEmpty(question) || question.Length > 255 || options is null || options.Length < 2 || options.Length > 12 || options.Any(x => x is null || x.Length > 100) || selectableCount < 1 || selectableCount > options.Length) throw new ArgumentException("Invalid poll");
+        return SendActionAsync("poll", new { to, question, options, selectableCount }, ct);
+    }
+    public Task<JsonElement> SendReplyAsync(string to, string text, string quotedMessageId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || to.Length < 7 || to.Length > 32 || string.IsNullOrEmpty(text) || text.Length > 4096 || string.IsNullOrEmpty(quotedMessageId) || quotedMessageId.Length > 180) throw new ArgumentException("Invalid reply");
+        return SendActionAsync("reply", new { to, text, quotedMessageId }, ct);
+    }
+    public Task<JsonElement> SendReactionAsync(string to, string emoji, string targetMessageId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || to.Length < 7 || to.Length > 32 || emoji is null || emoji.Length > 32 || string.IsNullOrEmpty(targetMessageId) || targetMessageId.Length > 180) throw new ArgumentException("Invalid reaction");
+        return SendActionAsync("reaction", new { to, emoji, targetMessageId }, ct);
+    }
     public Task<JsonElement> SessionsAsync(CancellationToken cancellationToken = default) => GetAsync("whatsapp-sessions", cancellationToken);
     private static string SessionPath(string id) => !string.IsNullOrWhiteSpace(id) ? "whatsapp-sessions/" + Uri.EscapeDataString(id) : throw new ArgumentException("Session ID required");
     public Task<JsonElement> SessionAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id), ct);
