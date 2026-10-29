@@ -34,7 +34,7 @@ jobs:
           mkdir -p /tmp/relaywa-sdk-build release-candidate/npm
           cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-build/
           cd /tmp/relaywa-sdk-build
-          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+          npm ci --ignore-scripts --no-audit --no-fund
           npm run build
           cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
           cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
