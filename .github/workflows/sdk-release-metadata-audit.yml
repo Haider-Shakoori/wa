@@ -34,9 +34,11 @@ jobs:
               "Python README": (root / "sdks/python/README.md").is_file(),
               "PHP README": (root / "sdks/php/README.md").is_file(),
               ".NET README": (root / "sdks/dotnet/RelayWA/README.md").is_file(),
-              "License text present": any((root / n).is_file() for n in ("LICENSE", "LICENSE.md", "LICENSE.txt")),
-              "npm publishing unlocked": npm.get("private") is not True,
-              "Python license declared": bool(py["project"].get("license") or py["project"].get("license-files")),
+              "MIT license files scoped to SDKs": all((root / p / "LICENSE").is_file() for p in ("packages/sdk-typescript", "sdks/python", "sdks/php", "sdks/dotnet/RelayWA")),
+              "npm license metadata": npm.get("license") == "MIT",
+              "Composer license metadata": php.get("license") == "MIT",
+              "npm publishing remains approval-gated": npm.get("private") is True,
+              "Python MIT license declared": py["project"].get("license") == "MIT",
               ".NET license declared": bool(dotnet.findtext(".//PackageLicenseExpression") or dotnet.findtext(".//PackageLicenseFile")),
           }
           print("SDK registry readiness (diagnostic only):")
