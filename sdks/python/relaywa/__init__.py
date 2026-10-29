@@ -66,6 +66,41 @@ class RelayWA:
     def send_document(self, media: dict):
         return self._send_media("document", media)
 
+    def _send_action(self, kind: str, payload: dict):
+        if not isinstance(payload, dict) or not isinstance(payload.get("to"), str) or not 7 <= len(payload["to"]) <= 32:
+            raise ValueError("Recipient must be 7-32 characters")
+        if kind == "location":
+            lat, lon = payload.get("latitude"), payload.get("longitude")
+            if type(lat) not in (int, float) or type(lon) not in (int, float) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+                raise ValueError("Invalid coordinates")
+        if kind == "contact" and (not isinstance(payload.get("displayName"), str) or not 1 <= len(payload["displayName"]) <= 160 or not isinstance(payload.get("vcard"), str) or not 10 <= len(payload["vcard"]) <= 12000):
+            raise ValueError("Invalid contact")
+        if kind == "poll":
+            opts = payload.get("options")
+            count = payload.get("selectableCount")
+            if not isinstance(payload.get("question"), str) or not 1 <= len(payload["question"]) <= 255 or not isinstance(opts, list) or not 2 <= len(opts) <= 12 or any(not isinstance(x, str) or len(x) > 100 for x in opts) or type(count) is not int or not 1 <= count <= len(opts):
+                raise ValueError("Invalid poll")
+        if kind == "reply" and (not isinstance(payload.get("text"), str) or not 1 <= len(payload["text"]) <= 4096 or not isinstance(payload.get("quotedMessageId"), str) or not 1 <= len(payload["quotedMessageId"]) <= 180):
+            raise ValueError("Invalid reply")
+        if kind == "reaction" and (not isinstance(payload.get("emoji"), str) or len(payload["emoji"]) > 32 or not isinstance(payload.get("targetMessageId"), str) or not 1 <= len(payload["targetMessageId"]) <= 180):
+            raise ValueError("Invalid reaction")
+        return self._request("POST", "/send-" + kind, payload)
+
+    def send_location(self, payload: dict):
+        return self._send_action("location", payload)
+
+    def send_contact(self, payload: dict):
+        return self._send_action("contact", payload)
+
+    def send_poll(self, payload: dict):
+        return self._send_action("poll", payload)
+
+    def send_reply(self, payload: dict):
+        return self._send_action("reply", payload)
+
+    def send_reaction(self, payload: dict):
+        return self._send_action("reaction", payload)
+
     def sessions(self):
         return self._request("GET", "/whatsapp-sessions")
 
