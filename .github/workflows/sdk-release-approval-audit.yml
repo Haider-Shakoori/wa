@@ -1,0 +1,47 @@
+name: SDK release approval preflight (no publishing)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify SDK release remains non-publishing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          repo=os.environ['GITHUB_REPOSITORY']
+          token=os.environ['GH_TOKEN']
+          environments=['sdk-npm-release','sdk-pypi-release','sdk-packagist-release','sdk-nuget-release']
+          rows=['# SDK approval environment audit', '', 'No publication or secrets access was performed.', '']
+          for name in environments:
+              url=f'https://api.github.com/repos/{repo}/environments/{name}'
+              req=urllib.request.Request(url, headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json','User-Agent':'RelayWA-SDK-release-audit'})
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as r:
+                      data=json.load(r)
+                  rules=data.get('protection_rules',[])
+                  reviewers=[r for r in rules if r.get('type')=='required_reviewers']
+                  branch=[r for r in rules if r.get('type')=='branch_policy']
+                  policy=data.get('deployment_branch_policy')
+                  protected=bool(reviewers) and bool(policy and (policy.get('protected_branches') or policy.get('custom_branch_policies')))
+                  status='READY' if protected else 'NOT READY'
+                  rows.append(f'- {name}: {status} — required reviewers: {bool(reviewers)}; branch restrictions: {bool(policy and (policy.get("protected_branches") or policy.get("custom_branch_policies")))}')
+              except urllib.error.HTTPError as e:
+                  rows.append(f'- {name}: NOT VERIFIED — GitHub API HTTP {e.code} (missing environment or insufficient access)')
+              except Exception as e:
+                  rows.append(f'- {name}: NOT VERIFIED — {type(e).__name__}')
+          rows += ['', 'This audit is informational and does not configure GitHub environments or grant publication authorization.', 'Required reviewers and main-only branch restrictions must be set manually in GitHub Settings before a future publishing workflow is added.']
+          print('\\n'.join(rows))
+          open('sdk-release-approval-audit.md','w').write('\\n'.join(rows)+'\\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-release-approval-audit
+          path: sdk-release-approval-audit.md
+          retention-days: 7
