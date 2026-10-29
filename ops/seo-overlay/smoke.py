@@ -46,7 +46,7 @@ def get(path):
             with urlopen(req, timeout=25) as res:
                 return res.status, {k.lower(): v for k, v in res.headers.items()}, res.read(1_500_000).decode("utf-8", "replace")
         except HTTPError as error:
-            if error.code not in (404, 429, 500, 502, 503) or attempt == 11:
+            if error.code not in (404, 429, 500, 502, 503, 522, 524) or attempt == 11:
                 raise
             print(f"Retrying transient edge HTTP {error.code} for {path}: {attempt+1}/12")
             time.sleep(2)
@@ -84,8 +84,14 @@ for resource, expected in (
     assert expected in payload, "Cookie asset incomplete: " + resource
     print("Cookie message asset available:", origin + resource)
 
+# Preview validates only self-contained pages/assets. A workers.dev preview forwarding
+# to the relaywa.com custom domain can encounter Cloudflare 522 routing loops;
+# production-origin integration is verified only in the LIVE stage.
+if PREVIEW:
+    print('Preview SEO snapshots and assets verified; origin marketing proxy checks deferred to live verification.')
+
 # Existing marketing pages must retain their origin HTML.
-for path in (
+for path in (() if PREVIEW else (
     "/", "/pricing", "/api-docs", "/help", "/blog",
     "/blog/nodejs-whatsapp-api-send-webhooks",
     "/blog/laravel-whatsapp-api-order-notifications",
@@ -99,6 +105,10 @@ for path in (
     assert "relaywa-cookie-message.js" in html, "Cookie loader missing: " + path
     assert "relaywa-cookie-message.css" in html, "Cookie stylesheet missing: " + path
     assert "RelayWA" in html, "Original page content missing: " + path
+    if path == "/pricing":
+        assert "Understand your RelayWA subscription" in html, "Pricing FAQ not deployed"
+        assert "What is included in the free trial?" in html, "Pricing FAQ questions missing"
+        assert "Loading plans" in html or "WhatsApp API pricing" in html, "Dynamic pricing page unexpectedly replaced"
     print("Original marketing page and cookie notice verified:", origin + path)
 
 if LIVE:
