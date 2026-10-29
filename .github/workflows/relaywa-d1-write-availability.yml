@@ -1,0 +1,30 @@
+name: RelayWA D1 write availability test
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-write-availability.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Test D1 no-op write without changing rows
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const h={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const list=await fetch(root+'/d1/database?per_page=100',{headers:h}).then(r=>r.json());
+          if(!list.success)throw Error('D1 list failed');
+          const db=list.result.find(x=>x.name==='relaywa');
+          const statements=["SELECT COUNT(*) AS count FROM relaywa_worker_heartbeats","UPDATE relaywa_worker_heartbeats SET last_seen_at=last_seen_at WHERE 1=0","UPDATE whatsapp_sessions SET updated_at=updated_at WHERE 1=0"];
+          for(const sql of statements){
+            const res=await fetch(root+'/d1/database/'+db.uuid+'/query',{method:'POST',headers:{...h,'content-type':'application/json'},body:JSON.stringify({sql})});
+            const data=await res.json();
+            console.log('PROBE',sql.split(' ')[0],sql.includes('whatsapp_sessions')?'sessions':'heartbeats',JSON.stringify({http:res.status,success:data.success,errors:data.errors?.map(e=>({code:e.code,message:String(e.message).slice(0,350)})),statement:data.result?.[0]?.success,meta:data.result?.[0]?.meta}));
+          }
+          NODE
