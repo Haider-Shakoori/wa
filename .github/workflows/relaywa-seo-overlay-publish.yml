@@ -1,5 +1,6 @@
 name: Publish RelayWA SEO pages to Cloudflare exact routes
 on:
+  workflow_dispatch:
   push:
     branches: [feat/cloudflare-seo-overlay-release]
     paths:
