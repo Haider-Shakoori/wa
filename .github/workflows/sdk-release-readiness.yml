@@ -52,14 +52,15 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/sdk-readiness-artifacts"
           cp package-lock.json "$GITHUB_WORKSPACE/sdk-readiness-artifacts/typescript-package-lock.json"
           npm pack --pack-destination "$GITHUB_WORKSPACE/sdk-readiness-artifacts" --silent
-      - name: Verify SDK package integrity and publishing remains disabled
+      - name: Verify SDK package integrity and stage-eligible metadata
         shell: bash
         run: |
           python3 - <<'PY'
           import glob, json, tarfile
           from pathlib import Path
           pkg=json.loads(Path('packages/sdk-typescript/package.json').read_text())
-          assert pkg.get('private') is True, 'TypeScript SDK must remain private'
+          assert pkg.get('private') is False, 'TypeScript SDK must be stage-eligible'
+          assert pkg.get('publishConfig', {}).get('access') == 'public', 'SDK must be public-scoped for staging'
           assert pkg.get('license') == 'MIT'
           archive=glob.glob('sdk-readiness-artifacts/*.tgz')
           assert len(archive)==1, archive
@@ -68,10 +69,11 @@ jobs:
               required={'package/LICENSE','package/README.md','package/dist/index.js','package/dist/index.d.ts','package/package.json'}
               assert required <= names, required-names
               metadata=json.load(tf.extractfile('package/package.json'))
-              assert metadata.get('private') is True
+              assert metadata.get('private') is False
+              assert metadata.get('publishConfig', {}).get('access') == 'public'
           for license_path in ('sdks/python/LICENSE','sdks/php/LICENSE','sdks/dotnet/RelayWA/LICENSE'):
               assert Path(license_path).is_file(), license_path
-          print('SDK archive contents, MIT notices, and npm private flag verified.')
+          print('SDK archive contents, MIT notices, and npm stage-eligible metadata verified; no staging or publishing performed.')
           PY
           cd sdk-readiness-artifacts
           sha256sum *.tgz typescript-package-lock.json > SHA256SUMS
