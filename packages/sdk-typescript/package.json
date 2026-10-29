@@ -11,7 +11,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -21,5 +23,6 @@
   "devDependencies": {
     "typescript": "^5.9.0",
     "@types/node": "^22.15.0"
-  }
+  },
+  "license": "MIT"
 }
