@@ -31,3 +31,9 @@ No changes to API, worker, queues, database, live deployment or production keys.
 ## Operational cautions
 
 Do not include live session keys in CI or package archives. Do not automatically retry send operations or session mutations after ambiguous network failures. Offline tests and package builds do not prove compatibility with live production endpoints.
+
+## Manual release-candidate gate
+
+Run **SDK release candidate (build only)** from GitHub Actions with the confirmation input `PREPARE_ONLY`. This workflow runs offline tests, builds four SDK distribution artifacts and a SHA256 manifest, and uploads them for human review. It has read-only repository permissions, no registry tokens, and no publishing steps. A green run is **not** publication approval.
+
+Before any future publishing workflow is introduced, explicitly configure a protected GitHub Actions environment with required reviewers, confirm registry account ownership and permissions, review artifacts and SHA256 hashes, and obtain separate approval for each registry. A confirmation text field alone is not an enforced reviewer approval gate. Keep npm `private: true` until explicit publication approval. The SDK-only isolated npm build does not modify the monorepo pnpm lockfile, but is not yet fully dependency-lockfile reproducible.
