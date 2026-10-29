@@ -45,6 +45,27 @@ export default function QrCodeApiPage() {
           <Link className="rw-topic-more" href="/api-docs#quickstart">REST API quickstart →</Link>
         </article>
       </div>
+      <section aria-labelledby="qr-integration-checklist">
+        <h2 id="qr-integration-checklist">QR code WhatsApp API integration checklist</h2>
+        <p>Before connecting a WhatsApp number to your application, separate pairing, API authorization and message delivery into distinct checks. A successful QR scan does not by itself confirm that your backend is ready to send notifications.</p>
+        <div className="rw-developer-topic-grid">
+          <article>
+            <h3>Pair the right account</h3>
+            <p>Confirm the number belongs to your business or an authorized client. Scan only the QR generated for that session, and avoid storing the QR image in analytics or support logs.</p>
+            <Link className="rw-topic-more" href="/blog/whatsapp-api-qr-session-troubleshooting">Troubleshoot QR pairing →</Link>
+          </article>
+          <article>
+            <h3>Keep credentials server-side</h3>
+            <p>Use the session-scoped API key only from your backend. Review the current request examples and never expose credentials in browser code or publicly shared repositories.</p>
+            <Link className="rw-topic-more" href="/api-docs#quickstart">Review the REST API quickstart →</Link>
+          </article>
+          <article>
+            <h3>Process events safely</h3>
+            <p>Verify signed webhook callbacks and deduplicate event IDs before changing order or customer records. Treat request acceptance and final message delivery as separate states.</p>
+            <Link className="rw-topic-more" href="/whatsapp-webhooks">Read the webhook integration guide →</Link>
+          </article>
+        </div>
+      </section>
       <section aria-labelledby="qr-api-questions">
         <h2 id="qr-api-questions">Common questions about QR-linked WhatsApp APIs</h2>
         <div className="rw-faq">
