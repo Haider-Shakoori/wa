@@ -32,6 +32,20 @@ jobs:
             echo "::warning::pnpm-lock.yaml changes under the declared package manager. Review the diagnostic artifact before restoring --frozen-lockfile."
             git diff --stat -- pnpm-lock.yaml
           fi
+      - name: Check resolved lockfile retains monorepo importers
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const original = fs.readFileSync('pnpm-lock.yaml', 'utf8');
+          const required = ['apps/api:', 'apps/web:', 'apps/worker:', 'packages/sdk-typescript:'];
+          const missing = required.filter(name => !original.includes('  ' + name));
+          if (missing.length) {
+            console.log('::warning::Resolved pnpm lockfile is missing workspace importers: ' + missing.join(', ') + '. Do not commit this artifact as a replacement for the monorepo lockfile.');
+          } else {
+            console.log('Resolved lockfile retains required workspace importers.');
+          }
+          NODE
       - name: Upload resolved lockfile for review
         if: steps.lockfile_drift.outputs.drift == 'true'
         uses: actions/upload-artifact@v4
