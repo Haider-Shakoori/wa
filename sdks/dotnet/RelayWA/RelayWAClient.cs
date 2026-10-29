@@ -8,6 +8,9 @@ namespace RelayWA;
 public sealed record MediaMessage(string To, string Url, string MimeType, long MediaSizeBytes,
     string? FileName = null, string? Caption = null, bool? VoiceNote = null, string? ClientMessageId = null);
 
+public sealed record WebhookCreate(string Name, string Url, string[]? EventTypes = null);
+public sealed record WebhookUpdate(string? Name = null, string? Url = null, string[]? EventTypes = null, bool? Enabled = null);
+
 public sealed class RelayWAClient
 {
     private readonly HttpClient _http;
@@ -51,6 +54,37 @@ public sealed class RelayWAClient
 
     public Task<JsonElement> SessionsAsync(CancellationToken cancellationToken = default) => GetAsync("whatsapp-sessions", cancellationToken);
     public Task<JsonElement> WebhooksAsync(CancellationToken cancellationToken = default) => GetAsync("webhooks", cancellationToken);
+    private static string WebhookId(string id) => !string.IsNullOrWhiteSpace(id) ? Uri.EscapeDataString(id) : throw new ArgumentException("Webhook ID required");
+    private static void ValidateWebhook(string? name, string? url, string[]? events)
+    {
+        if (name is not null && (name.Length < 2 || name.Length > 120)) throw new ArgumentException("Invalid webhook name");
+        if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.UserInfo))) throw new ArgumentException("Webhook URL must use HTTPS");
+        if (events is not null && (events.Length > 32 || events.Any(e => e is null || e.Length > 64))) throw new ArgumentException("Invalid webhook event types");
+    }
+    public async Task<JsonElement> CreateWebhookAsync(WebhookCreate input, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(input.Name) || string.IsNullOrEmpty(input.Url)) throw new ArgumentException("Webhook name and URL required");
+        ValidateWebhook(input.Name, input.Url, input.EventTypes);
+        using var response = await _http.PostAsJsonAsync("webhooks", input, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public async Task<JsonElement> UpdateWebhookAsync(string id, WebhookUpdate input, CancellationToken ct = default)
+    {
+        var segment = WebhookId(id);
+        ValidateWebhook(input.Name, input.Url, input.EventTypes);
+        using var response = await _http.PatchAsJsonAsync("webhooks/" + segment, input, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public async Task<JsonElement> DeleteWebhookAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync("webhooks/" + WebhookId(id), ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
+    public Task<JsonElement> WebhookDeliveriesAsync(string id, CancellationToken ct = default) => GetAsync("webhooks/" + WebhookId(id) + "/deliveries", ct);
+
     private async Task<JsonElement> GetAsync(string path, CancellationToken cancellationToken)
     {
         using var response = await _http.GetAsync(path, cancellationToken);
