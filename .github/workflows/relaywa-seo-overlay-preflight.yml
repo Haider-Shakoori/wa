@@ -27,6 +27,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Build original Next application
         run: pnpm --filter @wa/web build
+      - name: Compile Python smoke and route scripts before deploying preview
+        run: python3 -m py_compile ops/seo-overlay/smoke.py ops/seo-overlay/routes.py
       - name: Render SEO snapshots including Next 16 Turbopack CSS
         shell: bash
         run: |
