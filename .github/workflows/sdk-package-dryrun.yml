@@ -18,7 +18,8 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Install SDK dependencies without mutating repository lockfile
+        run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @relaywa/sdk build
       - name: Verify npm tarball without publishing
         working-directory: packages/sdk-typescript
