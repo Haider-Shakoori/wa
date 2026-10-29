@@ -53,6 +53,16 @@ public sealed class RelayWAClient
     public Task<JsonElement> SendDocumentAsync(MediaMessage media, CancellationToken ct = default) => SendMediaAsync("document", media, ct);
 
     public Task<JsonElement> SessionsAsync(CancellationToken cancellationToken = default) => GetAsync("whatsapp-sessions", cancellationToken);
+    private static string SessionPath(string id) => !string.IsNullOrWhiteSpace(id) ? "whatsapp-sessions/" + Uri.EscapeDataString(id) : throw new ArgumentException("Session ID required");
+    public Task<JsonElement> SessionAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id), ct);
+    public Task<JsonElement> SessionQrCodeAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/qrcode", ct);
+    public Task<JsonElement> SessionStatisticsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/statistics", ct);
+    public Task<JsonElement> SessionLogsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/logs", ct);
+    public Task<JsonElement> SessionMessagesAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/messages", ct);
+    public Task<JsonElement> SessionMessageAsync(string id, string messageId, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/messages/" + (!string.IsNullOrWhiteSpace(messageId) ? Uri.EscapeDataString(messageId) : throw new ArgumentException("Message ID required")), ct);
+    public Task<JsonElement> SessionContactsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/contacts", ct);
+    public Task<JsonElement> SessionChatsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/chats", ct);
+    public Task<JsonElement> SessionGroupsAsync(string id, CancellationToken ct = default) => GetAsync(SessionPath(id) + "/groups", ct);
     public Task<JsonElement> WebhooksAsync(CancellationToken cancellationToken = default) => GetAsync("webhooks", cancellationToken);
     private static string WebhookId(string id) => !string.IsNullOrWhiteSpace(id) ? Uri.EscapeDataString(id) : throw new ArgumentException("Webhook ID required");
     private static void ValidateWebhook(string? name, string? url, string[]? events)
