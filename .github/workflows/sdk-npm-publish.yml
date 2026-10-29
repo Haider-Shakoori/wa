@@ -21,10 +21,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify SDK stays private and scope is correct
+      - name: Verify SDK stage eligibility and scope
         shell: bash
         run: |
-          node -e "const p=require('./packages/sdk-typescript/package.json'); if(p.name!=='@relaywa/sdk'||p.private!==true||p.version!=='0.1.0') process.exit(1)"
+          node -e "const p=require('./packages/sdk-typescript/package.json'); if(p.name!=='@relaywa/sdk'||p.private!==false||p.publishConfig?.access!=='public'||p.version!=='0.1.0') process.exit(1)"
       - name: Build SDK in isolation without publishing
         shell: bash
         run: |
