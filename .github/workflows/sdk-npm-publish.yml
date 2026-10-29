@@ -1,0 +1,44 @@
+name: npm SDK publishing preparation (disabled)
+# Intentionally no workflow_dispatch, push, pull_request, release, or schedule triggers.
+# This workflow cannot be run until a separately reviewed PR explicitly enables it.
+on:
+  workflow_call:
+    inputs:
+      enable_publishing:
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-only:
+    if: ${{ inputs.enable_publishing == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify SDK stays private and scope is correct
+        shell: bash
+        run: |
+          node -e "const p=require('./packages/sdk-typescript/package.json'); if(p.name!=='@relaywa/sdk'||p.private!==true||p.version!=='0.1.0') process.exit(1)"
+      - name: Build SDK in isolation without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/relaywa-sdk-npm-preflight
+          cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-npm-preflight/
+          cd /tmp/relaywa-sdk-npm-preflight
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
+          cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
+          node --test test/*.test.mjs
+          cd /tmp/relaywa-sdk-npm-preflight
+          npm pack --dry-run --json > /tmp/relaywa-sdk-pack.json
+          node -e "const p=require('/tmp/relaywa-sdk-pack.json')[0];const names=p.files.map(x=>x.path);for(const x of ['LICENSE','README.md','dist/index.js','dist/index.d.ts'])if(!names.includes(x))throw Error('Missing '+x)"
+      - name: Confirm publishing is disabled
+        run: echo "Preparation only; no npm publish command, credentials, or OIDC token permissions."
