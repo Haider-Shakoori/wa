@@ -4,6 +4,7 @@
 const PAGES = __SEO_HTML_MAP__;
 const COOKIE_JS = __COOKIE_JS__;
 const COOKIE_CSS = __COOKIE_CSS__;
+const PRICING_FAQ_HTML = __PRICING_FAQ_HTML__;
 export const COOKIE_JS_PATH = '/relaywa-cookie-message.js';
 export const COOKIE_CSS_PATH = '/relaywa-cookie-message.css';
 export const MARKETING_ROUTES = [
@@ -29,14 +30,22 @@ function cookieAssets(path, method) {
     },
   });
 }
-function applyNoticeToOrigin(original, method, preview = false) {
+function applyNoticeToOrigin(original, method, preview = false, pathname = '') {
   if (method === 'HEAD' || !original.ok ||
       !original.headers.get('content-type')?.toLowerCase().includes('text/html')) return original;
   // HTMLRewriter streams the existing Cloudflare app HTML without rebuilding,
   // replacing or modifying its D1 bindings, API, sessions or JavaScript.
-  const rewritten = new HTMLRewriter().on('head', {
+  const rewriter = new HTMLRewriter().on('head', {
     element(element) { element.append(cookieHead(), {html:true}); },
-  }).transform(original);
+  });
+  // Append reviewed SSR FAQ to the original live page, keeping its scripts,
+  // dynamic plan cards, API calls, consent handling and payment flow intact.
+  if (pathname === '/pricing') {
+    rewriter.on('section[aria-labelledby="pricing-guide-heading"]', {
+      element(element) { element.before(PRICING_FAQ_HTML, {html:true}); },
+    });
+  }
+  const rewritten = rewriter.transform(original);
   const headers = new Headers(rewritten.headers);
   headers.set('x-relaywa-cookie-message', '1');
   // Prevent the alternative workers.dev hostname from creating SEO duplicates.
@@ -98,7 +107,7 @@ export default {
         ? new Request('https://relaywa.com' + url.pathname + url.search, request)
         : request;
       const original = await fetch(originRequest);
-      return applyNoticeToOrigin(original, request.method, url.hostname.endsWith('.workers.dev'));
+      return applyNoticeToOrigin(original, request.method, url.hostname.endsWith('.workers.dev'), url.pathname);
     }
     if (url.pathname === PROTECTED_SITEMAP_PATH && url.hostname === 'relaywa.com') {
       // Cloudflare Workers Routes can fetch the existing Worker Custom Domain as origin.
