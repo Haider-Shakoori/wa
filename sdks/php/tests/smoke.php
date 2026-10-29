@@ -18,3 +18,21 @@ try {
 } catch (\InvalidArgumentException $e) {
     echo "PHP SDK media validation passed\n";
 }
+
+
+foreach ([
+    fn() => $client->createSession([]),
+    fn() => $client->createSession(['name' => 'x']),
+    fn() => $client->updateSession('id', ['phoneHint' => str_repeat('x', 41)]),
+    fn() => $client->connectSession(' '),
+    fn() => $client->deleteSession(''),
+] as $case) {
+    try {
+        $case();
+        fwrite(STDERR, "Expected session validation error\\n");
+        exit(1);
+    } catch (\InvalidArgumentException $e) {
+        // Invalid inputs must fail before any HTTP request.
+    }
+}
+echo "PHP SDK session validation passed\\n";
