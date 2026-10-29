@@ -2,7 +2,7 @@
   "name": "@relaywa/sdk",
   "version": "0.1.1",
   "private": false,
-  "description": "RelayWA server-side WhatsApp Web REST API client (pre-release)",
+  "description": "RelayWA server-side TypeScript SDK for WhatsApp messaging, sessions, and webhooks",
   "type": "module",
   "exports": {
     ".": {
@@ -36,5 +36,14 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "relaywa",
+    "whatsapp",
+    "whatsapp-api",
+    "typescript",
+    "sdk",
+    "webhooks",
+    "messaging"
+  ]
 }
