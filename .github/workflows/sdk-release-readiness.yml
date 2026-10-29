@@ -29,15 +29,15 @@ jobs:
           php sdks/php/tests/smoke.php
           composer validate --working-dir=sdks/php --no-check-publish --strict
           dotnet run --project sdks/dotnet/RelayWA.ContractTests/RelayWA.ContractTests.csproj -c Release
-      - name: Generate isolated npm dependency lock and verify npm ci
+      - name: Verify committed npm lock and repeatable npm ci
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/relaywa-sdk-readiness
           cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-readiness/
           cd /tmp/relaywa-sdk-readiness
-          npm install --ignore-scripts --no-audit --no-fund --package-lock=true
           test -s package-lock.json
+          cmp package-lock.json "$GITHUB_WORKSPACE/packages/sdk-typescript/package-lock.json"
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
           sha256sum dist/index.js dist/index.d.ts > /tmp/relaywa-build-first.sha256
