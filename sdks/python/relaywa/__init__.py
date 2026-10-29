@@ -1,7 +1,7 @@
 """RelayWA server-side Python SDK preview. Never expose keys in client code."""
 import json
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, quote
 
 class RelayWAError(Exception):
@@ -26,7 +26,9 @@ class RelayWA:
             with urlopen(request, timeout=30) as response:
                 return json.load(response)
         except HTTPError as exc:
-            raise RelayWAError(f"RelayWA HTTP {exc.code}") from exc
+            raise RelayWAError(f"RelayWA HTTP {exc.code}") from None
+        except (URLError, TimeoutError) as exc:
+            raise RelayWAError("RelayWA transport failure") from None
 
     def send_text(self, to: str, text: str):
         if not to.strip() or not text.strip():
