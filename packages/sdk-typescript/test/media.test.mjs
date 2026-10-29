@@ -15,10 +15,10 @@ test('media helpers call the four backend legacy endpoints with bearer authentic
 test('media validation blocks bad URLs and invalid sizes without making requests', async () => {
   let calls=0;
   const sdk=new RelayWA({sessionKey:'offline',fetch:async ()=>{calls++;return new Response('{}');}});
-  await assert.rejects(()=>sdk.messages.sendImage({...input,url:'http://example.com/a.jpg'}),/HTTPS/);
-  await assert.rejects(()=>sdk.messages.sendImage({...input,mediaSizeBytes:16*1024*1024+1}),/size/);
-  await assert.rejects(()=>sdk.messages.sendVideo({...input,mediaSizeBytes:0}),/size/);
-  await assert.rejects(()=>sdk.messages.sendImage({...input,to:''}),/recipient/);
+  assert.throws(()=>sdk.messages.sendImage({...input,url:'http://example.com/a.jpg'}),/HTTPS/);
+  assert.throws(()=>sdk.messages.sendImage({...input,mediaSizeBytes:16*1024*1024+1}),/size/);
+  assert.throws(()=>sdk.messages.sendVideo({...input,mediaSizeBytes:0}),/size/);
+  assert.throws(()=>sdk.messages.sendImage({...input,to:''}),/recipient/);
   assert.equal(calls,0);
 });
 
