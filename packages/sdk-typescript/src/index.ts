@@ -1,5 +1,5 @@
 /** Server-side RelayWA API client. Never expose session keys in browser code. */
-export type SendMessageInput = { to: string; text: string };
+export type SendMessageInput = { to: string; text: string; clientMessageId?: string };
 export type RelayWAOptions = { sessionKey: string; baseUrl?: string; fetch?: typeof globalThis.fetch };
 
 export class RelayWAError extends Error {
@@ -24,6 +24,36 @@ export class RelayWA {
     }
     this.transport = options.fetch ?? globalThis.fetch;
   }
+
+  private async request(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>): Promise<unknown> {
+    const response = await this.transport(`${this.baseUrl}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${this.sessionKey}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok) throw new RelayWAError(response.status, await response.text());
+    return response.json();
+  }
+
+  private segment(id: string): string {
+    if (!id?.trim()) throw new Error('Resource ID is required');
+    return encodeURIComponent(id);
+  }
+
+  readonly sessions = {
+    list: (): Promise<unknown> => this.request('GET', '/whatsapp-sessions'),
+    get: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}`),
+    qrCode: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/qrcode`),
+    messages: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/messages`),
+    contacts: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/contacts`),
+    chats: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/chats`),
+    groups: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/groups`),
+  };
+
+  readonly webhooks = {
+    list: (): Promise<unknown> => this.request('GET', '/webhooks'),
+    deliveries: (endpointId: string): Promise<unknown> => this.request('GET', `/webhooks/${this.segment(endpointId)}/deliveries`),
+  };
 
   readonly messages = {
     send: async (input: SendMessageInput): Promise<unknown> => {

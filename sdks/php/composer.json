@@ -1,0 +1,14 @@
+{
+  "name": "relaywa/sdk",
+  "description": "RelayWA server-side PHP SDK preview",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": "^8.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "RelayWA\\": "src/"
+    }
+  }
+}

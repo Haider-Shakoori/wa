@@ -1,0 +1,33 @@
+name: SDK validation (offline)
+on:
+  pull_request:
+    paths:
+      - 'sdks/**'
+      - 'packages/sdk-typescript/**'
+      - '.github/workflows/sdk-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: PYTHONPATH=sdks/python python -m unittest discover -s sdks/python/tests -v
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l sdks/php/src/Client.php
+      - run: php sdks/php/tests/smoke.php
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build sdks/dotnet/RelayWA/RelayWA.csproj -c Release
