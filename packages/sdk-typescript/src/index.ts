@@ -1,5 +1,19 @@
 /** Server-side RelayWA API client. Never expose session keys in browser code. */
 export type SendMessageInput = { to: string; text: string; clientMessageId?: string };
+export type MediaKind = 'image' | 'video' | 'audio' | 'document';
+export type SendMediaInput = {
+  to: string;
+  url: string;
+  mimeType: string;
+  mediaSizeBytes: number;
+  fileName?: string;
+  caption?: string;
+  voiceNote?: boolean;
+  clientMessageId?: string;
+  scheduledAt?: string;
+  priority?: number;
+  maxAttempts?: number;
+};
 export type RelayWAOptions = { sessionKey: string; baseUrl?: string; fetch?: typeof globalThis.fetch };
 
 export class RelayWAError extends Error {
@@ -55,7 +69,22 @@ export class RelayWA {
     deliveries: (endpointId: string): Promise<unknown> => this.request('GET', `/webhooks/${this.segment(endpointId)}/deliveries`),
   };
 
+  private sendMedia(kind: MediaKind, input: SendMediaInput): Promise<unknown> {
+    if (!input.to?.trim() || input.to.length < 7 || input.to.length > 32) throw new Error('Media recipient must be 7–32 characters');
+    let url: URL;
+    try { url = new URL(input.url); } catch { throw new Error('Media URL must use HTTPS'); }
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) throw new Error('Media URL must use HTTPS without embedded credentials');
+    if (!input.mimeType?.trim()) throw new Error('Media mimeType is required');
+    const limits: Record<MediaKind, number> = { image: 16 * 1024 * 1024, video: 64 * 1024 * 1024, audio: 16 * 1024 * 1024, document: 100 * 1024 * 1024 };
+    if (!Number.isSafeInteger(input.mediaSizeBytes) || input.mediaSizeBytes < 1 || input.mediaSizeBytes > limits[kind]) throw new Error('Media size is invalid or exceeds the server limit');
+    return this.request('POST', `/send-${kind}`, input);
+  }
+
   readonly messages = {
+    sendImage: (input: SendMediaInput): Promise<unknown> => this.sendMedia('image', input),
+    sendVideo: (input: SendMediaInput): Promise<unknown> => this.sendMedia('video', input),
+    sendAudio: (input: SendMediaInput): Promise<unknown> => this.sendMedia('audio', input),
+    sendDocument: (input: SendMediaInput): Promise<unknown> => this.sendMedia('document', input),
     send: async (input: SendMessageInput): Promise<unknown> => {
       if (!input.to?.trim() || !input.text?.trim()) throw new Error('to and text are required');
       const response = await this.transport(`${this.baseUrl}/send-message`, {
