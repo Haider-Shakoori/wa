@@ -1,5 +1,11 @@
 /** Server-side RelayWA API client. Never expose session keys in browser code. */
 export type SendMessageInput = { to: string; text: string; clientMessageId?: string };
+export type AdvancedMessageBase = { to: string; clientMessageId?: string; scheduledAt?: string; priority?: number; maxAttempts?: number };
+export type LocationMessageInput = AdvancedMessageBase & { latitude: number; longitude: number; name?: string; address?: string };
+export type ContactMessageInput = AdvancedMessageBase & { displayName: string; vcard: string };
+export type PollMessageInput = AdvancedMessageBase & { question: string; options: string[]; selectableCount: number };
+export type ReplyMessageInput = AdvancedMessageBase & { text: string; quotedMessageId: string; quotedText?: string; quotedFromMe?: boolean };
+export type ReactionMessageInput = AdvancedMessageBase & { emoji: string; targetMessageId: string; targetFromMe?: boolean };
 export type WebhookCreateInput = { name: string; url: string; eventTypes?: string[] };
 export type WebhookUpdateInput = { name?: string; url?: string; eventTypes?: string[]; enabled?: boolean };
 export type RelayWAOptions = { sessionKey: string; baseUrl?: string; fetch?: typeof globalThis.fetch };
@@ -78,7 +84,28 @@ export class RelayWA {
     deliveries: (endpointId: string): Promise<unknown> => this.request('GET', `/webhooks/${this.segment(endpointId)}/deliveries`),
   };
 
+  private sendAction(kind: 'location' | 'contact' | 'poll' | 'reply' | 'reaction', input: Record<string, unknown>): Promise<unknown> {
+    const str = (value: unknown, min: number, max: number): boolean => typeof value === 'string' && value.length >= min && value.length <= max;
+    if (!str(input.to, 7, 32)) throw new Error('Recipient must be 7–32 characters');
+    if (input.clientMessageId !== undefined && !str(input.clientMessageId, 0, 120)) throw new Error('Invalid clientMessageId');
+    for (const field of ['priority', 'maxAttempts']) {
+      const value = input[field];
+      if (value !== undefined && (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 10)) throw new Error('Invalid ' + field);
+    }
+    if (kind === 'location' && (typeof input.latitude !== 'number' || !Number.isFinite(input.latitude) || Math.abs(input.latitude) > 90 || typeof input.longitude !== 'number' || !Number.isFinite(input.longitude) || Math.abs(input.longitude) > 180)) throw new Error('Invalid coordinates');
+    if (kind === 'contact' && (!str(input.displayName, 1, 160) || !str(input.vcard, 10, 12000))) throw new Error('Invalid contact');
+    if (kind === 'poll' && (!str(input.question, 1, 255) || !Array.isArray(input.options) || input.options.length < 2 || input.options.length > 12 || input.options.some(x => !str(x, 0, 100)) || !Number.isInteger(input.selectableCount) || (input.selectableCount as number) < 1 || (input.selectableCount as number) > 12 || (input.selectableCount as number) > input.options.length)) throw new Error('Invalid poll');
+    if (kind === 'reply' && (!str(input.text, 1, 4096) || !str(input.quotedMessageId, 1, 180))) throw new Error('Invalid reply');
+    if (kind === 'reaction' && (!str(input.emoji, 0, 32) || !str(input.targetMessageId, 1, 180))) throw new Error('Invalid reaction');
+    return this.request('POST', '/send-' + kind, input);
+  }
+
   readonly messages = {
+    sendLocation: (input: LocationMessageInput): Promise<unknown> => this.sendAction('location', input),
+    sendContact: (input: ContactMessageInput): Promise<unknown> => this.sendAction('contact', input),
+    sendPoll: (input: PollMessageInput): Promise<unknown> => this.sendAction('poll', input),
+    sendReply: (input: ReplyMessageInput): Promise<unknown> => this.sendAction('reply', input),
+    sendReaction: (input: ReactionMessageInput): Promise<unknown> => this.sendAction('reaction', input),
     send: async (input: SendMessageInput): Promise<unknown> => {
       if (!input.to?.trim() || !input.text?.trim()) throw new Error('to and text are required');
       const response = await this.transport(`${this.baseUrl}/send-message`, {
