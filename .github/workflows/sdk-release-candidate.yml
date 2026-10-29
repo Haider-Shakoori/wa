@@ -36,7 +36,7 @@ jobs:
           cd /tmp/relaywa-sdk-build
           npm install --ignore-scripts --no-audit --no-fund --package-lock=false
           npm run build
-          npm test
+          node --test test/*.test.mjs
           npm pack --pack-destination "$GITHUB_WORKSPACE/release-candidate/npm" --silent
       - name: Build Python wheel and sdist
         run: |
