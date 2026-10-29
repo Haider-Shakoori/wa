@@ -1,0 +1,29 @@
+name: RelayWA D1 binding identity audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-binding-audit.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Compare API D1 binding to live database
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const h={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          async function get(path){const r=await fetch(root+path,{headers:h});const j=await r.json();if(!r.ok||!j.success)throw Error('Cloudflare '+r.status);return j.result}
+          const settings=await get('/workers/scripts/relaywa-api/settings');
+          const databases=await get('/d1/database?per_page=100');
+          const live=databases.find(d=>d.name==='relaywa');
+          const binding=settings.bindings.filter(b=>b.type==='d1').map(b=>({name:b.name,database_id:b.id??b.database_id,database_name:b.database_name}));
+          console.log('LIVE_D1',JSON.stringify({name:live.name,uuid:live.uuid}));
+          console.log('WORKER_D1_BINDINGS',JSON.stringify(binding));
+          console.log('MATCH',binding.some(b=>b.database_id===live.uuid));
+          NODE
