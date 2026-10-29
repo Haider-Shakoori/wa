@@ -16,9 +16,11 @@ export class RelayWA {
 
   constructor(options: RelayWAOptions) {
     if (!options.sessionKey?.trim()) throw new Error('RelayWA sessionKey is required');
+    if (/\r|\n/.test(options.sessionKey)) throw new Error('RelayWA sessionKey must not contain newlines');
     this.sessionKey = options.sessionKey;
     this.baseUrl = (options.baseUrl ?? 'https://relaywa.com/api').replace(/\/$/, '');
     const url = new URL(this.baseUrl);
+    if (url.username || url.password || url.search || url.hash) throw new Error('RelayWA baseUrl must not include credentials, query or fragment');
     if (url.protocol !== 'https:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
       throw new Error('RelayWA baseUrl must use HTTPS');
     }
