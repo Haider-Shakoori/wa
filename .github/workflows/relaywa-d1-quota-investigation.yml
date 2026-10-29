@@ -1,0 +1,28 @@
+name: RelayWA D1 quota investigation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-quota-investigation.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read database plan and metrics
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const h={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const list=await fetch(base+'/d1/database?per_page=100',{headers:h}).then(r=>r.json());
+          const db=list.result?.find(x=>x.name==='relaywa');
+          if(!db)throw Error('RelayWA D1 missing');
+          const detail=await fetch(base+'/d1/database/'+db.uuid,{headers:h}).then(r=>r.json());
+          console.log('D1_DETAILS',JSON.stringify({success:detail.success,result:detail.result,errors:detail.errors}).slice(0,2500));
+          const account=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID,{headers:h}).then(r=>r.json());
+          console.log('ACCOUNT_PLAN',JSON.stringify({success:account.success,plan:account.result?.settings?.plan,errors:account.errors?.map(x=>x.code)}));
+          NODE
