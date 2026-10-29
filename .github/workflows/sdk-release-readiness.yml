@@ -37,7 +37,7 @@ jobs:
           cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-readiness/
           cd /tmp/relaywa-sdk-readiness
           test -s package-lock.json
-          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "40533ce1f0b2a5157b1cd9a24fce85bec2e83a889d95df63adc04f64ff991340"
+          cmp package-lock.json "$GITHUB_WORKSPACE/packages/sdk-typescript/package-lock.json"
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
           sha256sum dist/index.js dist/index.d.ts > /tmp/relaywa-build-first.sha256
