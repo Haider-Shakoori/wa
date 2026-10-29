@@ -25,3 +25,21 @@ test('rejects empty keys and invalid message payloads', async () => {
   const client = new RelayWA({ sessionKey: 'test-key' });
   await assert.rejects(() => client.messages.send({ to: '', text: 'Hello' }));
 });
+
+
+test('read-only resources use documented paths and Bearer keys', async () => {
+  const calls = [];
+  const client = new RelayWA({ sessionKey: 'secret', fetch: async (url, options) => {
+    calls.push({ url, options });
+    return new Response('{}', { status: 200 });
+  }});
+  await client.sessions.list();
+  await client.sessions.groups('session 1');
+  await client.webhooks.deliveries('hook/1');
+  assert.deepEqual(calls.map(x => x.url), [
+    'https://relaywa.com/api/whatsapp-sessions',
+    'https://relaywa.com/api/whatsapp-sessions/session%201/groups',
+    'https://relaywa.com/api/webhooks/hook%2F1/deliveries',
+  ]);
+  assert.ok(calls.every(x => x.options.method === 'GET' && x.options.headers.Authorization === 'Bearer secret'));
+});
