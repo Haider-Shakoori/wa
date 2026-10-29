@@ -1,15 +1,17 @@
 # RelayWA TypeScript SDK (preview)
 
-A small, server-side client for RelayWA's documented WhatsApp Web REST API. **Not yet published to npm.** This initial preview implements text-message sending; additional API methods, tests, and a release process are pending.
+Server-side SDK for RelayWA. **Not yet published to npm.**
 
 ```ts
 import { RelayWA } from '@relaywa/sdk';
 
 const client = new RelayWA({ sessionKey: process.env.RELAYWA_SESSION_KEY! });
-const result = await client.messages.send({ to: '12025550123', text: 'Hello from RelayWA' });
-console.log(result);
+await client.messages.send({ to: '12025550123', text: 'Hello from RelayWA' });
+const sessions = await client.sessions.list();
 ```
 
-The API uses a session-bound Bearer key and POST /api/send-message. Use only from trusted server-side environments. API documentation: https://relaywa.com/api-docs.
+Implemented: text, media, advanced messaging (location/contact/poll/reply/reaction), session reads and lifecycle, directory reads, webhook management and signature verification.
 
-To build within the monorepo: `pnpm --filter @relaywa/sdk build`.
+**Safety:** Keep the session key server-side. Session lifecycle calls may change live WhatsApp connections. Do not automatically retry sends or state-changing requests after a timeout. The SDK uses existing HTTPS REST endpoints.
+
+Build: `pnpm --filter @relaywa/sdk build`. API docs: https://relaywa.com/api-docs. See `sdks/README.md` for release limitations.
