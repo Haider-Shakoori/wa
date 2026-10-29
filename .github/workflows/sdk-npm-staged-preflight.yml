@@ -32,7 +32,12 @@ jobs:
           cd /tmp/relaywa-npm-staged-preflight
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
+          # SDK webhook tests import the real worker signing helper through a
+          # repository-relative path; run tests from the checked-out repository.
+          cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
+          cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
           node --test test/*.test.mjs
+          cd /tmp/relaywa-npm-staged-preflight
           npm pack --dry-run --json > /tmp/relaywa-npm-staged-preflight.json
           node - <<'NODE'
           const fs=require('fs');
