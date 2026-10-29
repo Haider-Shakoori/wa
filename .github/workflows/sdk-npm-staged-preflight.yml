@@ -17,11 +17,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify private package remains protected
+      - name: Verify SDK identity and stage eligibility
         run: |
           node - <<'NODE'
           const p=require('./packages/sdk-typescript/package.json');
-          if(p.name!=='@relaywa/sdk'||p.version!=='0.1.0'||p.private!==true) throw Error('Unexpected SDK identity or publishing guard');
+          if(p.name!=='@relaywa/sdk'||p.version!=='0.1.0'||p.private!==false||p.publishConfig?.access!=='public') throw Error('Unexpected SDK identity or stage eligibility');
           NODE
       - name: Build and inspect isolated npm SDK package
         shell: bash
@@ -47,5 +47,5 @@ jobs:
             if(!files.includes(file)) throw Error('Missing npm archive file: '+file);
           }
           if(files.some(f=>/(^|\/)(\.env|\.npmrc|node_modules)(\/|$)/i.test(f))) throw Error('Sensitive/unexpected file in archive');
-          console.log('Preflight passed; package remains private. No staging performed.');
+          console.log('Preflight passed; package is stage-eligible. No staging performed.');
           NODE
