@@ -18,6 +18,30 @@ final class Client
         return $this->request('POST', '/send-message', ['to' => $to, 'text' => $text]);
     }
 
+    /** @param array<string,mixed> $media */
+    public function sendImage(array $media): array { return $this->sendMedia('image', $media); }
+    /** @param array<string,mixed> $media */
+    public function sendVideo(array $media): array { return $this->sendMedia('video', $media); }
+    /** @param array<string,mixed> $media */
+    public function sendAudio(array $media): array { return $this->sendMedia('audio', $media); }
+    /** @param array<string,mixed> $media */
+    public function sendDocument(array $media): array { return $this->sendMedia('document', $media); }
+
+    /** @param array<string,mixed> $media */
+    private function sendMedia(string $kind, array $media): array
+    {
+        $limits = ['image' => 16777216, 'video' => 67108864, 'audio' => 16777216, 'document' => 104857600];
+        $to = $media['to'] ?? null;
+        $url = $media['url'] ?? null;
+        $mime = $media['mimeType'] ?? null;
+        $size = $media['mediaSizeBytes'] ?? null;
+        if (!is_string($to) || strlen($to) < 7 || strlen($to) > 32 || trim($to) === '') throw new \InvalidArgumentException('Invalid recipient');
+        if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL) || parse_url($url, PHP_URL_SCHEME) !== 'https' || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null) throw new \InvalidArgumentException('Media URL must be HTTPS');
+        if (!is_string($mime) || trim($mime) === '') throw new \InvalidArgumentException('mimeType is required');
+        if (!is_int($size) || $size < 1 || $size > $limits[$kind]) throw new \InvalidArgumentException('Invalid media size');
+        return $this->request('POST', '/send-' . $kind, $media);
+    }
+
     public function sessions(): array { return $this->request('GET', '/whatsapp-sessions'); }
     public function webhooks(): array { return $this->request('GET', '/webhooks'); }
 
