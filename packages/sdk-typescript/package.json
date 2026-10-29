@@ -24,5 +24,14 @@
     "typescript": "5.9.3",
     "@types/node": "22.20.5"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Haider-Shakoori/wa.git",
+    "directory": "packages/sdk-typescript"
+  },
+  "homepage": "https://relaywa.com",
+  "bugs": {
+    "url": "https://github.com/Haider-Shakoori/wa/issues"
+  }
 }
