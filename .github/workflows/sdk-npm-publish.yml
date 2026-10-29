@@ -2,8 +2,12 @@ name: npm SDK OIDC staged publication (manual only)
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Exact new SDK version in package.json (e.g. 0.1.2)'
+        required: true
+        type: string
       confirmation:
-        description: 'Enter STAGE_RELAYWA_SDK_0_1_1 to authorize npm staging (not public approval)'
+        description: 'Enter STAGE_RELAYWA_SDK to authorize npm staging only (not public approval)'
         required: true
         type: string
 
@@ -12,7 +16,7 @@ permissions:
 
 jobs:
   stage-sdk:
-    if: ${{ github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGE_RELAYWA_SDK_0_1_1' }}
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGE_RELAYWA_SDK' }}
     runs-on: ubuntu-latest
     environment: sdk-npm-release
     permissions:
@@ -26,11 +30,24 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Install npm with staging and OIDC support
         run: npm install --global npm@11.21.1
-      - name: Verify package identity and version
+      - name: Verify package identity, exact version and public access
         shell: bash
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          node -e "const p=require('./packages/sdk-typescript/package.json');if(p.name!=='@relaywa/sdk'||p.version!=='0.1.1'||p.private!==false||p.publishConfig?.access!=='public')process.exit(1)"
+          node -e "const p=require('./packages/sdk-typescript/package.json'); const v=process.env.EXPECTED_VERSION; if(!/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(v)||p.name!=='@relaywa/sdk'||p.version!==v||p.private!==false||p.publishConfig?.access!=='public') process.exit(1)"
+          node -e "const p=require('./packages/sdk-typescript/package-lock.json'); if(p.version!==process.env.EXPECTED_VERSION || p.packages?.['']?.version!==process.env.EXPECTED_VERSION)process.exit(1)"
+      - name: Reject versions already published to npm
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "@relaywa/sdk@${EXPECTED_VERSION}" version --json --prefer-online > /dev/null 2>&1; then
+            echo "::error::This version is already publicly published; bump SDK version in a reviewed PR."
+            exit 1
+          fi
       - name: Build and test SDK in isolation
         shell: bash
         run: |
