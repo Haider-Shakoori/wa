@@ -36,7 +36,7 @@ export default function Page() {
     <section className="rw-site-section rw-developer-topics" aria-labelledby="pricing-questions-heading">
       <div className="rw-section-intro">
         <p className="rw-kicker">BEFORE YOU SUBSCRIBE</p>
-        <h2 id="pricing-questions-heading">How RelayWA WhatsApp API pricing works</h2>
+        <h2 id="pricing-questions-heading">Understand your RelayWA subscription</h2>
         <p>RelayWA charges for connected WhatsApp numbers through a subscription, not per message. Current plan prices and allowances load from the public plans API. If they cannot load, contact support before purchasing.</p>
       </div>
       <div className="rw-developer-topic-grid">
