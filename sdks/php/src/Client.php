@@ -35,10 +35,10 @@ final class Client
         $url = $media['url'] ?? null;
         $mime = $media['mimeType'] ?? null;
         $size = $media['mediaSizeBytes'] ?? null;
-        if (!is_string($to) || strlen($to) < 7 || strlen($to) > 32 || trim($to) === '') throw new \\InvalidArgumentException('Invalid recipient');
-        if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL) || parse_url($url, PHP_URL_SCHEME) !== 'https' || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null) throw new \\InvalidArgumentException('Media URL must be HTTPS');
-        if (!is_string($mime) || trim($mime) === '') throw new \\InvalidArgumentException('mimeType is required');
-        if (!is_int($size) || $size < 1 || $size > $limits[$kind]) throw new \\InvalidArgumentException('Invalid media size');
+        if (!is_string($to) || strlen($to) < 7 || strlen($to) > 32 || trim($to) === '') throw new \InvalidArgumentException('Invalid recipient');
+        if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL) || parse_url($url, PHP_URL_SCHEME) !== 'https' || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null) throw new \InvalidArgumentException('Media URL must be HTTPS');
+        if (!is_string($mime) || trim($mime) === '') throw new \InvalidArgumentException('mimeType is required');
+        if (!is_int($size) || $size < 1 || $size > $limits[$kind]) throw new \InvalidArgumentException('Invalid media size');
         return $this->request('POST', '/send-' . $kind, $media);
     }
 
