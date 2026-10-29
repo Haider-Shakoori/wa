@@ -68,6 +68,30 @@ final class Client
         return '/whatsapp-sessions/' . rawurlencode($id);
     }
 
+    /** @param array<string,mixed> $input */
+    private function validateSessionInput(array $input, bool $create): void
+    {
+        if ($create && !array_key_exists('name', $input)) throw new \InvalidArgumentException('Session name required');
+        if (array_key_exists('name', $input) && (!is_string($input['name']) || strlen($input['name']) < 2 || strlen($input['name']) > 120)) throw new \InvalidArgumentException('Invalid session name');
+        if (array_key_exists('phoneHint', $input) && (!is_string($input['phoneHint']) || strlen($input['phoneHint']) > 40)) throw new \InvalidArgumentException('Invalid phone hint');
+    }
+
+    public function createSession(array $input): array
+    {
+        $this->validateSessionInput($input, true);
+        return $this->request('POST', '/whatsapp-sessions', $input);
+    }
+    public function updateSession(string $id, array $input): array
+    {
+        $path = $this->sessionPath($id);
+        $this->validateSessionInput($input, false);
+        return $this->request('PATCH', $path, $input);
+    }
+    public function connectSession(string $id): array { return $this->request('POST', $this->sessionPath($id) . '/connect'); }
+    public function restartSession(string $id): array { return $this->request('POST', $this->sessionPath($id) . '/restart'); }
+    public function disconnectSession(string $id): array { return $this->request('POST', $this->sessionPath($id) . '/disconnect'); }
+    public function deleteSession(string $id): array { return $this->request('DELETE', $this->sessionPath($id)); }
+
     public function session(string $id): array { return $this->request('GET', $this->sessionPath($id)); }
     public function sessionQrCode(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/qrcode'); }
     public function sessionStatistics(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/statistics'); }

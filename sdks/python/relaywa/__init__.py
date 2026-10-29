@@ -110,6 +110,38 @@ class RelayWA:
             raise ValueError("Session ID required")
         return "/whatsapp-sessions/" + quote(session_id, safe="")
 
+    @staticmethod
+    def _validate_session_input(payload: dict, create: bool = False):
+        if not isinstance(payload, dict):
+            raise ValueError("Session payload required")
+        if create and "name" not in payload:
+            raise ValueError("Session name required")
+        if "name" in payload and (not isinstance(payload["name"], str) or not 2 <= len(payload["name"]) <= 120):
+            raise ValueError("Invalid session name")
+        if "phoneHint" in payload and (not isinstance(payload["phoneHint"], str) or len(payload["phoneHint"]) > 40):
+            raise ValueError("Invalid phone hint")
+
+    def create_session(self, payload: dict):
+        self._validate_session_input(payload, create=True)
+        return self._request("POST", "/whatsapp-sessions", payload)
+
+    def update_session(self, session_id: str, payload: dict):
+        path = self._session_path(session_id)
+        self._validate_session_input(payload)
+        return self._request("PATCH", path, payload)
+
+    def connect_session(self, session_id: str):
+        return self._request("POST", self._session_path(session_id) + "/connect")
+
+    def restart_session(self, session_id: str):
+        return self._request("POST", self._session_path(session_id) + "/restart")
+
+    def disconnect_session(self, session_id: str):
+        return self._request("POST", self._session_path(session_id) + "/disconnect")
+
+    def delete_session(self, session_id: str):
+        return self._request("DELETE", self._session_path(session_id))
+
     def session(self, session_id: str):
         return self._request("GET", self._session_path(session_id))
 
