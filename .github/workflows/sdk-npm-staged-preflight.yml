@@ -21,7 +21,7 @@ jobs:
         run: |
           node - <<'NODE'
           const p=require('./packages/sdk-typescript/package.json');
-          if(p.name!=='@relaywa/sdk'||p.version!=='0.1.0'||p.private!==false||p.publishConfig?.access!=='public') throw Error('Unexpected SDK identity or stage eligibility');
+          if(p.name!=='@relaywa/sdk'||p.version!=='0.1.1'||p.private!==false||p.publishConfig?.access!=='public') throw Error('Unexpected SDK identity or stage eligibility');
           NODE
       - name: Build and inspect isolated npm SDK package
         shell: bash
