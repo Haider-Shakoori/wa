@@ -22,8 +22,8 @@ export const publicPages = [
   },
   {
     path: '/api-docs',
-    title: 'WhatsApp REST API Documentation & Integration | RelayWA',
-    description: 'Use RelayWA WhatsApp REST API documentation for QR-linked sessions, HTTP messaging and signed webhooks, with Node.js, Laravel, Python and .NET examples.',
+    title: 'WhatsApp Web REST API Docs — QR Sessions & Webhooks | RelayWA',
+    description: 'WhatsApp Web REST API documentation: connect a number with QR code, send HTTP messages, verify signed webhooks, and integrate with Node.js, Laravel, Python or .NET.',
     changeFrequency: 'monthly',
     priority: 0.9,
   },
