@@ -1,0 +1,84 @@
+name: SDK release readiness (no publishing)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packages/sdk-typescript/**'
+      - 'sdks/**'
+      - '.github/workflows/sdk-release-readiness.yml'
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Offline SDK tests
+        run: |
+          PYTHONPATH=sdks/python python -m unittest discover -s sdks/python/tests -v
+          php -l sdks/php/src/Client.php
+          php sdks/php/tests/smoke.php
+          composer validate --working-dir=sdks/php --no-check-publish --strict
+          dotnet run --project sdks/dotnet/RelayWA.ContractTests/RelayWA.ContractTests.csproj -c Release
+      - name: Generate isolated npm dependency lock and verify npm ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/relaywa-sdk-readiness
+          cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-readiness/
+          cd /tmp/relaywa-sdk-readiness
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=true
+          test -s package-lock.json
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          sha256sum dist/index.js dist/index.d.ts > /tmp/relaywa-build-first.sha256
+          rm -rf node_modules dist
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          sha256sum -c /tmp/relaywa-build-first.sha256
+          cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
+          cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
+          node --test test/*.test.mjs
+          cd /tmp/relaywa-sdk-readiness
+          mkdir -p "$GITHUB_WORKSPACE/sdk-readiness-artifacts"
+          cp package-lock.json "$GITHUB_WORKSPACE/sdk-readiness-artifacts/typescript-package-lock.json"
+          npm pack --pack-destination "$GITHUB_WORKSPACE/sdk-readiness-artifacts" --silent
+      - name: Verify SDK package integrity and publishing remains disabled
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob, json, tarfile
+          from pathlib import Path
+          pkg=json.loads(Path('packages/sdk-typescript/package.json').read_text())
+          assert pkg.get('private') is True, 'TypeScript SDK must remain private'
+          assert pkg.get('license') == 'MIT'
+          archive=glob.glob('sdk-readiness-artifacts/*.tgz')
+          assert len(archive)==1, archive
+          with tarfile.open(archive[0], 'r:gz') as tf:
+              names=set(tf.getnames())
+              required={'package/LICENSE','package/README.md','package/dist/index.js','package/dist/index.d.ts','package/package.json'}
+              assert required <= names, required-names
+              metadata=json.load(tf.extractfile('package/package.json'))
+              assert metadata.get('private') is True
+          for license_path in ('sdks/python/LICENSE','sdks/php/LICENSE','sdks/dotnet/RelayWA/LICENSE'):
+              assert Path(license_path).is_file(), license_path
+          print('SDK archive contents, MIT notices, and npm private flag verified.')
+          PY
+          cd sdk-readiness-artifacts
+          sha256sum *.tgz typescript-package-lock.json > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Upload review-only integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-readiness-evidence
+          path: sdk-readiness-artifacts/
+          retention-days: 7
