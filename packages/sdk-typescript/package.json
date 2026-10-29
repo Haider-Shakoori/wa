@@ -19,6 +19,7 @@
     "test": "pnpm run build && node --test test/*.test.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "@types/node": "^22.15.0"
   }
 }
