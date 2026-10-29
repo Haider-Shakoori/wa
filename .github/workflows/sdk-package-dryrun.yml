@@ -18,8 +18,27 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - name: Install SDK dependencies without mutating repository lockfile
+      - name: Resolve SDK dependencies for lockfile diagnostic
         run: pnpm install --no-frozen-lockfile
+      - name: Report lockfile drift without failing packaging
+        id: lockfile_drift
+        shell: bash
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "Lockfile matches current dependency resolution."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::pnpm-lock.yaml changes under the declared package manager. Review the diagnostic artifact before restoring --frozen-lockfile."
+            git diff --stat -- pnpm-lock.yaml
+          fi
+      - name: Upload resolved lockfile for review
+        if: steps.lockfile_drift.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-resolved-pnpm-lockfile
+          path: pnpm-lock.yaml
+          retention-days: 7
       - run: pnpm --filter @relaywa/sdk build
       - name: Verify npm tarball without publishing
         working-directory: packages/sdk-typescript
