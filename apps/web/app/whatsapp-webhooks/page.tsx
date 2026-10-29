@@ -41,6 +41,27 @@ export default function WhatsAppWebhooksPage() {
           <Link className="rw-topic-more" href="/api-docs#queue">Direct sends and application-owned retries →</Link>
         </article>
       </div>
+      <section aria-labelledby="webhook-implementation-checklist">
+        <h2 id="webhook-implementation-checklist">Before enabling WhatsApp webhook processing</h2>
+        <p>Use a test environment to confirm that your receiver validates the original signed request body, stores unique event identifiers and can safely acknowledge duplicate callbacks. Avoid making business updates directly from unverified events.</p>
+        <div className="rw-developer-topic-grid">
+          <article>
+            <h3>Start with a connected QR session</h3>
+            <p>Pair an authorized number, check its current session state and keep its API key out of browser-side code.</p>
+            <Link className="rw-topic-more" href="/whatsapp-api-qr-code">QR session setup checklist →</Link>
+          </article>
+          <article>
+            <h3>Verify the receiver</h3>
+            <p>Check timestamp freshness, the raw-body signature and duplicate event handling before relying on a webhook for customer-facing updates.</p>
+            <Link className="rw-topic-more" href="/blog/nodejs-whatsapp-api-send-webhooks">Node.js webhook verification tutorial →</Link>
+          </article>
+          <article>
+            <h3>Review operational boundaries</h3>
+            <p>Understand the difference between QR-linked WhatsApp Web sessions and Meta's officially supported Cloud API before choosing an integration for production use.</p>
+            <Link className="rw-topic-more" href="/guides/whatsapp-web-vs-cloud-api">Compare WhatsApp API connection models →</Link>
+          </article>
+        </div>
+      </section>
       <section aria-labelledby="webhook-questions">
         <h2 id="webhook-questions">Webhook integration questions</h2>
         <div className="rw-faq">
