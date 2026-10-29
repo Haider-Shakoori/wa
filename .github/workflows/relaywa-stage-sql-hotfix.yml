@@ -1,0 +1,18 @@
+name: RelayWA stage SQL hotfix
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-stage-sql-hotfix.yml']
+permissions:
+  contents: read
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage inactive corrected API version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node ops/relaywa-request-efficiency/stage-sql-fix.mjs
