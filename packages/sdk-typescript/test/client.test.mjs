@@ -66,7 +66,7 @@ test('does not silently treat malformed success JSON as a successful send', asyn
 test('rejects empty resource IDs before network access', async () => {
   let calls = 0;
   const client = new RelayWA({ sessionKey: 'test-key', fetch: async () => { calls++; return new Response('{}'); } });
-  await assert.rejects(() => client.sessions.get(''));
-  await assert.rejects(() => client.webhooks.deliveries(''));
+  assert.throws(() => client.sessions.get(''), /Resource ID is required/);
+  assert.throws(() => client.webhooks.deliveries(''), /Resource ID is required/);
   assert.equal(calls, 0);
 });
