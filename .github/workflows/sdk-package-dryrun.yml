@@ -58,6 +58,15 @@ jobs:
         working-directory: sdks/php
         run: composer validate --no-check-publish --strict
       - run: php -l sdks/php/src/Client.php
+      - name: Install Composer SDK into clean consumer (offline API)
+        run: |
+          mkdir -p /tmp/relaywa-php-consumer
+          cd /tmp/relaywa-php-consumer
+          composer init --no-interaction --name=relaywa/sdk-consumer --no-plugins
+          composer config repositories.relaywa path "$GITHUB_WORKSPACE/sdks/php"
+          composer require relaywa/sdk:@dev --no-interaction --no-scripts --no-plugins --no-progress
+          php -r 'require "vendor/autoload.php"; $sdk = new \\RelayWA\\Client("offline-test"); if (!($sdk instanceof \\RelayWA\\Client)) exit(1); echo "Composer SDK consumer autoload passed (offline)\\n";'
+
   dotnet:
     runs-on: ubuntu-latest
     steps:
