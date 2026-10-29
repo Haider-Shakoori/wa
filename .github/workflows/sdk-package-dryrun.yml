@@ -58,3 +58,18 @@ jobs:
       - run: dotnet pack sdks/dotnet/RelayWA/RelayWA.csproj -c Release -o /tmp/relaywa-nuget
       - name: Verify NuGet archive
         run: python3 -c "import glob,zipfile; p=glob.glob('/tmp/relaywa-nuget/*.nupkg'); assert len(p)==1; z=zipfile.ZipFile(p[0]); assert any(x.endswith('RelayWA.dll') for x in z.namelist())"
+      - name: Install NuGet package into clean consumer project (offline API)
+        run: |
+          mkdir -p /tmp/relaywa-dotnet-consumer
+          cd /tmp/relaywa-dotnet-consumer
+          dotnet new console --framework net8.0 --no-restore
+          dotnet add package RelayWA.Sdk --version 0.1.0 --source /tmp/relaywa-nuget
+          cat > Program.cs <<'EOF'
+          using RelayWA;
+          using System.Net.Http;
+          using var http = new HttpClient();
+          var sdk = new RelayWAClient(http, "offline-test");
+          Console.WriteLine(sdk.GetType().FullName);
+          EOF
+          dotnet run --no-launch-profile
+
