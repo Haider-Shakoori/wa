@@ -43,3 +43,30 @@ test('read-only resources use documented paths and Bearer keys', async () => {
   ]);
   assert.ok(calls.every(x => x.options.method === 'GET' && x.options.headers.Authorization === 'Bearer secret'));
 });
+
+
+test('propagates authorization, rate-limit and server errors without retrying sends', async () => {
+  for (const status of [401, 403, 429, 500]) {
+    let calls = 0;
+    const client = new RelayWA({ sessionKey: 'test-key', fetch: async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: 'blocked' }), { status });
+    }});
+    await assert.rejects(() => client.messages.send({ to: '12025550123', text: 'Hello' }),
+      error => error instanceof RelayWAError && error.status === status && error.responseBody.includes('blocked'));
+    assert.equal(calls, 1, 'a send must never be automatically retried');
+  }
+});
+
+test('does not silently treat malformed success JSON as a successful send', async () => {
+  const client = new RelayWA({ sessionKey: 'test-key', fetch: async () => new Response('not-json', { status: 200 }) });
+  await assert.rejects(() => client.messages.send({ to: '12025550123', text: 'Hello' }), SyntaxError);
+});
+
+test('rejects empty resource IDs before network access', async () => {
+  let calls = 0;
+  const client = new RelayWA({ sessionKey: 'test-key', fetch: async () => { calls++; return new Response('{}'); } });
+  await assert.rejects(() => client.sessions.get(''));
+  await assert.rejects(() => client.webhooks.deliveries(''));
+  assert.equal(calls, 0);
+});
