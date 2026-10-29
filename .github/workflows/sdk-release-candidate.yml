@@ -36,7 +36,10 @@ jobs:
           cd /tmp/relaywa-sdk-build
           npm install --ignore-scripts --no-audit --no-fund --package-lock=false
           npm run build
+          cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
+          cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
           node --test test/*.test.mjs
+          cd /tmp/relaywa-sdk-build
           npm pack --pack-destination "$GITHUB_WORKSPACE/release-candidate/npm" --silent
       - name: Build Python wheel and sdist
         run: |
