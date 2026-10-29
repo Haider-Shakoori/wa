@@ -56,7 +56,7 @@ jobs:
       - run: pnpm --filter @relaywa/sdk build
       - name: Verify npm tarball without publishing
         working-directory: packages/sdk-typescript
-        run: npm pack --dry-run --json > /tmp/relaywa-npm-pack.json && node -e "const p=require('/tmp/relaywa-npm-pack.json')[0]; if (!p.files.some(f=>f.path==='dist/index.js') || !p.files.some(f=>f.path==='dist/index.d.ts')) process.exit(1)"
+        run: npm pack --dry-run --json > /tmp/relaywa-npm-pack.json && node -e "const p=require('/tmp/relaywa-npm-pack.json')[0]; if (!p.files.some(f=>f.path==='dist/index.js') || !p.files.some(f=>f.path==='dist/index.d.ts') || !p.files.some(f=>f.path==='LICENSE') || !p.files.some(f=>f.path==='README.md')) process.exit(1)"
       - name: Install npm tarball into clean consumer (offline API)
         run: |
           cd packages/sdk-typescript
@@ -76,7 +76,7 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install --disable-pip-version-check build
       - run: python -m build sdks/python --outdir /tmp/relaywa-python-dist
-      - run: python -c "import glob, zipfile; p=glob.glob('/tmp/relaywa-python-dist/*.whl'); assert len(p)==1; z=zipfile.ZipFile(p[0]); assert any(x.endswith('relaywa/__init__.py') for x in z.namelist())"
+      - run: python -c "import glob, zipfile; p=glob.glob('/tmp/relaywa-python-dist/*.whl'); assert len(p)==1; z=zipfile.ZipFile(p[0]); assert any(x.endswith('relaywa/__init__.py') for x in z.namelist()); assert any('license' in x.lower() for x in z.namelist()), z.namelist()"
       - name: Install built wheel into clean consumer environment
         run: |
           python -m venv /tmp/relaywa-consumer
@@ -91,6 +91,8 @@ jobs:
         working-directory: sdks/php
         run: composer validate --no-check-publish --strict
       - run: php -l sdks/php/src/Client.php
+      - name: Verify Composer source license
+        run: test -s sdks/php/LICENSE
       - name: Install Composer SDK into clean consumer (offline API)
         run: |
           mkdir -p /tmp/relaywa-php-consumer
@@ -110,6 +112,8 @@ jobs:
       - run: dotnet pack sdks/dotnet/RelayWA/RelayWA.csproj -c Release -o /tmp/relaywa-nuget
       - name: Verify NuGet archive
         run: python3 -c "import glob,zipfile; p=glob.glob('/tmp/relaywa-nuget/*.nupkg'); assert len(p)==1; z=zipfile.ZipFile(p[0]); assert any(x.endswith('RelayWA.dll') for x in z.namelist())"
+      - name: Verify NuGet embeds MIT license
+        run: python3 -c "import glob,zipfile; z=zipfile.ZipFile(glob.glob('/tmp/relaywa-nuget/*.nupkg')[0]); names=z.namelist(); assert any(x.upper().endswith('LICENSE') for x in names), names"
       - name: Install NuGet package into clean consumer project (offline API)
         run: |
           mkdir -p /tmp/relaywa-dotnet-consumer
