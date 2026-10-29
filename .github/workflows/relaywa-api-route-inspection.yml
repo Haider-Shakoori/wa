@@ -1,0 +1,35 @@
+name: RelayWA live API route inspection
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-api-route-inspection.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect active API routes and SQL statements
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/relaywa-api';
+          const response=await fetch(url,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
+          if(!response.ok)throw Error('Fetch Worker failed '+response.status);
+          const form=await response.formData();
+          const module=form.get('index.js');
+          if(!module)throw Error('Worker module unavailable');
+          const code=typeof module==='string'?module:await module.text();
+          for(const path of ['/heartbeat','/commands/claim','/health-scan']){
+            const position=code.indexOf('"'+path+'"');
+            console.log('ROUTE',path,'FOUND',position>=0);
+            if(position<0)continue;
+            const snippet=code.slice(position,position+4500);
+            const statements=snippet.match(/(?:INSERT INTO|UPDATE|SELECT|DELETE FROM)[^;]{0,350}/g)||[];
+            console.log('SQL',path,JSON.stringify(statements.slice(0,10)));
+          }
+          console.log('INSPECTION_COMPLETE');
+          NODE
