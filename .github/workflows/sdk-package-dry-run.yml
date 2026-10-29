@@ -1,0 +1,65 @@
+name: SDK package dry run (no publish)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'sdks/**'
+      - 'packages/sdk-typescript/**'
+      - '.github/workflows/sdk-package-dry-run.yml'
+permissions:
+  contents: read
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @relaywa/sdk test
+      - run: pnpm --filter @relaywa/sdk typecheck
+      - name: Inspect package contents (no publication)
+        run: |
+          cd packages/sdk-typescript
+          pnpm pack --pack-destination /tmp
+          tar -tzf /tmp/relaywa-sdk-*.tgz | head -80
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: PYTHONPATH=sdks/python python -m unittest discover -s sdks/python/tests -v
+      - run: python -m pip install build twine
+      - run: python -m build sdks/python
+      - run: python -m twine check sdks/python/dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-sdk-preview
+          path: sdks/python/dist/*
+          retention-days: 7
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l sdks/php/src/Client.php && php sdks/php/tests/smoke.php
+      - run: cd sdks/php && composer validate --strict
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet pack sdks/dotnet/RelayWA/RelayWA.csproj -c Release -o /tmp/relaywa-packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-sdk-preview
+          path: /tmp/relaywa-packages/*.nupkg
+          retention-days: 7
