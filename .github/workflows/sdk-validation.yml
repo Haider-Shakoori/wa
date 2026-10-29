@@ -31,3 +31,4 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - run: dotnet build sdks/dotnet/RelayWA/RelayWA.csproj -c Release
+      - run: dotnet run --project sdks/dotnet/RelayWA.ContractTests/RelayWA.ContractTests.csproj -c Release
