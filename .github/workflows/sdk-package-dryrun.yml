@@ -24,6 +24,16 @@ jobs:
       - name: Verify npm tarball without publishing
         working-directory: packages/sdk-typescript
         run: npm pack --dry-run --json > /tmp/relaywa-npm-pack.json && node -e "const p=require('/tmp/relaywa-npm-pack.json')[0]; if (!p.files.some(f=>f.path==='dist/index.js') || !p.files.some(f=>f.path==='dist/index.d.ts')) process.exit(1)"
+      - name: Install npm tarball into clean consumer (offline API)
+        run: |
+          cd packages/sdk-typescript
+          npm pack --pack-destination /tmp --silent
+          mkdir -p /tmp/relaywa-node-consumer
+          cd /tmp/relaywa-node-consumer
+          npm init -y --silent
+          npm install --ignore-scripts --no-audit --no-fund /tmp/relaywa-sdk-0.1.0.tgz
+          node --input-type=module -e "import { RelayWA } from '@relaywa/sdk'; const sdk = new RelayWA({ sessionKey: 'offline-test' }); if (!sdk.sessions || !sdk.messages) process.exit(1); console.log('TypeScript package consumer import passed (offline)')"
+
   python:
     runs-on: ubuntu-latest
     steps:
