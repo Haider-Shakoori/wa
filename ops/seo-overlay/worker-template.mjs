@@ -41,8 +41,14 @@ function applyNoticeToOrigin(original, method, preview = false, pathname = '') {
   // Append reviewed SSR FAQ to the original live page, keeping its scripts,
   // dynamic plan cards, API calls, consent handling and payment flow intact.
   if (pathname === '/pricing') {
+    let faqAlreadyPresent = false;
+    rewriter.on('section[aria-labelledby="pricing-questions-heading"]', {
+      element() { faqAlreadyPresent = true; },
+    });
     rewriter.on('section[aria-labelledby="pricing-guide-heading"]', {
-      element(element) { element.before(PRICING_FAQ_HTML, {html:true}); },
+      element(element) {
+        if (!faqAlreadyPresent) element.before(PRICING_FAQ_HTML, {html:true});
+      },
     });
   }
   const rewritten = rewriter.transform(original);
