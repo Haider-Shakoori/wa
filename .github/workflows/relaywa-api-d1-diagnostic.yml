@@ -1,0 +1,50 @@
+name: RelayWA production API D1 diagnostic (read-only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-api-d1-diagnostic.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read-only Cloudflare deployment and D1 schema diagnostics
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN, account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!token||!account)throw Error('Cloudflare credentials missing');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account;
+          const headers={authorization:'Bearer '+token};
+          async function request(path,opts={}){
+            const res=await fetch(base+path,{...opts,headers:{...headers,...opts.headers},signal:AbortSignal.timeout(20000)});
+            const data=await res.json();
+            if(!res.ok||!data.success)throw Error('Cloudflare request failed: '+res.status+' codes='+JSON.stringify(data.errors?.map(e=>e.code)));
+            return data.result;
+          }
+          const deploy=await request('/workers/scripts/relaywa-api/deployments');
+          console.log('ACTIVE_DEPLOYMENT',JSON.stringify(deploy.deployments?.slice(0,2).map(d=>({id:d.id,created_on:d.created_on,versions:d.versions}))));
+          const databases=await request('/d1/database?per_page=100');
+          const db=databases.find(x=>x.name==='relaywa');
+          if(!db)throw Error('relaywa D1 database missing');
+          async function query(sql){
+            const data=await request('/d1/database/'+db.uuid+'/query',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sql})});
+            if(data[0]?.success===false)throw Error('D1 SQL failed: '+JSON.stringify(data[0].error));
+            return data[0]?.results||[];
+          }
+          for(const table of ['relaywa_worker_heartbeats','whatsapp_sessions','worker_commands','whatsapp_messages']){
+            const cols=await query("PRAGMA table_info('"+table+"')");
+            console.log('TABLE_SCHEMA',table,JSON.stringify(cols.map(c=>({name:c.name,type:c.type}))));
+          }
+          const tables=await query("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%worker%' OR name LIKE '%command%' OR name LIKE '%message%') ORDER BY name");
+          console.log('RELEVANT_TABLES',JSON.stringify(tables));
+          const status=await query("SELECT status,COUNT(*) AS count FROM whatsapp_sessions WHERE deleted_at IS NULL GROUP BY status");
+          console.log('SESSION_COUNTS',JSON.stringify(status));
+          console.log('READ_ONLY_DIAGNOSTIC_COMPLETE');
+          NODE
