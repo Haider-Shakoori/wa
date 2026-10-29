@@ -43,6 +43,26 @@ final class Client
     }
 
     public function sessions(): array { return $this->request('GET', '/whatsapp-sessions'); }
+    private function sessionPath(string $id): string
+    {
+        if (trim($id) === '') throw new \InvalidArgumentException('Session ID required');
+        return '/whatsapp-sessions/' . rawurlencode($id);
+    }
+
+    public function session(string $id): array { return $this->request('GET', $this->sessionPath($id)); }
+    public function sessionQrCode(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/qrcode'); }
+    public function sessionStatistics(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/statistics'); }
+    public function sessionLogs(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/logs'); }
+    public function sessionMessages(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/messages'); }
+    public function sessionMessage(string $id, string $messageId): array
+    {
+        if (trim($messageId) === '') throw new \InvalidArgumentException('Message ID required');
+        return $this->request('GET', $this->sessionPath($id) . '/messages/' . rawurlencode($messageId));
+    }
+    public function sessionContacts(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/contacts'); }
+    public function sessionChats(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/chats'); }
+    public function sessionGroups(string $id): array { return $this->request('GET', $this->sessionPath($id) . '/groups'); }
+
     public function webhooks(): array { return $this->request('GET', '/webhooks'); }
 
     /** @param array<string,mixed> $input */

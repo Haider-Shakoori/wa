@@ -69,6 +69,41 @@ class RelayWA:
     def sessions(self):
         return self._request("GET", "/whatsapp-sessions")
 
+    @staticmethod
+    def _session_path(session_id: str) -> str:
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("Session ID required")
+        return "/whatsapp-sessions/" + quote(session_id, safe="")
+
+    def session(self, session_id: str):
+        return self._request("GET", self._session_path(session_id))
+
+    def session_qr_code(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/qrcode")
+
+    def session_statistics(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/statistics")
+
+    def session_logs(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/logs")
+
+    def session_messages(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/messages")
+
+    def session_message(self, session_id: str, message_id: str):
+        if not isinstance(message_id, str) or not message_id.strip():
+            raise ValueError("Message ID required")
+        return self._request("GET", self._session_path(session_id) + "/messages/" + quote(message_id, safe=""))
+
+    def session_contacts(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/contacts")
+
+    def session_chats(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/chats")
+
+    def session_groups(self, session_id: str):
+        return self._request("GET", self._session_path(session_id) + "/groups")
+
     def webhooks(self):
         return self._request("GET", "/webhooks")
 
