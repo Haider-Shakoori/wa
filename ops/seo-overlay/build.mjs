@@ -7,6 +7,7 @@ const appRoot = resolve('apps/web');
 const outputDir = resolve('ops/seo-overlay/dist');
 const base = process.env.SNAPSHOT_ORIGIN ?? 'http://127.0.0.1:3000';
 const templates = {};
+let pricingFaqHtml = '';
 function dataInlineCss(css) {
   return css.replace(/url\((["']?)([^)"']+)\1\)/g, (whole, _quote, url) => {
     if (!url.startsWith('../media/') && !url.startsWith('/_next/static/media/')) return whole;
@@ -58,6 +59,24 @@ for (const path of paths) {
   templates[path] = html;
   console.log('SSR snapshot validated:', path, 'bytes=', html.length);
 }
+// Extract only the reviewed server-rendered FAQ. Never snapshot pricing cards:
+// the original Cloudflare website must retain live API pricing and hydration.
+{
+  const response = await fetch(base + '/pricing', { signal: AbortSignal.timeout(20000) });
+  assert.equal(response.status, 200, 'Pricing SSR status');
+  const rendered = await response.text();
+  // Find the section opening by looking backwards from the unique FAQ heading.
+  const heading = rendered.indexOf('id="pricing-questions-heading"');
+  assert.ok(heading > 0, 'Approved pricing FAQ heading missing');
+  const sectionStart = rendered.lastIndexOf('<section', heading);
+  const nextSection = rendered.indexOf('<section', heading);
+  assert.ok(sectionStart >= 0 && nextSection > heading, 'Pricing FAQ section boundaries missing');
+  pricingFaqHtml = rendered.slice(sectionStart, nextSection);
+  assert.match(pricingFaqHtml, /What is included in the free trial\\?/);
+  assert.match(pricingFaqHtml, /Is RelayWA the official WhatsApp Cloud API\\?/);
+  assert.ok(!pricingFaqHtml.includes('<script'), 'FAQ must not contain executable scripts');
+  assert.ok(pricingFaqHtml.length < 12000, 'Unexpected FAQ size');
+}
 const worker = readFileSync(resolve('ops/seo-overlay/worker-template.mjs'), 'utf8');
 const token = '__SEO_HTML_MAP__';
 assert.equal(worker.split(token).length, 2, 'One payload replacement location');
@@ -67,9 +86,11 @@ const cookieCss = readFileSync(resolve('ops/seo-overlay/cookie-message.css'), 'u
 assert.ok(cookieJs.includes('relaywa_analytics_consent') &&
   cookieJs.includes('relaywa:analytics-choice-changed'), 'Cookie choices must use the current analytics preference contract');
 assert.ok(!cookieJs.includes('googletagmanager.com'), 'Notice must not load Google scripts');
+assert.equal(worker.split('__PRICING_FAQ_HTML__').length, 2, 'Exactly one pricing FAQ build token');
 assert.equal(worker.split('__COOKIE_JS__').length, 2, 'Exactly one cookie JS build token');
 assert.equal(worker.split('__COOKIE_CSS__').length, 2, 'Exactly one cookie CSS build token');
 const result = worker.replace(token, JSON.stringify(templates))
+  .replace('__PRICING_FAQ_HTML__', JSON.stringify(pricingFaqHtml))
   .replace('__COOKIE_JS__', JSON.stringify(cookieJs))
   .replace('__COOKIE_CSS__', JSON.stringify(cookieCss));
 writeFileSync(join(outputDir, 'index.mjs'), result, 'utf8');
