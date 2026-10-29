@@ -1,0 +1,33 @@
+name: RelayWA command SQL source inspection
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-sql-source-inspection.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect SQL source representation only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/relaywa-api';
+          const res=await fetch(url,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
+          if(!res.ok)throw Error('Cloudflare HTTP '+res.status);
+          const form=await res.formData(),mod=form.get('index.js');
+          const code=typeof mod==='string'?mod:await mod.text();
+          const start=code.indexOf('f.post("/commands/claim"');
+          const end=code.indexOf('let s = await e.env.DB.prepare',start);
+          if(start<0||end<start||end-start>1500)throw Error('Unexpected handler boundaries');
+          const section=code.slice(start,end);
+          const a=section.indexOf('INSERT INTO relaywa_worker_heartbeats');
+          const b=section.indexOf('ON CONFLICT(worker_id)',a);
+          if(a<0||b<0)throw Error('SQL not found');
+          const sql=section.slice(a,b);
+          console.log('SQL_REPRESENTATION',JSON.stringify(sql));
+          console.log('ESCAPE_COUNTS',JSON.stringify({doubleBackslashN:sql.split(String.fromCharCode(92,92,110)).length-1,singleBackslashN:sql.split(String.fromCharCode(92,110)).length-1,realNewline:sql.split(String.fromCharCode(10)).length-1}));
+          NODE
