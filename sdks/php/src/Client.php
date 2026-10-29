@@ -7,8 +7,8 @@ final class Client
 {
     public function __construct(private string $sessionKey, private string $baseUrl = 'https://relaywa.com/api')
     {
-        if (trim($sessionKey) === '') throw new \InvalidArgumentException('Session key required');
-        if (!str_starts_with($baseUrl, 'https://')) throw new \InvalidArgumentException('HTTPS API base required');
+        if (trim($sessionKey) === '' || str_contains($sessionKey, "\r") || str_contains($sessionKey, "\n")) throw new \InvalidArgumentException('Session key required');
+        if (!str_starts_with($baseUrl, 'https://') || !filter_var($baseUrl, FILTER_VALIDATE_URL) || parse_url($baseUrl, PHP_URL_USER) !== null || parse_url($baseUrl, PHP_URL_PASS) !== null || parse_url($baseUrl, PHP_URL_QUERY) !== null || parse_url($baseUrl, PHP_URL_FRAGMENT) !== null)  throw new \InvalidArgumentException('HTTPS API base required');
         $this->baseUrl = rtrim($baseUrl, '/');
     }
 
