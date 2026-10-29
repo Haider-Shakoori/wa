@@ -113,3 +113,5 @@ class RelayWA:
 
     def webhook_deliveries(self, endpoint_id: str):
         return self._request("GET", "/webhooks/" + self._webhook_id(endpoint_id) + "/deliveries")
+
+from .webhook import verify_webhook_signature
