@@ -1,0 +1,39 @@
+name: RelayWA inspect D1 failing lines
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-inspect-d1-lines.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect deployed D1 call sites
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const headers={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const res=await fetch(root+'/workers/scripts/relaywa-api',{headers});
+          if(!res.ok)throw Error('Script read failed '+res.status);
+          const form=await res.formData();
+          const module=form.get('index.js');
+          const code=typeof module==='string'?module:await module.text();
+          const lines=code.split('\n');
+          for(const n of [2990,2996]){
+            console.log('CALLSITE',n);
+            for(let i=n-5;i<=n+3;i++)console.log(i,lines[i-1]?.slice(0,550));
+          }
+          const databases=await fetch(root+'/d1/database?per_page=100',{headers}).then(r=>r.json());
+          if(!databases.success)throw Error('D1 list failed');
+          const db=databases.result.find(x=>x.name==='relaywa');
+          for(const sql of ["PRAGMA table_info('whatsapp_sessions')","PRAGMA table_info('relaywa_worker_heartbeats')","SELECT COUNT(*) AS count FROM relaywa_worker_heartbeats"]){
+            const r=await fetch(root+'/d1/database/'+db.uuid+'/query',{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({sql})});
+            const d=await r.json();
+            console.log('SCHEMA',sql,JSON.stringify({status:r.status,success:d.success,rows:d.result?.[0]?.results,errors:d.errors?.map(e=>e.code)}));
+          }
+          NODE
