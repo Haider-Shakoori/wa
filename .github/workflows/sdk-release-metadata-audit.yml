@@ -1,0 +1,58 @@
+name: SDK release metadata audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit package metadata without publishing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import tomllib
+          import xml.etree.ElementTree as ET
+
+          root = pathlib.Path(".")
+          npm = json.loads((root / "packages/sdk-typescript/package.json").read_text())
+          php = json.loads((root / "sdks/php/composer.json").read_text())
+          py = tomllib.loads((root / "sdks/python/pyproject.toml").read_text())
+          dotnet = ET.parse(root / "sdks/dotnet/RelayWA/RelayWA.csproj").getroot()
+          pkg = dotnet.findtext(".//PackageId")
+          versions = [npm.get("version"), py["project"].get("version"), dotnet.findtext(".//Version")]
+          checks = {
+              "npm package name": npm.get("name") == "@relaywa/sdk",
+              "Python package name": py["project"].get("name") == "relaywa-sdk",
+              "Composer package name": php.get("name") == "relaywa/sdk",
+              "NuGet package name": pkg == "RelayWA.Sdk",
+              "Version parity (npm/Python/NuGet)": len(set(versions)) == 1,
+              "TypeScript README": (root / "packages/sdk-typescript/README.md").is_file(),
+              "Python README": (root / "sdks/python/README.md").is_file(),
+              "PHP README": (root / "sdks/php/README.md").is_file(),
+              ".NET README": (root / "sdks/dotnet/RelayWA/README.md").is_file(),
+              "License text present": any((root / n).is_file() for n in ("LICENSE", "LICENSE.md", "LICENSE.txt")),
+              "npm publishing unlocked": npm.get("private") is not True,
+              "Python license declared": bool(py["project"].get("license") or py["project"].get("license-files")),
+              ".NET license declared": bool(dotnet.findtext(".//PackageLicenseExpression") or dotnet.findtext(".//PackageLicenseFile")),
+          }
+          print("SDK registry readiness (diagnostic only):")
+          for name, ok in checks.items():
+              print(f'{"PASS" if ok else "REVIEW"}: {name}')
+          with open("sdk-release-audit.md", "w") as f:
+              f.write("# SDK release metadata audit\\n\\n")
+              f.write("Diagnostic only. Does not authorize registry publication.\\n\\n")
+              for name, ok in checks.items():
+                  f.write(f'- [{"x" if ok else " "}] {name}\\n')
+          if not all(checks.values()):
+              print("::warning::SDK metadata needs review before publishing. No packages were published.")
+          PY
+      - name: Upload release metadata audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-release-metadata-audit
+          path: sdk-release-audit.md
+          retention-days: 14
