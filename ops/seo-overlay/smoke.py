@@ -96,7 +96,7 @@ for path in (() if PREVIEW else (
     "/blog/nodejs-whatsapp-api-send-webhooks",
     "/blog/laravel-whatsapp-api-order-notifications",
     "/blog/whatsapp-api-qr-session-troubleshooting",
-):
+)):
     status, headers, html = get(path)
     assert status == 200, "Marketing page not reachable: " + path
     assert headers.get("x-relaywa-cookie-message") == "1", "Cookie overlay missing: " + path
