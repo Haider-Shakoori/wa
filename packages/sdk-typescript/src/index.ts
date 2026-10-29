@@ -50,6 +50,19 @@ export class RelayWA {
 
   readonly sessions = {
     list: (): Promise<unknown> => this.request('GET', '/whatsapp-sessions'),
+    create: (input: Record<string, unknown>): Promise<unknown> => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Session input required');
+      return this.request('POST', '/whatsapp-sessions', input);
+    },
+    update: (id: string, input: Record<string, unknown>): Promise<unknown> => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Session update input required');
+      return this.request('PATCH', `/whatsapp-sessions/${this.segment(id)}`, input);
+    },
+    connect: (id: string): Promise<unknown> => this.request('POST', `/whatsapp-sessions/${this.segment(id)}/connect`),
+    restart: (id: string): Promise<unknown> => this.request('POST', `/whatsapp-sessions/${this.segment(id)}/restart`),
+    disconnect: (id: string): Promise<unknown> => this.request('POST', `/whatsapp-sessions/${this.segment(id)}/disconnect`),
+    remove: (id: string): Promise<unknown> => this.request('DELETE', `/whatsapp-sessions/${this.segment(id)}`),
+
     get: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}`),
     qrCode: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/qrcode`),
     messages: (id: string): Promise<unknown> => this.request('GET', `/whatsapp-sessions/${this.segment(id)}/messages`),
