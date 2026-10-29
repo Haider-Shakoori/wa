@@ -45,6 +45,45 @@ final class Client
     public function sessions(): array { return $this->request('GET', '/whatsapp-sessions'); }
     public function webhooks(): array { return $this->request('GET', '/webhooks'); }
 
+    /** @param array<string,mixed> $input */
+    public function createWebhook(array $input): array
+    {
+        $this->validateWebhook($input, true);
+        return $this->request('POST', '/webhooks', $input);
+    }
+
+    /** @param array<string,mixed> $input */
+    public function updateWebhook(string $id, array $input): array
+    {
+        $this->validateWebhook($input, false);
+        return $this->request('PATCH', '/webhooks/' . $this->webhookId($id), $input);
+    }
+
+    public function deleteWebhook(string $id): array
+    {
+        return $this->request('DELETE', '/webhooks/' . $this->webhookId($id));
+    }
+
+    public function webhookDeliveries(string $id): array
+    {
+        return $this->request('GET', '/webhooks/' . $this->webhookId($id) . '/deliveries');
+    }
+
+    private function webhookId(string $id): string
+    {
+        if (trim($id) === '') throw new \InvalidArgumentException('Webhook ID required');
+        return rawurlencode($id);
+    }
+
+    private function validateWebhook(array $input, bool $create): void
+    {
+        if ($create && (!isset($input['name'], $input['url']))) throw new \InvalidArgumentException('Webhook name and URL required');
+        if (array_key_exists('name', $input) && (!is_string($input['name']) || strlen($input['name']) < 2 || strlen($input['name']) > 120)) throw new \InvalidArgumentException('Invalid webhook name');
+        if (array_key_exists('url', $input) && (!is_string($input['url']) || !filter_var($input['url'], FILTER_VALIDATE_URL) || parse_url($input['url'], PHP_URL_SCHEME) !== 'https' || parse_url($input['url'], PHP_URL_USER) !== null || parse_url($input['url'], PHP_URL_PASS) !== null)) throw new \InvalidArgumentException('Webhook URL must use HTTPS');
+        if (array_key_exists('eventTypes', $input) && (!is_array($input['eventTypes']) || count($input['eventTypes']) > 32 || array_filter($input['eventTypes'], fn($x) => !is_string($x) || strlen($x) > 64))) throw new \InvalidArgumentException('Invalid webhook event types');
+        if (array_key_exists('enabled', $input) && !is_bool($input['enabled'])) throw new \InvalidArgumentException('Invalid enabled value');
+    }
+
     private function request(string $method, string $path, ?array $payload = null): array
     {
         $handle = curl_init($this->baseUrl . $path);

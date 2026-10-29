@@ -2,7 +2,7 @@
 import json
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote
 
 class RelayWAError(Exception):
     pass
@@ -71,3 +71,45 @@ class RelayWA:
 
     def webhooks(self):
         return self._request("GET", "/webhooks")
+
+    @staticmethod
+    def _webhook_id(endpoint_id: str) -> str:
+        if not isinstance(endpoint_id, str) or not endpoint_id.strip():
+            raise ValueError("Webhook ID required")
+        return quote(endpoint_id, safe="")
+
+    @staticmethod
+    def _validate_webhook(payload: dict, create: bool = False):
+        if not isinstance(payload, dict):
+            raise ValueError("Webhook payload required")
+        if create and ("name" not in payload or "url" not in payload):
+            raise ValueError("Webhook name and URL required")
+        if "name" in payload and (not isinstance(payload["name"], str) or not 2 <= len(payload["name"]) <= 120):
+            raise ValueError("Invalid webhook name")
+        if "url" in payload:
+            url = payload["url"]
+            if not isinstance(url, str):
+                raise ValueError("Webhook URL must use HTTPS")
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+                raise ValueError("Webhook URL must use HTTPS without credentials")
+        if "eventTypes" in payload:
+            events = payload["eventTypes"]
+            if not isinstance(events, list) or len(events) > 32 or any(not isinstance(e, str) or len(e) > 64 for e in events):
+                raise ValueError("Invalid webhook event types")
+        if "enabled" in payload and type(payload["enabled"]) is not bool:
+            raise ValueError("Webhook enabled must be boolean")
+
+    def create_webhook(self, payload: dict):
+        self._validate_webhook(payload, create=True)
+        return self._request("POST", "/webhooks", payload)
+
+    def update_webhook(self, endpoint_id: str, payload: dict):
+        self._validate_webhook(payload)
+        return self._request("PATCH", "/webhooks/" + self._webhook_id(endpoint_id), payload)
+
+    def delete_webhook(self, endpoint_id: str):
+        return self._request("DELETE", "/webhooks/" + self._webhook_id(endpoint_id))
+
+    def webhook_deliveries(self, endpoint_id: str):
+        return self._request("GET", "/webhooks/" + self._webhook_id(endpoint_id) + "/deliveries")
