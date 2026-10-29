@@ -33,6 +33,30 @@ export default function Page() {
       </div>
       <p className="rw-topic-disclosure">Choose Meta's official platform if your workflow requires official authorization. For RelayWA, review the live plan cards, the trial conditions, and <Link href="/api-docs#queue">how sending and retries work</Link> before subscribing.</p>
     </section>
+    <section className="rw-site-section rw-developer-topics" aria-labelledby="pricing-questions-heading">
+      <div className="rw-section-intro">
+        <p className="rw-kicker">BEFORE YOU SUBSCRIBE</p>
+        <h2 id="pricing-questions-heading">Understand your RelayWA subscription</h2>
+        <p>RelayWA charges for connected WhatsApp numbers through a subscription, not per message. Current plan prices and allowances load from the public plans API. If they cannot load, contact support before purchasing.</p>
+      </div>
+      <div className="rw-developer-topic-grid">
+        <article>
+          <h3>What is included in the free trial?</h3>
+          <p>New workspaces can test one QR-linked number for seven days with a limit of 50 messages per day. No payment card is needed to begin.</p>
+          <Link className="rw-topic-more" href="/register">Start the trial <span aria-hidden="true">→</span></Link>
+        </article>
+        <article>
+          <h3>Are messages billed separately?</h3>
+          <p>Paid plans have no per-message RelayWA fee. Your subscription determines connected-session allowances. WhatsApp platform restrictions still apply.</p>
+          <Link className="rw-topic-more" href="/api-docs#messages">Review sending behavior <span aria-hidden="true">→</span></Link>
+        </article>
+        <article>
+          <h3>Is RelayWA the official WhatsApp Cloud API?</h3>
+          <p>No. RelayWA uses QR-linked WhatsApp Web sessions, not Meta's official Cloud API. Accounts can be restricted or disconnected under WhatsApp's rules.</p>
+          <Link className="rw-topic-more" href="/guides/whatsapp-web-vs-cloud-api">Compare integration models <span aria-hidden="true">→</span></Link>
+        </article>
+      </div>
+    </section>
     <section className="rw-site-section rw-developer-topics" aria-labelledby="pricing-guide-heading">
       <div className="rw-section-intro">
         <p className="rw-kicker">COMPARE HOW YOUR INTEGRATION WORKS</p>
