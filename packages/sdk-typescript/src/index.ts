@@ -91,3 +91,6 @@ export class RelayWA {
     },
   };
 }
+
+export { verifyWebhookSignature } from './webhook-signature.js';
+export type { WebhookVerificationInput } from './webhook-signature.js';
