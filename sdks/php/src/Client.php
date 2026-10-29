@@ -152,7 +152,7 @@ final class Client
         $handle = curl_init($this->baseUrl . $path);
         if ($handle === false) throw new \RuntimeException('Unable to initialize cURL');
         $headers = ['Authorization: Bearer ' . $this->sessionKey];
-        $options = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_CUSTOMREQUEST => $method];
+        $options = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_FOLLOWLOCATION => false, CURLOPT_CUSTOMREQUEST => $method];
         if ($payload !== null) {
             $headers[] = 'Content-Type: application/json';
             $options[CURLOPT_POSTFIELDS] = json_encode($payload, JSON_THROW_ON_ERROR);
@@ -161,7 +161,7 @@ final class Client
         curl_setopt_array($handle, $options);
         $response = curl_exec($handle);
         $status = curl_getinfo($handle, CURLINFO_HTTP_CODE);
-        if ($response === false) { $error = curl_error($handle); curl_close($handle); throw new \RuntimeException($error); }
+        if ($response === false) { $errno = curl_errno($handle); curl_close($handle); throw new \RuntimeException('RelayWA transport failure (cURL ' . $errno . ')'); }
         curl_close($handle);
         if ($status < 200 || $status >= 300) throw new \RuntimeException('RelayWA HTTP ' . $status);
         $decoded = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
