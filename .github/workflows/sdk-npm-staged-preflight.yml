@@ -1,0 +1,46 @@
+name: npm SDK staged-release preflight (no staging)
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type PREFLIGHT_ONLY. This workflow never stages or publishes.'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  preflight:
+    if: ${{ inputs.confirmation == 'PREFLIGHT_ONLY' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify private package remains protected
+        run: |
+          node - <<'NODE'
+          const p=require('./packages/sdk-typescript/package.json');
+          if(p.name!=='@relaywa/sdk'||p.version!=='0.1.0'||p.private!==true) throw Error('Unexpected SDK identity or publishing guard');
+          NODE
+      - name: Build and inspect isolated npm SDK package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/relaywa-npm-staged-preflight
+          cp -a packages/sdk-typescript/. /tmp/relaywa-npm-staged-preflight/
+          cd /tmp/relaywa-npm-staged-preflight
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          node --test test/*.test.mjs
+          npm pack --dry-run --json > /tmp/relaywa-npm-staged-preflight.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/relaywa-npm-staged-preflight.json','utf8'))[0];
+          const files=data.files.map(f=>f.path);
+          for(const file of ['dist/index.js','dist/index.d.ts','LICENSE','README.md']){
+            if(!files.includes(file)) throw Error('Missing npm archive file: '+file);
+          }
+          if(files.some(f=>/(^|\/)(\.env|\.npmrc|node_modules)(\/|$)/i.test(f))) throw Error('Sensitive/unexpected file in archive');
+          console.log('Preflight passed; package remains private. No staging performed.');
+          NODE
