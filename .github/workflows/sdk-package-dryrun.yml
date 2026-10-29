@@ -35,7 +35,7 @@ jobs:
           mkdir -p /tmp/relaywa-node-consumer
           cd /tmp/relaywa-node-consumer
           npm init -y --silent
-          npm install --ignore-scripts --no-audit --no-fund /tmp/relaywa-sdk-0.1.0.tgz
+          npm install --ignore-scripts --no-audit --no-fund /tmp/relaywa-sdk-0.1.1.tgz
           node --input-type=module -e "import { RelayWA } from '@relaywa/sdk'; const sdk = new RelayWA({ sessionKey: 'offline-test' }); if (!sdk.sessions || !sdk.messages) process.exit(1); console.log('TypeScript package consumer import passed (offline)')"
 
   python:

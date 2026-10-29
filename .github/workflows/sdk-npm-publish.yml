@@ -1,44 +1,55 @@
-name: npm SDK publishing preparation (disabled)
-# Intentionally no workflow_dispatch, push, pull_request, release, or schedule triggers.
-# This workflow cannot be run until a separately reviewed PR explicitly enables it.
+name: npm SDK OIDC staged publication (manual only)
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      enable_publishing:
-        type: boolean
+      confirmation:
+        description: 'Enter STAGE_RELAYWA_SDK_0_1_1 to authorize npm staging (not public approval)'
         required: true
-        default: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  prepare-only:
-    if: ${{ inputs.enable_publishing == false }}
+  stage-sdk:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGE_RELAYWA_SDK_0_1_1' }}
     runs-on: ubuntu-latest
+    environment: sdk-npm-release
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify SDK stage eligibility and scope
-        shell: bash
-        run: |
-          node -e "const p=require('./packages/sdk-typescript/package.json'); if(p.name!=='@relaywa/sdk'||p.private!==false||p.publishConfig?.access!=='public'||p.version!=='0.1.0') process.exit(1)"
-      - name: Build SDK in isolation without publishing
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install npm with staging and OIDC support
+        run: npm install --global npm@11.21.1
+      - name: Verify package identity and version
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/relaywa-sdk-npm-preflight
-          cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-npm-preflight/
-          cd /tmp/relaywa-sdk-npm-preflight
+          node -e "const p=require('./packages/sdk-typescript/package.json');if(p.name!=='@relaywa/sdk'||p.version!=='0.1.1'||p.private!==false||p.publishConfig?.access!=='public')process.exit(1)"
+      - name: Build and test SDK in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/relaywa-sdk-stage
+          cp -a packages/sdk-typescript/. /tmp/relaywa-sdk-stage/
+          cd /tmp/relaywa-sdk-stage
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
           cp -a dist "$GITHUB_WORKSPACE/packages/sdk-typescript/dist"
           cd "$GITHUB_WORKSPACE/packages/sdk-typescript"
           node --test test/*.test.mjs
-          cd /tmp/relaywa-sdk-npm-preflight
-          npm pack --dry-run --json > /tmp/relaywa-sdk-pack.json
-          node -e "const p=require('/tmp/relaywa-sdk-pack.json')[0];const names=p.files.map(x=>x.path);for(const x of ['LICENSE','README.md','dist/index.js','dist/index.d.ts'])if(!names.includes(x))throw Error('Missing '+x)"
-      - name: Confirm publishing is disabled
-        run: echo "Preparation only; no npm publish command, credentials, or OIDC token permissions."
+          cd /tmp/relaywa-sdk-stage
+          npm pack --dry-run
+      - name: Stage npm package using GitHub OIDC (approval remains manual)
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ''
+        run: |
+          set -euo pipefail
+          cd /tmp/relaywa-sdk-stage
+          npm stage publish --access public
