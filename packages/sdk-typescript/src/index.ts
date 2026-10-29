@@ -8,7 +8,7 @@ export type ReplyMessageInput = AdvancedMessageBase & { text: string; quotedMess
 export type ReactionMessageInput = AdvancedMessageBase & { emoji: string; targetMessageId: string; targetFromMe?: boolean };
 export type WebhookCreateInput = { name: string; url: string; eventTypes?: string[] };
 export type WebhookUpdateInput = { name?: string; url?: string; eventTypes?: string[]; enabled?: boolean };
-export type RelayWAOptions = { sessionKey: string; baseUrl?: string; fetch?: typeof globalThis.fetch };
+export type RelayWAOptions = { sessionKey: string; baseUrl?: string; fetch?: typeof globalThis.fetch; timeoutMs?: number };
 
 export class RelayWAError extends Error {
   constructor(public readonly status: number, public readonly responseBody: string) {
@@ -21,6 +21,7 @@ export class RelayWA {
   private readonly sessionKey: string;
   private readonly baseUrl: string;
   private readonly transport: typeof globalThis.fetch;
+  private readonly timeoutMs: number;
 
   constructor(options: RelayWAOptions) {
     if (!options.sessionKey?.trim()) throw new Error('RelayWA sessionKey is required');
@@ -30,12 +31,17 @@ export class RelayWA {
     if (url.protocol !== 'https:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
       throw new Error('RelayWA baseUrl must use HTTPS');
     }
+    if (options.timeoutMs !== undefined && (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 120000)) {
+      throw new Error('RelayWA timeoutMs must be an integer between 1 and 120000');
+    }
+    this.timeoutMs = options.timeoutMs ?? 30000;
     this.transport = options.fetch ?? globalThis.fetch;
   }
 
   private async request(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: Record<string, unknown>): Promise<unknown> {
     const response = await this.transport(`${this.baseUrl}${path}`, {
       method,
+      signal: AbortSignal.timeout(this.timeoutMs),
       headers: { Authorization: `Bearer ${this.sessionKey}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
