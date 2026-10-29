@@ -65,7 +65,7 @@ jobs:
           composer init --no-interaction --name=relaywa/sdk-consumer --no-plugins
           composer config repositories.relaywa path "$GITHUB_WORKSPACE/sdks/php"
           composer require relaywa/sdk:@dev --no-interaction --no-scripts --no-plugins --no-progress
-          php -r 'require "vendor/autoload.php"; $sdk = new \\RelayWA\\Client("offline-test"); if (!($sdk instanceof \\RelayWA\\Client)) exit(1); echo "Composer SDK consumer autoload passed (offline)\\n";'
+          php -r 'require "vendor/autoload.php"; $class = "RelayWA" . chr(92) . "Client"; $sdk = new $class("offline-test"); if (!($sdk instanceof $class)) exit(1); echo "Composer SDK consumer autoload passed (offline)\n";'
 
   dotnet:
     runs-on: ubuntu-latest
