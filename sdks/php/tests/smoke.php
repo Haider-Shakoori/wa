@@ -15,6 +15,6 @@ try {
     $client->sendImage($media);
     fwrite(STDERR, "Expected media size validation error\\n");
     exit(1);
-} catch (\\InvalidArgumentException $e) {
+} catch (\InvalidArgumentException $e) {
     echo "PHP SDK media validation passed\\n";
 }
