@@ -36,7 +36,7 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          node -e "const p=require('./packages/sdk-typescript/package.json'); const v=process.env.EXPECTED_VERSION; if(!/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(v)||p.name!=='@relaywa/sdk'||p.version!==v||p.private!==false||p.publishConfig?.access!=='public') process.exit(1)"
+          node -e "const p=require('./packages/sdk-typescript/package.json'); const v=process.env.EXPECTED_VERSION; if(!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(v)||p.name!=='@relaywa/sdk'||p.version!==v||p.private!==false||p.publishConfig?.access!=='public') process.exit(1)"
           node -e "const p=require('./packages/sdk-typescript/package-lock.json'); if(p.version!==process.env.EXPECTED_VERSION || p.packages?.['']?.version!==process.env.EXPECTED_VERSION)process.exit(1)"
       - name: Reject versions already published to npm
         shell: bash
