@@ -10,8 +10,8 @@ public sealed class RelayWAClient
     private readonly HttpClient _http;
     public RelayWAClient(HttpClient http, string sessionKey, string baseUrl = "https://relaywa.com/api")
     {
-        if (string.IsNullOrWhiteSpace(sessionKey)) throw new ArgumentException("Session key required", nameof(sessionKey));
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) throw new ArgumentException("HTTPS API base required", nameof(baseUrl));
+        if (string.IsNullOrWhiteSpace(sessionKey) || sessionKey.Contains('\r') || sessionKey.Contains('\n')) throw new ArgumentException("Session key required", nameof(sessionKey));
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment)) throw new ArgumentException("HTTPS API base required", nameof(baseUrl));
         _http = http;
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionKey);

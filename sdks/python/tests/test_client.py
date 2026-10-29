@@ -24,5 +24,8 @@ class ClientTests(unittest.TestCase):
         with self.assertRaises(ValueError): RelayWA('')
         with self.assertRaises(ValueError): RelayWA('key', 'http://example.com/api')
         with self.assertRaises(ValueError): RelayWA('key').send_text('', 'Hello')
+        with self.assertRaises(ValueError): RelayWA('bad\nkey')
+        with self.assertRaises(ValueError): RelayWA('key', 'https://user:pass@relaywa.com/api')
+        with self.assertRaises(ValueError): RelayWA('key', 'https://relaywa.com/api?token=secret')
 
 if __name__ == '__main__': unittest.main()
