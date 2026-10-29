@@ -19,7 +19,7 @@ jobs:
           node-version: '22'
           cache: pnpm
       - name: Resolve SDK dependencies for lockfile diagnostic
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Report lockfile drift without failing packaging
         id: lockfile_drift
         shell: bash
