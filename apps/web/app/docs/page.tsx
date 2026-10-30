@@ -18,6 +18,7 @@ const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
       ['quickstart','Quickstart'],
       ['authentication','Authentication'],
       ['language-examples','Languages & frameworks'],
+      ['official-sdks','Official SDKs'],
       ['api-keys','API keys & scopes'],
     ],
   },
@@ -406,6 +407,37 @@ export default function DocsPage() {
             ].map((item)=><div key={item}><span>✓</span><p>{item}</p></div>)}
           </div>
         </DocSection>
+
+        <section id="official-sdks">
+          <h2>Official RelayWA SDKs</h2>
+          <p>Install a published server-side SDK to integrate RelayWA with your application. Keep session keys on your server; do not embed them in browsers or distributed mobile apps. These SDKs use the RelayWA API, not Meta's official WhatsApp Cloud API.</p>
+          <div className="docs-framework-guides">
+            <section className="docs-framework-guide">
+              <h3>JavaScript / TypeScript — npm</h3>
+              <p>For Node.js backends and TypeScript services.</p>
+              <pre><code>npm install @relaywa/sdk</code></pre>
+              <p className="docs-framework-links"><a href="https://www.npmjs.com/package/@relaywa/sdk" target="_blank" rel="noopener noreferrer">npm package</a><a href="#integration-nodejs">Node.js guide</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>Python — PyPI</h3>
+              <p>For Python backend services and automation integrations.</p>
+              <pre><code>pip install relaywa-sdk</code></pre>
+              <p className="docs-framework-links"><a href="https://pypi.org/project/relaywa-sdk/" target="_blank" rel="noopener noreferrer">PyPI package</a><a href="#integration-python">Python guide</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>PHP / Laravel — Packagist</h3>
+              <p>For PHP applications, including Laravel backends.</p>
+              <pre><code>composer require relaywa/sdk</code></pre>
+              <p className="docs-framework-links"><a href="https://packagist.org/packages/relaywa/sdk" target="_blank" rel="noopener noreferrer">Packagist package</a><a href="#integration-laravel">Laravel guide</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>C# / .NET — NuGet</h3>
+              <p>For .NET 8+ server-side applications. Current published release: 0.1.1.</p>
+              <pre><code>dotnet add package RelayWA.Sdk --version 0.1.1</code></pre>
+              <p className="docs-framework-links"><a href="https://www.nuget.org/packages/RelayWA.Sdk/0.1.1" target="_blank" rel="noopener noreferrer">NuGet package</a><a href="#integration-dotnet">.NET guide</a></p>
+            </section>
+          </div>
+        </section>
 
         <section id="language-examples">
           <h2>WhatsApp API integration examples for Node.js, Laravel, Python and .NET</h2>
