@@ -1,0 +1,50 @@
+name: Python SDK PyPI trusted publication (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact SDK version in sdks/python/pyproject.toml'
+        required: true
+        type: string
+      confirmation:
+        description: 'Enter PUBLISH_RELAYWA_PYTHON_SDK to authorize PUBLIC PyPI release'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirmation == 'PUBLISH_RELAYWA_PYTHON_SDK' }}
+    runs-on: ubuntu-latest
+    environment: pypi-release
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check exact package identity and version
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, re, tomllib
+          p=tomllib.loads(pathlib.Path('sdks/python/pyproject.toml').read_text())
+          v=os.environ['EXPECTED_VERSION']
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',v), 'Use a stable semantic version'
+          assert p['project']['name']=='relaywa-sdk' and p['project']['version']==v, 'Version/name mismatch'
+          PY
+      - name: Build and verify without production API access
+        run: |
+          python -m pip install --upgrade build twine
+          python -m compileall -q sdks/python/relaywa
+          python -m build sdks/python --outdir dist
+          python -m twine check dist/*
+      - name: Publish to public PyPI using OIDC
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

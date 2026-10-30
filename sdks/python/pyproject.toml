@@ -1,15 +1,32 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "relaywa-sdk"
 version = "0.1.0"
-description = "RelayWA server-side Python SDK preview"
+description = "RelayWA server-side Python SDK for messaging, sessions and webhooks"
+readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.9"
 dependencies = []
+keywords = ["relaywa", "whatsapp", "messaging", "api", "sdk", "webhooks"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://relaywa.com"
+Documentation = "https://relaywa.com/api-docs"
+Repository = "https://github.com/Haider-Shakoori/wa"
+Issues = "https://github.com/Haider-Shakoori/wa/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
