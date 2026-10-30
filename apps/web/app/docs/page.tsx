@@ -18,6 +18,7 @@ const navGroups: Array<{label:string;items:Array<[string,string]>}> = [
       ['quickstart','Quickstart'],
       ['authentication','Authentication'],
       ['language-examples','Languages & frameworks'],
+      ['sdks','Official SDKs'],
       ['api-keys','API keys & scopes'],
     ],
   },
@@ -406,6 +407,34 @@ export default function DocsPage() {
             ].map((item)=><div key={item}><span>✓</span><p>{item}</p></div>)}
           </div>
         </DocSection>
+
+        <section id="sdks" className="docs-framework-guide">
+          <h2>Official RelayWA SDKs</h2>
+          <p>Install an SDK for your backend language instead of building every REST request by hand. All four packages are published independently and use RelayWA session credentials. Keep keys on your server; do not embed them in browsers or distributed mobile applications.</p>
+          <div className="docs-framework-guides">
+            <section className="docs-framework-guide">
+              <h3>JavaScript / TypeScript (npm)</h3>
+              <pre><code>npm install @relaywa/sdk</code></pre>
+              <p><a href="https://www.npmjs.com/package/@relaywa/sdk" target="_blank" rel="noopener noreferrer">Package and usage instructions on npm</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>Python (PyPI)</h3>
+              <pre><code>pip install relaywa-sdk</code></pre>
+              <p><a href="https://pypi.org/project/relaywa-sdk/" target="_blank" rel="noopener noreferrer">Package and usage instructions on PyPI</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>PHP (Packagist)</h3>
+              <pre><code>composer require relaywa/sdk</code></pre>
+              <p><a href="https://packagist.org/packages/relaywa/sdk" target="_blank" rel="noopener noreferrer">Package and usage instructions on Packagist</a></p>
+            </section>
+            <section className="docs-framework-guide">
+              <h3>C# / .NET 8+ (NuGet)</h3>
+              <pre><code>dotnet add package RelayWA.Sdk --version 0.1.1</code></pre>
+              <p><a href="https://www.nuget.org/packages/RelayWA.Sdk/" target="_blank" rel="noopener noreferrer">Package and usage instructions on NuGet</a></p>
+            </section>
+          </div>
+          <p>Start with a connected QR-linked session and a scoped session key. For REST examples, webhook guidance, and language-specific integration patterns, continue to the framework guides below. These SDKs connect to RelayWA, not Meta's official WhatsApp Cloud API.</p>
+        </section>
 
         <section id="language-examples">
           <h2>WhatsApp API integration examples for Node.js, Laravel, Python and .NET</h2>
