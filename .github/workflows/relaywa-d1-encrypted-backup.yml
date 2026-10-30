@@ -1,0 +1,84 @@
+name: RelayWA encrypted D1 backup (read only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-encrypted-backup.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Export read-only Cloudflare D1 snapshot
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          cat > /tmp/relaywa-d1-backup.toml <<'CFG'
+          name = "relaywa-backup-only"
+          compatibility_date = "2026-10-01"
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "relaywa"
+          database_id = "967df9ac-f1f7-468f-86d8-cfb04ac3b752"
+          CFG
+          npx --yes wrangler@4 d1 export relaywa --remote --config /tmp/relaywa-d1-backup.toml --output /tmp/relaywa-export.sql
+          test -s /tmp/relaywa-export.sql
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sqlite3 >/dev/null
+          sqlite3 /tmp/relaywa-verify.sqlite < /tmp/relaywa-export.sql
+          test "$(sqlite3 /tmp/relaywa-verify.sqlite 'PRAGMA integrity_check;')" = "ok"
+          echo "RESTORE_INTEGRITY=ok"
+          echo "RESTORED_TABLE_COUNT=$(sqlite3 /tmp/relaywa-verify.sqlite "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")"
+          echo "SQL_EXPORT_BYTES=$(wc -c < /tmp/relaywa-export.sql)"
+      - name: Encrypt export to VPS-only public key and verify ciphertext
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --break-system-packages cryptography
+          mkdir -p /tmp/relaywa-encrypted
+          cat > /tmp/relaywa-vps-public.pem <<'PUB'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAq0eG/JqaA800nhBW9KMP
+          HPh/13N+UGiXCwtEWKoIg9fMohzFfvPj8T/dEMBI+eT1DPqYeZbRRj9i1r+qjmNw
+          IddB4nxagKNstLL562ZJdCMLYiq7TbcgFD5m8uTJGX8T7qwcL1erBj0ynS8pNDsH
+          ZFOA6Z02LLfojkXXqzOvOrrQzrip8j0qNV3kQ8A96VEnACAoEBn0ejvR5bJEpGsN
+          Gi+yvuiuc/b06XhxpOkIMUcHFdfyiYcplxWiAfgPdTQmS7I6jHtvC6Ze7IbZcGe0
+          55pgMmFJU9vn//hmesUZ4P7R9LVIj1YdL1gSMhYfUKwryJ1mFcJknFd/uzAnUBqi
+          iKiYCN7Fv3T65rBpyInxpyK5Hl2HzLF2Xrzn1e+JsISbzTyzJgV8AqVC4LzGHTGb
+          3VUROQRMFuKdzuNVYEjzyYjmi1MqucXKK0Ggcflx+84MZQIGeEHZbg1vSPqcVzau
+          2fXsp+6NG2t517fqWYmR04Oau3IQZc7IjWnrcZdx988hAgMBAAE=
+          -----END PUBLIC KEY-----
+          PUB
+          python3 - <<'PY'
+          import os, pathlib, hashlib
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          plain=pathlib.Path('/tmp/relaywa-export.sql').read_bytes()
+          key=AESGCM.generate_key(bit_length=256)
+          nonce=os.urandom(12)
+          ct=AESGCM(key).encrypt(nonce,plain,None)
+          pub=serialization.load_pem_public_key(pathlib.Path('/tmp/relaywa-vps-public.pem').read_bytes())
+          wrapped=pub.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          dest=pathlib.Path('/tmp/relaywa-encrypted')
+          (dest/'relaywa-d1.sql.aesgcm').write_bytes(nonce+ct)
+          (dest/'relaywa-d1.key.rsa').write_bytes(wrapped)
+          assert AESGCM(key).decrypt(nonce,ct,None)==plain
+          print('ENCRYPTION_VERIFIED=true')
+          print('PLAINTEXT_SHA256='+hashlib.sha256(plain).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-d1-encrypted-backup
+          path: /tmp/relaywa-encrypted/
+          retention-days: 2
+          if-no-files-found: error
