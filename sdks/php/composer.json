@@ -1,14 +1,30 @@
 {
   "name": "relaywa/sdk",
-  "description": "RelayWA server-side PHP SDK preview",
+  "description": "RelayWA PHP SDK for WhatsApp messaging, sessions, and webhooks",
   "type": "library",
   "license": "MIT",
   "require": {
-    "php": "^8.1"
+    "php": "^8.1",
+    "ext-curl": "*",
+    "ext-json": "*"
   },
   "autoload": {
     "psr-4": {
       "RelayWA\\": "src/"
     }
+  },
+  "keywords": [
+    "relaywa",
+    "whatsapp",
+    "whatsapp-api",
+    "php",
+    "sdk",
+    "webhooks",
+    "messaging"
+  ],
+  "homepage": "https://relaywa.com",
+  "support": {
+    "issues": "https://github.com/Haider-Shakoori/wa/issues",
+    "source": "https://github.com/Haider-Shakoori/wa/tree/main/sdks/php"
   }
 }
