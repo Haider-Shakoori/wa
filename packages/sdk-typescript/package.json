@@ -1,6 +1,6 @@
 {
   "name": "@relaywa/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "RelayWA server-side TypeScript SDK for WhatsApp messaging, sessions, and webhooks",
   "type": "module",
