@@ -4,7 +4,7 @@ Date: 2026-11-01 (Asia/Kabul)
 Scope: PR #216, read-only discovery only  
 Repository: [Haider-Shakoori/wa](https://github.com/Haider-Shakoori/wa)  
 PR branch: `planning/relaywa-cloudflare-vps-migration-20261101`  
-PR head observed: `3e23cd688686b964fc28faa0d4a901ad5287af4f`  
+PR head observed: `e710ab636b4d7f99d358dda95d078942e2399002`  
 GitHub `main` observed: `692f325a11cf54acb712fbd964917cb66a35623c`
 
 ## Safety boundary
@@ -24,7 +24,7 @@ No deployment, restart, DNS change, database write, migration, backup overwrite,
 | PR state | Open, draft, not merged |
 | PR purpose | Documentation-only migration plan and safety gates |
 | Main revision | `692f325a11cf54acb712fbd964917cb66a35623c` |
-| PR revision | `3e23cd688686b964fc28faa0d4a901ad5287af4f` |
+| PR revision | `e710ab636b4d7f99d358dda95d078942e2399002` |
 | Cloudflare/VPS plan | `docs/migration/cloudflare-marketing-vps-plan-2026-11.md` |
 | PostgreSQL migration chain | `apps/api/migrations/001_*.sql` through `044_*.sql`, with numbered gaps preserved in the repository |
 | Deployment-related source | `docker-compose.yml`, `docker-compose.production.yml`, GitHub Actions, `ops/relaywa-edge-worker/`, `ops/seo-overlay/` |
