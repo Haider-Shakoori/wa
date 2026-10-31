@@ -40,3 +40,18 @@ Status: **planning / read-only discovery**. No production cutover authorized.
 
 ## Deliverables before cutover approval
 - Inventory and architecture diagram; deployment drift report; staging deployment URLs; data reconciliation report; test matrix; resource/cost estimate; operational runbook; rollback checklist; explicit approval request.
+
+## Prior migration work recovered from October 30 (historical, must revalidate)
+- User explicitly required import into PostgreSQL **test database only**: `relaywa_native_test`. No production switch from Cloudflare.
+- Earlier execution reported D1 export and backup verification, PostgreSQL import of **44/44 tables, 38,547 records**, and zero row-count mismatches. Examples: 15,648 messages; 3,944 contacts; 16,227 session events; 7 sessions; 4 users; 4 organizations; 4 subscriptions; 7 API keys.
+- Earlier full field/value comparison reported pass for all 44 tables, including JSON, timestamps, arrays. Baseline query times: latest messages 28.03ms, contacts/session 1.54ms, subscriptions 0.16ms.
+- These results are historical snapshots, **not a fresh verification of the current Cloudflare data or the current VPS environment**. Do not re-import or overwrite the existing test DB until its identity, contents, and backup are checked.
+- Previously **unfinished**: current deployed Cloudflare ↔ GitHub ↔ VPS source parity, staging login/dashboard/subscription tests, final delta sync, production cutover.
+- New first step: locate and verify the existing D1 export, encrypted backups, `relaywa_native_test` schema/counts, prior reconciliation reports and source commit; compare with current production metadata read-only. Preserve all assets.
+
+## Codex implementation brief (first task, discovery only)
+1. Work from this PR branch. Read existing reports/scripts and inspect repository structure. Do not change production or rebuild an existing test DB.
+2. Find actual Cloudflare deployed revision and compare it to GitHub main, including analytics public intent routes and current Cloudflare-only changes. Report inaccessible resources as unknown, not equal.
+3. Discover the correct RelayWA VPS, existing `relaywa_native_test` database, verified backup paths and prior migration artifacts. Use read-only commands/queries. Never access or print secrets or customer message bodies.
+4. Produce `docs/migration/current-state-inventory.md` and `docs/migration/parity-gap-report.md` with evidence, commit IDs, differences, remaining tests and concrete staging-only next steps.
+5. Run non-mutating checks only. Stop before schema changes, provisioning, deployment, DNS changes, or live API calls that can send messages.
