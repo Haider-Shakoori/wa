@@ -14,7 +14,7 @@ The live public site also differs from GitHub `main` on three published intent r
 
 | Area | GitHub / expected | Deployed or VPS evidence | Gap | Risk |
 |---|---|---|---|---|
-| Git revision | Main `692f325`; PR `3e23cd6` | Cloudflare revision unknown; VPS revision unknown | Cannot establish source parity | High |
+| Git revision | Main `692f325`; PR `e710ab6` | Cloudflare revision unknown; VPS revision unknown | Cannot establish source parity | High |
 | Public intent pages | Registry includes QR, webhooks, and Web-vs-Cloud guide | Pages render but do not load GA4 after consent | Runtime behavior differs | Medium |
 | Cloudflare deployment | Workflows/scripts exist in repository | Project, deployment ID, bindings, and environment unknown | Cannot distinguish stale build from config/overlay | High |
 | Cloudflare RUM | No duplicate beacon should be added | No RUM script observed; request delivery unverified | Configuration remains unverified | Medium |
