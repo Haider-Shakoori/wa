@@ -86,9 +86,11 @@ export class WorkerAlertsController {
  async billingClaim(@Headers('authorization') h:string|undefined,@Body() b:Input){this.auth(h,b);return {notification:await this.claimBillingRow(String(b.workerId))};}
  @Post('billing/sent') @HttpCode(200)
  async billingSent(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);const id=this.uuid(b.id),attempts=Number(b.attempts);
-  if(!Number.isSafeInteger(attempts)||attempts<1||attempts>10000)throw new ForbiddenException();
-  const r=await this.db.query(`UPDATE billing_notification_outbox SET status='sent',sent_at=now(),last_error=NULL,claim_worker_id=NULL,claim_expires_at=NULL WHERE id=$1 AND status='pending' AND claim_worker_id=$2 AND claim_expires_at>now() AND attempts=$3 RETURNING id`,[id,b.workerId,attempts]);
+  this.auth(h,b);const id=this.uuid(b.id);
+  const hasAttempts=b.attempts!==undefined&&b.attempts!==null;
+  const attempts=hasAttempts?Number(b.attempts):null;
+  if(hasAttempts&&(!Number.isSafeInteger(attempts)||attempts<1||attempts>10000))throw new ForbiddenException();
+  const r=await this.db.query(`UPDATE billing_notification_outbox SET status='sent',sent_at=now(),last_error=NULL,claim_worker_id=NULL,claim_expires_at=NULL WHERE id=$1 AND status='pending' AND claim_worker_id=$2 AND claim_expires_at>now() AND ($3::integer IS NULL OR attempts=$3) RETURNING id`,[id,b.workerId,attempts]);
   return {ok:true,updated:r.rowCount===1};
  }
  @Post('billing/failed') @HttpCode(200)
