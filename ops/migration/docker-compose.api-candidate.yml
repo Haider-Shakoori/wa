@@ -1,0 +1,29 @@
+# Candidate deployment only. Do not run against live sessions before cutover gates pass.
+# Use an explicitly reviewed, immutable image tag and externally supplied secrets.
+services:
+  api:
+    image: ${RELAYWA_API_IMAGE:?Set a reviewed RelayWA API image}
+    restart: unless-stopped
+    init: true
+    working_dir: /app/apps/api
+    command: ["node", "dist/main.js"]
+    environment:
+      NODE_ENV: production
+      API_PORT: "3002"
+      DATABASE_URL: ${RELAYWA_DATABASE_URL:?Set production PostgreSQL connection}
+      JWT_SECRET: ${RELAYWA_JWT_SECRET:?Set existing production JWT secret}
+    ports:
+      - "127.0.0.1:${RELAYWA_API_HOST_PORT:-39092}:3002"
+    networks:
+      - relaywa_internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+networks:
+  relaywa_internal:
+    external: true
+    name: ${RELAYWA_INTERNAL_NETWORK:?Set reviewed PostgreSQL network}
