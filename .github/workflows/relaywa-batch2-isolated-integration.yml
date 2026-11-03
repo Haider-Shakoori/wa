@@ -86,6 +86,8 @@ jobs:
             const register=await fetch('http://127.0.0.1:39101/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Batch2 CI',email,password:'isolated-ci-password-123456',organizationName:'Batch2 isolated'})});
             assert.equal(register.status,201,await register.text());
             const org=await db.query('SELECT id FROM organizations ORDER BY created_at DESC LIMIT 1');
+            const actor=await db.query('SELECT id FROM users WHERE email=$1',[email]);
+            assert.equal(actor.rowCount,1);
             assert.equal(org.rowCount,1);
             // The real session table has FK and mandatory columns: clone and compare a row using
             // an explicit insert only when the application schema permits it.
