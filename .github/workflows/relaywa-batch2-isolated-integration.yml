@@ -92,7 +92,7 @@ jobs:
             // The real session table has FK and mandatory columns: clone and compare a row using
             // an explicit insert only when the application schema permits it.
             const sessionId=randomUUID();
-            await db.query("INSERT INTO whatsapp_sessions(id,organization_id,status) VALUES($1,$2,'disconnected')",[sessionId,org.rows[0].id]);
+            await db.query("INSERT INTO whatsapp_sessions(id,organization_id,created_by_user_id,status) VALUES($1,$2,$3,'disconnected')",[sessionId,org.rows[0].id,actor.rows[0].id]);
             const claimed=await post('/sessions/recoverable',{limit:100,connectingStaleMs:0,leaseMs:30000});
             assert.equal(claimed.status,200,JSON.stringify(claimed));
             assert.ok(claimed.data.sessions.some(x=>x.id===sessionId),'synthetic session not claimed');
