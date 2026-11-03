@@ -1,0 +1,94 @@
+name: RelayWA isolated billing HTTP E2E
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/relaywa-billing-http-e2e.yml
+      - apps/api/**
+permissions:
+  contents: read
+jobs:
+  billing-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: relaywa_test
+          POSTGRES_PASSWORD: relaywa_test_local_only
+          POSTGRES_DB: relaywa_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relaywa_test -d relaywa_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://relaywa_test:relaywa_test_local_only@127.0.0.1:5432/relaywa_e2e
+      API_PORT: '39101'
+      JWT_SECRET: relaywa_isolated_ci_jwt_secret_not_for_production_123456
+      SESSION_ENCRYPTION_KEY: 1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+      STRIPE_SECRET_KEY: ''
+      STRIPE_WEBHOOK_SECRET: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build API
+        run: pnpm --dir apps/api build
+      - name: Initialize isolated PostgreSQL schema
+        run: pnpm --dir apps/api migrate
+      - name: Start API on ephemeral runner
+        run: |
+          cd apps/api
+          node dist/main.js > "$RUNNER_TEMP/relaywa-api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/relaywa-api.pid"
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:39101/api/health > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/relaywa-api.log"
+          exit 1
+      - name: Authenticated billing HTTP verification
+        run: |
+          node --input-type=module <<'NODE'
+          import {randomUUID,randomBytes} from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const base='http://127.0.0.1:39101/api';
+          const email='billing-e2e-'+randomUUID()+'@example.invalid';
+          const password=randomBytes(20).toString('hex');
+          async function request(path,{method='GET',body,token}={}){
+            const response=await fetch(base+path,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(token?{authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
+            const data=await response.json().catch(()=>({}));
+            return {status:response.status,data};
+          }
+          const register=await request('/auth/register',{method:'POST',body:{name:'Billing CI Test',email,password,organizationName:'Billing CI Workspace'}});
+          assert.equal(register.status,201,'registration failed');
+          const login=await request('/auth/login',{method:'POST',body:{email,password}});
+          assert.equal(login.status,201,'login failed');
+          const token=login.data.accessToken??login.data.access_token??login.data.token;
+          assert.ok(token,'login did not issue access token');
+          for(const path of ['/auth/me','/billing/plans','/billing/subscription']){
+            const result=await request(path,{token});
+            assert.equal(result.status,200,path+' failed');
+            console.log('PASS authenticated '+path+' 200');
+          }
+          for(const path of ['/billing/plans','/billing/subscription']){
+            const result=await request(path);
+            assert.equal(result.status,401,path+' missing auth guard');
+            console.log('PASS anonymous '+path+' 401');
+          }
+          NODE
+      - name: Print API diagnostics on failure
+        if: failure()
+        run: tail -n 80 "$RUNNER_TEMP/relaywa-api.log" 2>/dev/null || true
+      - name: Stop isolated API
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/relaywa-api.pid" ]; then kill "$(cat "$RUNNER_TEMP/relaywa-api.pid")" 2>/dev/null || true; fi
