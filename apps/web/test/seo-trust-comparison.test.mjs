@@ -22,15 +22,10 @@ test('Public help makes official vs QR account-risk and consent disclosures with
   assert.match(help,/rel="noopener noreferrer"/);
   assert.ok(!help.includes('guaranteed account safety'));
 });
-test('Vendor comparison is factual and does not add false review schema',()=>{
+test('No early vendor comparison landing page or false review schema',()=>{
   const routes=read('lib/public-pages.ts');
   const home=read('components/relay-home.tsx');
-  assert.ok(routes.includes('/compare/relaywa-vs-wasenderapi'));
-  const comparison=read('app/compare/relaywa-vs-wasenderapi/page.tsx');
-  assert.match(comparison,/direct sending/);
-  assert.match(comparison,/live pricing page/);
-  assert.match(comparison,/unofficial integrations/);
-  assert.ok(!comparison.includes('AggregateRating'));
-  assert.ok(!comparison.includes('guaranteed delivery'));
+  assert.ok(!routes.includes('/compare/'));
+  assert.ok(!routes.includes('/vs/'));
   assert.ok(!home.includes('AggregateRating'));
 });
