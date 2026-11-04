@@ -20,12 +20,12 @@ const expected = [
   ['/guides/whatsapp-web-vs-cloud-api','app/guides/whatsapp-web-vs-cloud-api/page.tsx','Cloud API','official']
 ];
 
-test('index only three additional intent routes, keep private and drafts unpublished',()=>{
+test('index approved additional intent routes, keep private and drafts unpublished',()=>{
   const r=registry();
   assert.equal(r.publicPages.length,4);
   assert.equal(r.editorialPages.length,4);
-  assert.equal(r.intentPages.length,3);
-  assert.equal(r.allPublishedPages.length,11);
+  assert.equal(r.intentPages.length,4);
+  assert.equal(r.allPublishedPages.length,12);
   const paths=r.allPublishedPages.map(page=>page.path);
   assert.equal(new Set(paths).size,paths.length);
   for(const [path] of expected){
