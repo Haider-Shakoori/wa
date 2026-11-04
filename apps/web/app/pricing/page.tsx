@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { PublicHeader, PublicFooter, PricingSection } from '../../components/relay-home';
 import { developerTopics } from '../../lib/seo-topic-map';
-import { marketingPageMetadata } from '../../lib/seo';
+import { marketingPageMetadata, canonicalUrl } from '../../lib/seo';
 
 export const metadata = marketingPageMetadata('/pricing');
 
@@ -9,9 +9,29 @@ const pricingGuideTopics = developerTopics.filter((topic) =>
   ['sessions', 'webhooks', 'queue'].includes(topic.id)
 );
 
+// Product facts only: current amounts and allowances are supplied by /public/plans.
+// Never hard-code offers or competitor claims into structured data.
+const productFacts = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'RelayWA',
+  url: canonicalUrl('/'),
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Web',
+  description: 'Subscription-based WhatsApp REST API using QR-linked WhatsApp Web sessions, session credentials and signed webhooks. Not the official Meta WhatsApp Cloud API.',
+  featureList: [
+    'QR-linked WhatsApp sessions',
+    'Session-based REST API credentials',
+    'Signed webhook events',
+    'Subscription pricing per connected session without a separate RelayWA per-message fee',
+    'Direct outbound sending; application-managed scheduling, pacing and outbound retries',
+  ],
+};
+
 export default function Page() {
   return <main className="rw-site" id="main-content">
     <PublicHeader />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productFacts).replace(/</g, '\\u003c') }} />
     <PricingSection standalone />
     <section className="rw-site-section rw-developer-topics" aria-labelledby="pricing-model-heading">
       <div className="rw-section-intro">
