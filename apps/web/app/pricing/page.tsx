@@ -70,7 +70,7 @@ export default function Page() {
           <Link className="rw-topic-more" href={topic.href}>Read the API guide <span aria-hidden="true">→</span></Link>
         </article>)}
       </div>
-      <p className="rw-topic-disclosure">RelayWA uses QR-linked WhatsApp Web sessions; it is not the official Meta WhatsApp Cloud API.</p>
+      <p className="rw-topic-disclosure">Compare providers? <Link href="/compare/relaywa-vs-wasenderapi">Read RelayWA vs WasenderAPI</Link>. RelayWA uses QR-linked WhatsApp Web sessions; it is not the official Meta WhatsApp Cloud API.</p>
     </section>
     <PublicFooter />
   </main>;
