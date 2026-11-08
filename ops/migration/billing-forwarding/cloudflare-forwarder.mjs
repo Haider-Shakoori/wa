@@ -61,5 +61,3 @@ export async function forwardPendingStripeCheckout(checkout, env, fetchImpl = fe
   if (!response.ok) throw Error('Pending checkout forwarding failed with HTTP ' + response.status);
   return { synced: true };
 }
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
