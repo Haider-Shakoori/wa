@@ -46,11 +46,11 @@ jobs:
             for(const idx of matches.slice(0,2)){
               const segment=lines.slice(Math.max(0,idx-5),Math.min(lines.length,idx+8));
               const shapes=segment.map(line=>({
-                hasIf:/\\bif\\s*\\(/.test(line),
-                hasReturn:/\\breturn\\b/.test(line),
-                hasFetch:/\\bfetch\\s*\\(/.test(line),
-                hasAwait:/\\bawait\\b/.test(line),
-                hasDb:/\\bDB\\b/.test(line),
+                hasIf:line.includes('if(')||line.includes('if ('),
+                hasReturn:line.includes('return '),
+                hasFetch:line.includes('fetch('),
+                hasAwait:line.includes('await '),
+                hasDb:line.includes('DB'),
                 hasStripeSignature:line.includes('stripe-signature'),
                 hasCheckout:line.includes('checkout.session'),
                 hasWebhook:line.includes('/stripe/webhook'),
