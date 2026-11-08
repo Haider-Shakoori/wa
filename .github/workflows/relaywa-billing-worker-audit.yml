@@ -1,0 +1,43 @@
+name: RelayWA billing live Worker structural audit
+on:
+  push:
+    branches: [feature/relaywa-billing-forwarding-20261108]
+    paths: ['.github/workflows/relaywa-billing-worker-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read-only Stripe handler structure and deployment metadata
+        run: |
+          node --input-type=module <<'NODE'
+          if(!process.env.CLOUDFLARE_ACCOUNT_ID||!process.env.CLOUDFLARE_API_TOKEN)throw Error('Cloudflare audit credentials missing');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/relaywa-api';
+          const headers={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const [source,deployment]=await Promise.all([fetch(root,{headers}),fetch(root+'/deployments',{headers})]);
+          if(!source.ok||!deployment.ok)throw Error('Read-only Cloudflare API request failed');
+          const data=await source.formData();
+          const module=data.get('index.js');
+          if(!module)throw Error('index.js missing');
+          const code=typeof module==='string'?module:await module.text();
+          const deploy=await deployment.json();
+          const versions=deploy.result?.deployments?.[0]?.versions||[];
+          console.log('ACTIVE_VERSIONS',JSON.stringify(versions.map(v=>({version:v.version_id,percentage:v.percentage}))));
+          const tokens=['stripe-signature','checkout.session.completed','invoice.paid','/stripe/checkout','/stripe/webhook','stripe.checkout.sessions.create','stripe.com/v1/checkout/sessions'];
+          for(const token of tokens){
+            const positions=[...code.matchAll(new RegExp(token.replace(/[.*+?^$\{\}()|[\]\\]/g,'\\$&'),'g'))].map(m=>m.index);
+            console.log('TOKEN',token,'COUNT',positions.length,'LINES',positions.slice(0,8).map(p=>code.slice(0,p).split('\n').length).join(','));
+            for(const p of positions.slice(0,3)){
+              const span=code.slice(Math.max(0,p-650),Math.min(code.length,p+950));
+              const flags={stripeVerify:span.includes('crypto.subtle.verify'),stripeHeader:span.includes('stripe-signature'),db:span.includes('.DB.'),fetch:span.includes('fetch('),await:span.includes('await '),return:span.includes('return '),metadata:span.includes('relaywa_payment_id'),insertPayment:span.includes('INSERT INTO payments'),createCheckout:span.includes('checkout.sessions')};
+              console.log('STRUCTURE',token,JSON.stringify(flags));
+            }
+          }
+          console.log('READ_ONLY_AUDIT_COMPLETE');
+          NODE
