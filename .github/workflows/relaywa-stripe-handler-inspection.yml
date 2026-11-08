@@ -1,0 +1,36 @@
+name: RelayWA Stripe handler read-only inspection
+on:
+  push:
+    branches: [audit/cloudflare-stripe-handler-20261108]
+    paths: ['.github/workflows/relaywa-stripe-handler-inspection.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect deployed Worker without logging source or secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          if(!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) throw Error('Cloudflare GitHub secrets unavailable');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID)+'/workers/scripts/relaywa-api';
+          const response=await fetch(url,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
+          if(!response.ok) throw Error('Cloudflare read-only Worker fetch failed with HTTP '+response.status);
+          const contentType=response.headers.get('content-type')||'';
+          const payload=contentType.includes('multipart/')?await response.formData():null;
+          const code=payload? (await Promise.all([...payload.values()].map(async v=>typeof v==='string'?v:await v.text()))).join('\n'):await response.text();
+          const tests={
+            stripeWebhookPath:/billing\\/stripe\\/webhook|stripe\\/webhook/i.test(code),
+            stripeSignatureVerification:/stripe-signature|constructEvent|webhooks\\.constructEvent/i.test(code),
+            stripeCheckout:/checkout\\/stripe|checkout\\.sessions\\.create/i.test(code),
+            vpsForwarding:/billing.sync|billing-sync|billing\\/events|vps.*billing/i.test(code),
+            databaseBinding:/env\\.DB|\\.prepare\\(/.test(code)
+          };
+          for(const [name,found] of Object.entries(tests)) console.log('READONLY_CHECK',name,found?'PRESENT':'NOT_FOUND');
+          console.log('READONLY_INSPECTION_COMPLETE');
+          NODE
