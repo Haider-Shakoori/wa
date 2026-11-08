@@ -24,12 +24,13 @@ jobs:
           const contentType=response.headers.get('content-type')||'';
           const payload=contentType.includes('multipart/')?await response.formData():null;
           const code=payload? (await Promise.all([...payload.values()].map(async v=>typeof v==='string'?v:await v.text()))).join('\n'):await response.text();
+          const lower=code.toLowerCase();
           const tests={
-            stripeWebhookPath:/billing\\/stripe\\/webhook|stripe\\/webhook/i.test(code),
-            stripeSignatureVerification:/stripe-signature|constructEvent|webhooks\\.constructEvent/i.test(code),
-            stripeCheckout:/checkout\\/stripe|checkout\\.sessions\\.create/i.test(code),
-            vpsForwarding:/billing.sync|billing-sync|billing\\/events|vps.*billing/i.test(code),
-            databaseBinding:/env\\.DB|\\.prepare\\(/.test(code)
+            stripeWebhookPath:lower.includes('stripe/webhook') || lower.includes('stripe\\/webhook'),
+            stripeSignatureVerification:lower.includes('stripe-signature') || lower.includes('constructevent'),
+            stripeCheckout:lower.includes('checkout/stripe') || lower.includes('checkout\\/stripe'),
+            vpsForwarding:lower.includes('billing-sync') || lower.includes('billing/events') || lower.includes('billing.sync'),
+            databaseBinding:lower.includes('env.db') || lower.includes('.prepare(')
           };
           for(const [name,found] of Object.entries(tests)) console.log('READONLY_CHECK',name,found?'PRESENT':'NOT_FOUND');
           console.log('READONLY_INSPECTION_COMPLETE');
