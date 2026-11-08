@@ -7,7 +7,10 @@ services:
     init: true
     working_dir: /app/apps/api
     command: ["node", "dist/main.js"]
-    network_mode: "container:${RELAYWA_POSTGRES_CONTAINER:?Set reviewed network namespace container}"
+    ports:
+      - "127.0.0.1:${RELAYWA_API_HOST_PORT:-39092}:${RELAYWA_API_PORT:-39092}"
+    networks:
+      - billing_private
     environment:
       NODE_ENV: production
       API_PORT: "${RELAYWA_API_PORT:-39092}"
@@ -24,5 +27,8 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
-# Network namespace sharing is isolated and does not publish a public port.
-# Reverse-proxy exposure and live Stripe forwarding require separate validated cutover.
+# The API is bound to loopback only; do not expose it via public proxy until cutover gates pass.
+networks:
+  billing_private:
+    external: true
+    name: ${RELAYWA_INTERNAL_NETWORK:?Set reviewed private Docker network}
