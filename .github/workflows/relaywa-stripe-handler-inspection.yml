@@ -1,7 +1,7 @@
 name: RelayWA Stripe handler read-only inspection
 on:
   push:
-    branches: [audit/cloudflare-stripe-handler-20261108]
+    branches: [main]
     paths: ['.github/workflows/relaywa-stripe-handler-inspection.yml']
   workflow_dispatch:
 permissions:
