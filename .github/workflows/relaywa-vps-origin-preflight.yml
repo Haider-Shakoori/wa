@@ -1,0 +1,25 @@
+name: RelayWA VPS origin external preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-vps-origin-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify VPS HTTPS origin from outside the server without changing DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='108.165.233.125'
+          host='api.relaywa.com'
+          for path in /api/health /api/public/plans /api/auth/login-protection; do
+            status=$(curl --silent --show-error --max-time 12 --output /dev/null --write-out '%{http_code}' --resolve "${host}:443:${origin}" "https://${host}${path}")
+            echo "VPS_ORIGIN ${path} HTTP_${status}"
+            test "$status" = 200
+          done
+          echo 'VPS_ORIGIN_EXTERNAL_PREFLIGHT_PASSED'
