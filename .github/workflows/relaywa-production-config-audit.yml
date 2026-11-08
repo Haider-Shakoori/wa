@@ -1,0 +1,24 @@
+name: RelayWA production configuration presence audit
+on:
+  push:
+    branches: [feature/relaywa-billing-forwarding-20261108]
+    paths: ['.github/workflows/relaywa-production-config-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configured GitHub secret and variable names without exposing values
+        env:
+          SECRET_FLAGS: ${{ toJSON(secrets) }}
+          VARIABLE_FLAGS: ${{ toJSON(vars) }}
+        run: |
+          node <<'NODE'
+          const secretNames=Object.keys(JSON.parse(process.env.SECRET_FLAGS||'{}'));
+          const variableNames=Object.keys(JSON.parse(process.env.VARIABLE_FLAGS||'{}'));
+          const expected=['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RELAYWA_BILLING_FORWARD_SECRET','JWT_SECRET','DATABASE_URL','REDIS_URL','WEBHOOK_ENCRYPTION_KEY','RELAYWA_ADMIN_EMAIL','RELAYWA_ADMIN_PASSWORD','RELAYWA_API_IMAGE','RELAYWA_INTERNAL_NETWORK','BILLING_FORWARD_URL','BILLING_PENDING_CHECKOUT_URL'];
+          for(const name of expected) console.log('CONFIG',name,'secret='+secretNames.includes(name),'variable='+variableNames.includes(name));
+          console.log('COUNTS',JSON.stringify({secrets:secretNames.length,variables:variableNames.length}));
+          NODE
