@@ -18,5 +18,3 @@ test('forwarded events use existing billing service and do not create checkout',
   assert.match(handler,/this\.payments\.handleForwardedStripeEvent\(event\)/);
   assert.doesNotMatch(handler,/createStripeCheckout|constructEvent/);
 });
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
