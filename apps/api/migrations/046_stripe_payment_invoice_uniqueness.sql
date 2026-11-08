@@ -15,5 +15,3 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_provider_payment_mode
   ON payments (provider, provider_payment_id, stripe_livemode)
   WHERE provider_payment_id IS NOT NULL;
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
