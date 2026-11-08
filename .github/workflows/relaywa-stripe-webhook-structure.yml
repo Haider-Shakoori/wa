@@ -1,0 +1,44 @@
+name: RelayWA Stripe webhook structural inspection (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect live Worker webhook shape without logging source
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN, account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!token||!account)throw Error('Cloudflare read credentials unavailable');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(account)+'/workers/scripts/relaywa-api';
+          const response=await fetch(url,{headers:{authorization:'Bearer '+token}});
+          if(!response.ok)throw Error('Read-only fetch failed HTTP '+response.status);
+          const type=response.headers.get('content-type')||'';
+          const form=type.includes('multipart/')?await response.formData():null;
+          const src=form?(await Promise.all([...form.values()].map(async part=>typeof part==='string'?part:await part.text()))).join('\n'):await response.text();
+          const names=['stripe-signature','checkout.session.completed','invoice.paid','stripe/webhook','/billing/stripe/webhook'];
+          for(const name of names)console.log('TOKEN',name,src.includes(name)?'PRESENT':'ABSENT');
+          const lines=src.split('\n');
+          for(const name of ['stripe-signature','checkout.session.completed','invoice.paid']){
+            const matches=[];
+            for(let i=0;i<lines.length;i++)if(lines[i].includes(name))matches.push(i);
+            console.log('STRUCTURE',name,'occurrences',matches.length,'line_lengths',matches.slice(0,8).map(i=>lines[i].length).join(','));
+            for(const i of matches.slice(0,4)){
+              const line=lines[i];
+              const probes={
+                fetch:line.includes('fetch('),return:line.includes('return '),
+                await:line.includes('await '),verify:line.includes('verify'),
+                DB:line.includes('.DB'),webhook:line.includes('webhook'),
+                function:line.includes('function '),arrow:line.includes('=>')
+              };
+              console.log('SHAPE',name,'line',i+1,JSON.stringify(probes));
+            }
+          }
+          console.log('READONLY_COMPLETE');
+          NODE
