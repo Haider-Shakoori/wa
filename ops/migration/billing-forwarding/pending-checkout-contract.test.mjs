@@ -22,5 +22,3 @@ test('pending checkout validates stripe mode and immutable checkout identity',()
   assert.match(block,/row\.provider_checkout_id!==input\.checkoutId/);
   assert.match(block,/row\.stripe_livemode!==input\.livemode/);
 });
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
