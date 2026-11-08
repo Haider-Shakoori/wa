@@ -10,5 +10,3 @@ CREATE TABLE IF NOT EXISTS stripe_forwarded_event_receipts (
   completed_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
