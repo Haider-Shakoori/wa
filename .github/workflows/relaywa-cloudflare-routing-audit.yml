@@ -1,0 +1,41 @@
+name: RelayWA Cloudflare API routing audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-cloudflare-routing-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect routing without changing configuration
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!token||!account)throw Error('Cloudflare secrets not configured');
+          const headers={Authorization:'Bearer '+token};
+          async function api(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers});
+            const data=await r.json();
+            if(!r.ok||!data.success)throw Error('Cloudflare request failed: '+path+' status='+r.status+' errors='+JSON.stringify(data.errors));
+            return data.result;
+          }
+          const zones=await api('/zones?name=relaywa.com');
+          const zone=zones.find(z=>z.name==='relaywa.com');
+          if(!zone)throw Error('relaywa.com zone not found');
+          console.log('ZONE_FOUND',zone.name,'STATUS',zone.status);
+          const records=await api('/zones/'+zone.id+'/dns_records?name=api.relaywa.com');
+          for(const r of records)console.log('DNS',r.name,'TYPE',r.type,'PROXIED',r.proxied,'TARGET_KIND',r.type==='CNAME'?'CNAME':'ADDRESS');
+          const routes=await api('/zones/'+zone.id+'/workers/routes');
+          for(const r of routes.filter(r=>/relaywa\.com/.test(r.pattern)&&(/api\.|\/api|\*/.test(r.pattern))))console.log('WORKER_ROUTE',r.pattern,'SCRIPT',r.script||'(none)');
+          const domains=await api('/accounts/'+account+'/workers/domains');
+          for(const d of domains.filter(d=>/relaywa\.com$/.test(d.hostname)))console.log('WORKER_DOMAIN',d.hostname,'SERVICE',d.service||'(unknown)');
+          console.log('AUDIT_COMPLETE');
+          NODE
