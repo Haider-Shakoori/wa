@@ -458,5 +458,3 @@ export class PaymentsService {
     return result.rows[0];
   }
 }
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
