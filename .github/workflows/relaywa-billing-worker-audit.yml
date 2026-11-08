@@ -39,5 +39,28 @@ jobs:
               console.log('STRUCTURE',token,JSON.stringify(flags));
             }
           }
+          const routeHits=[...code.matchAll(/stripe|checkout|billing/gi)].map(m=>m.index);
+          const lines=code.split('\n');
+          for(const token of ['stripe-signature','checkout.session.completed','/stripe/webhook']){
+            const matches=lines.flatMap((line,i)=>line.includes(token)?[i]:[]);
+            for(const idx of matches.slice(0,2)){
+              const segment=lines.slice(Math.max(0,idx-5),Math.min(lines.length,idx+8));
+              const shapes=segment.map(line=>({
+                hasIf:/\\bif\\s*\\(/.test(line),
+                hasReturn:/\\breturn\\b/.test(line),
+                hasFetch:/\\bfetch\\s*\\(/.test(line),
+                hasAwait:/\\bawait\\b/.test(line),
+                hasDb:/\\bDB\\b/.test(line),
+                hasStripeSignature:line.includes('stripe-signature'),
+                hasCheckout:line.includes('checkout.session'),
+                hasWebhook:line.includes('/stripe/webhook'),
+                hasMetadata:line.includes('metadata'),
+                hasPayment:line.includes('payment'),
+                hasJson:line.includes('.json('),
+                hasResponse:line.includes('Response')
+              }));
+              console.log('HANDLER_SHAPE',token,'line',idx+1,JSON.stringify(shapes));
+            }
+          }
           console.log('READ_ONLY_AUDIT_COMPLETE');
           NODE
