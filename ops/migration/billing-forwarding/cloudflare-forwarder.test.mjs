@@ -39,5 +39,3 @@ test('fails closed when pending checkout sync fails',async()=>{
   const settings={...env,BILLING_PENDING_CHECKOUT_URL:'https://api.example.com/api/billing/stripe/pending-checkout'};
   await assert.rejects(forwardPendingStripeCheckout({paymentId:'x',organizationId:'y',checkoutId:'cs_test_abc'},settings,async()=>({ok:false,status:503})),/HTTP 503/);
 });
-
-[executed on device: businessos-dev-vps (9b1cdbf1-1a02-4fe8-9e81-8871c3eca22c)]
