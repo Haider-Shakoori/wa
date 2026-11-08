@@ -1,5 +1,5 @@
 # Isolated VPS billing candidate. Do not replace live API until routing and Stripe checks pass.
-# Secrets are supplied at deployment time; never commit their values.
+# Supply all secrets at deployment time; never commit their values.
 services:
   api:
     image: ${RELAYWA_API_IMAGE:?Set reviewed immutable API image}
@@ -7,12 +7,16 @@ services:
     init: true
     working_dir: /app/apps/api
     command: ["node", "dist/main.js"]
-    network_mode: "container:${RELAYWA_POSTGRES_CONTAINER:?Set reviewed PostgreSQL network namespace container}"
+    network_mode: "container:${RELAYWA_POSTGRES_CONTAINER:?Set reviewed network namespace container}"
     environment:
       NODE_ENV: production
       API_PORT: "${RELAYWA_API_PORT:-39092}"
       DATABASE_URL: ${RELAYWA_DATABASE_URL:?Set candidate PostgreSQL connection}
+      REDIS_URL: ${RELAYWA_REDIS_URL:?Set reviewed Redis connection}
       JWT_SECRET: ${RELAYWA_JWT_SECRET:?Use existing JWT secret}
+      WEBHOOK_ENCRYPTION_KEY: ${RELAYWA_WEBHOOK_ENCRYPTION_KEY:?Use existing webhook encryption key}
+      RELAYWA_ADMIN_EMAIL: ${RELAYWA_ADMIN_EMAIL:?Set existing admin email}
+      RELAYWA_ADMIN_PASSWORD: ${RELAYWA_ADMIN_PASSWORD:?Set existing admin password}
       RELAYWA_BILLING_FORWARD_SECRET: ${RELAYWA_BILLING_FORWARD_SECRET:?Set shared billing HMAC secret of at least 32 characters}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.API_PORT+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -20,5 +24,5 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
-# Network namespace sharing is intentionally isolated and does not publish a public port.
+# Network namespace sharing is isolated and does not publish a public port.
 # Reverse-proxy exposure and live Stripe forwarding require separate validated cutover.
