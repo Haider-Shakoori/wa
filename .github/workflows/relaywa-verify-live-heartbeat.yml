@@ -1,0 +1,33 @@
+name: RelayWA verify live D1 heartbeat after bridge repair
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-verify-live-heartbeat.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify fresh worker heartbeat in existing D1
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(process.env.CF_ACCOUNT);
+          const r=await fetch(root+'/d1/database/967df9ac-f1f7-468f-86d8-cfb04ac3b752/query',{method:'POST',headers:{authorization:'Bearer '+process.env.CF_TOKEN,'content-type':'application/json'},body:JSON.stringify({sql:"SELECT worker_id,last_seen_at FROM relaywa_worker_heartbeats WHERE worker_id='relaywa-vps-1' LIMIT 1"})});
+          const j=await r.json();
+          if(!r.ok||!j.success)throw Error('D1 read failed HTTP '+r.status);
+          const row=j.result?.[0]?.results?.[0];
+          console.log('HEARTBEAT',JSON.stringify(row||null));
+          if(!row)throw Error('No worker heartbeat row');
+          const ts=Date.parse(row.last_seen_at.endsWith('Z')?row.last_seen_at:row.last_seen_at.replace(' ','T')+'Z');
+          const age=Math.round((Date.now()-ts)/1000);
+          console.log('HEARTBEAT_AGE_SECONDS',age);
+          if(!Number.isFinite(age)||age< -60||age>90)throw Error('Worker heartbeat not fresh');
+          console.log('WORKER_ONLINE_CONFIRMED');
+          NODE
