@@ -11,7 +11,7 @@ const PATHS=new Set([
  'heartbeat','sessions/heartbeat','sessions/recoverable','sessions/lookup',
  'sessions/qr','sessions/status','sessions/inbound','messages/lookup',
  'messages/poll','messages/claim','messages/sent','messages/failed',
- 'commands/claim','commands/complete','commands/fail',
+ 'commands/poll','commands/claim','commands/complete','commands/fail',
 ]);
 export class EnterpriseWorkerApiClient {
  constructor({apiUrl,workerId,token,fetchImpl=globalThis.fetch,timeoutMs=10000}={}){
@@ -50,6 +50,7 @@ export class EnterpriseWorkerApiClient {
  recoverable(limit,connectingStaleMs,leaseMs){return this.request('sessions/recoverable',{limit,connectingStaleMs,leaseMs});}
  sessionLookup(sessionId){return this.request('sessions/lookup',{sessionId});}
  messageLookup(messageId){return this.request('messages/lookup',{messageId});}
+ commandPoll(){return this.request('commands/poll');}
  commandClaim(commandId){return this.request('commands/claim',{commandId});}
  commandComplete(commandId){return this.request('commands/complete',{commandId});}
  commandFail(commandId,error){return this.request('commands/fail',{commandId,error});}
