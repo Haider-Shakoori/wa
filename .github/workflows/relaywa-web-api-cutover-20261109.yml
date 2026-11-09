@@ -64,7 +64,7 @@ jobs:
             const existing=source.slice(start,end);
             if(!existing.includes('whatsapp-sessions'))throw Error('Existing gateway routes unrecognized; abort');
             if(existing.includes('platform'))throw Error('Platform routing already present; no staging change required');
-            const expanded=existing.replace('whatsapp-sessions',String.raw`platform(?:\\/|$)|v1\\/platform(?:\\/|$)|whatsapp-sessions`);
+            const expanded=existing.replace('whatsapp-sessions',String.raw`platform(?:\/|$)|v1\/platform(?:\/|$)|whatsapp-sessions`);
             patched=source.slice(0,start)+expanded+source.slice(end);
           }else{
             if(source.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape');
