@@ -35,6 +35,7 @@ test('real PostgreSQL: enterprise authorization, cross-tenant isolation, and rev
   await client.query(readFileSync(new URL('../migrations/053_enterprise_worker_registry.sql',import.meta.url),'utf8'));
   await client.query(readFileSync(new URL('../migrations/054_enterprise_worker_credentials.sql',import.meta.url),'utf8'));
   await client.query(`CREATE TABLE whatsapp_sessions(id uuid PRIMARY KEY,organization_id text NOT NULL,worker_id text,status text,deleted_at timestamptz)`);
+  await client.query(`CREATE TABLE whatsapp_session_commands(id uuid PRIMARY KEY,organization_id text NOT NULL,session_id uuid NOT NULL,worker_id text,status text,completed_at timestamptz)`);
   await client.query(`CREATE TABLE whatsapp_messages(id uuid PRIMARY KEY,organization_id text NOT NULL,session_id uuid,status text,direction text,message_type text)`);
   await client.query('INSERT INTO enterprise_accounts(id,organization_id) VALUES ($1,$2),($3,$4)', ['account-a',a,'account-b',b]);
   await client.query("UPDATE enterprise_workers SET status='ready'");
