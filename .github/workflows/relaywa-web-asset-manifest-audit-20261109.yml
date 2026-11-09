@@ -1,0 +1,32 @@
+name: RelayWA Worker asset manifest audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-web-asset-manifest-audit-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect asset metadata without writes
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CF_ACCOUNT+'/workers';
+          const headers={authorization:'Bearer '+process.env.CF_TOKEN};
+          const ver='5568b15b-9f76-4e3e-beb6-4996126f2371';
+          for(const path of ['/scripts/relaywa-web/versions/'+ver,'/scripts/relaywa-web/versions/'+ver+'/settings','/scripts/relaywa-web/assets','/assets/relaywa-web']){
+            const r=await fetch(root+path,{headers,signal:AbortSignal.timeout(15000)});
+            const j=await r.json().catch(()=>({}));
+            console.log('PATH',path,'STATUS',r.status,'FIELDS',Object.keys(j.result||{}).join(','));
+            const o=j.result||{};
+            for(const k of ['assets','metadata','bindings','config','manifest']){
+              if(o[k])console.log('DETAIL',k,JSON.stringify(k==='bindings'?o[k].map(b=>({name:b.name,type:b.type,fields:Object.keys(b)})):Object.keys(o[k])).slice(0,1000));
+            }
+          }
+          NODE
