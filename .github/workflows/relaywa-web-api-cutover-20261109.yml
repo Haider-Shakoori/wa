@@ -1,8 +1,5 @@
 name: RelayWA web API cutover to VPS
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/relaywa-web-api-cutover-20261109.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -43,6 +40,7 @@ jobs:
           const injected=`if(new URL(request.url).pathname.match(/^\\/api(?:\\/|$)/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
           const patched=source.replace(needle,injected+needle);
           if(patched.length-source.length>1000)throw Error('Patch size exceeds bound');
+          if((settings.bindings||[]).some(b=>b.type==='assets'))throw Error('SAFE_STOP: Existing Worker has static assets; require complete asset manifest/JWT from original build before creating a version. Never upload code-only or replace ASSETS.');
           const metadata={main_module:'index.js',bindings:(settings.bindings||[]).map(b=>({type:'inherit',name:b.name})),compatibility_date:settings.compatibility_date,compatibility_flags:settings.compatibility_flags||[],annotations:{'workers/message':'RelayWA emergency same-origin API to VPS'}};
           const upload=new FormData();upload.append('metadata',JSON.stringify(metadata));
           for(const [name,v] of form.entries()){
