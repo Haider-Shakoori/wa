@@ -50,7 +50,7 @@ jobs:
           const needle='const response=await xy.fetch(request,env,ctx);';
           if(source.includes('relaywa-vps-origin.relaywa.com'))throw Error('Gateway patch already present; abort for manual review');
           if(source.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape');
-          const injected=`if(new URL(request.url).pathname.match(/^\\/api\\/(?:auth(?:\\/|$)|v1\\/(?:auth|sessions)(?:\\/|$)|whatsapp-sessions(?:\\/|$))/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
+          const injected=`if(new URL(request.url).pathname.match(/^\\/api\\/(?:auth(?:\\/|$)|v1\\/(?:auth|sessions)(?:\\/|$)|platform(?:\\/|$)|v1\\/platform(?:\\/|$)|whatsapp-sessions(?:\\/|$))/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
           const patched=source.replace(needle,injected+needle);
           if(patched.length-source.length>1400)throw Error('Patch size exceeds bound');
           const hasAssets=(settings.bindings||[]).some(b=>b.type==='assets');
