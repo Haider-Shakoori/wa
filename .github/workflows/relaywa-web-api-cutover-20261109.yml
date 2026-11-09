@@ -1,0 +1,75 @@
+name: RelayWA web API cutover to VPS
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-web-api-cutover-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Patch live web Worker API path with versioned rollback
+        run: |
+          node --input-type=module <<'NODE'
+          const account=process.env.CF_ACCOUNT,token=process.env.CF_TOKEN;
+          if(!account||!token)throw Error('Cloudflare credentials missing');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/relaywa-web';
+          const h={authorization:'Bearer '+token};
+          async function json(url,init={}){
+            const r=await fetch(url,{...init,headers:{...h,...init.headers},signal:AbortSignal.timeout(30000)});
+            const j=await r.json();if(!r.ok||!j.success)throw Error(url+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]));return j.result;
+          }
+          const origin=await fetch('https://relaywa-vps-origin.relaywa.com/api/health',{signal:AbortSignal.timeout(12000)}).then(r=>r.json());
+          if(origin.service!=='relaywa-api')throw Error('VPS origin not ready');
+          const deployed=await json(base+'/deployments');
+          const versions=deployed.deployments?.[0]?.versions;
+          if(versions?.length!==1||versions[0].percentage!==100)throw Error('Unexpected web traffic split');
+          const original=versions[0].version_id;
+          const settings=await json(base+'/settings');
+          const download=await fetch(base,{headers:h,signal:AbortSignal.timeout(30000)});
+          if(!download.ok)throw Error('Cannot download web Worker');
+          const form=await download.formData();
+          const entry=form.get('index.js');if(!entry)throw Error('Missing web entrypoint');
+          const source=typeof entry==='string'?entry:await entry.text();
+          const needle='const response=await xy.fetch(request,env,ctx);';
+          if(source.includes('relaywa-vps-origin.relaywa.com'))throw Error('Already patched; inspect manually');
+          if(source.split(needle).length!==2)throw Error('Unexpected web entrypoint shape');
+          const injected=`if(new URL(request.url).pathname.match(/^\\/api(?:\\/|$)/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
+          const patched=source.replace(needle,injected+needle);
+          if(patched.length-source.length>1000)throw Error('Patch size exceeds bound');
+          const metadata={main_module:'index.js',bindings:(settings.bindings||[]).map(b=>({type:'inherit',name:b.name})),compatibility_date:settings.compatibility_date,compatibility_flags:settings.compatibility_flags||[],annotations:{'workers/message':'RelayWA emergency same-origin API to VPS'}};
+          const upload=new FormData();upload.append('metadata',JSON.stringify(metadata));
+          for(const [name,v] of form.entries()){
+            if(name==='index.js')upload.append(name,new Blob([patched],{type:'application/javascript+module'}),name);
+            else if(typeof v==='string')upload.append(name,new Blob([v],{type:'application/javascript+module'}),name);
+            else upload.append(name,new Blob([await v.arrayBuffer()],{type:v.type||'application/javascript+module'}),name);
+          }
+          const again=await json(base+'/deployments');
+          if(again.deployments?.[0]?.versions?.[0]?.version_id!==original)throw Error('Concurrent web deployment; abort');
+          const staged=await json(base+'/versions?bindings_inherit=strict',{method:'POST',body:upload});
+          const next=staged.id??staged.version?.id;if(!next)throw Error('Staging version missing');
+          console.log('STAGED',next,'ROLLBACK',original);
+          const deployment=await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:next,percentage:100}]})});
+          console.log('DEPLOYED',next);
+          try{
+            let ok=false;
+            for(let i=0;i<8;i++){
+              const res=await fetch('https://relaywa.com/api/health?check='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(10000)});
+              const data=await res.json().catch(()=>({}));
+              if(res.ok&&data.service==='relaywa-api'){ok=true;break;}
+              await new Promise(resolve=>setTimeout(resolve,2000));
+            }
+            if(!ok)throw Error('Public website API did not reach VPS');
+            console.log('WEBSITE_API_CUTOVER_SUCCESS');
+          }catch(error){
+            console.log('VERIFICATION_FAILED_ROLLING_BACK',error.message);
+            await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:original,percentage:100}]})});
+            throw error;
+          }
+          NODE
