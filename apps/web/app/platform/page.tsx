@@ -173,7 +173,7 @@ export default function PlatformPage() {
         api('/platform/queues',current),
         api('/platform/errors?view='+diagnosticView,current),
         api('/platform/payments',current),
-        api('/billing/providers',current),
+        api('/platform/payment-providers',current),
         api('/platform/settings/auth-providers',current),
         api('/platform/settings/messaging-engine',current),
         api('/platform/settings/messaging-safety',current),
