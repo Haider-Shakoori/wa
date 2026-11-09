@@ -1,0 +1,45 @@
+name: RelayWA emergency production routing preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-emergency-cutover-preflight-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify Cloudflare production routes and VPS origin
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CF_TOKEN, account=process.env.CF_ACCOUNT;
+          if(!token||!account)throw Error('Missing Cloudflare GitHub secrets');
+          const headers={authorization:'Bearer '+token};
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers,signal:AbortSignal.timeout(12000)});
+            const j=await r.json();
+            if(!r.ok||!j.success)throw Error(path+' '+r.status+' '+JSON.stringify(j.errors||[]));
+            return j.result;
+          }
+          const zones=await cf('/zones?name=relaywa.com');
+          const zone=zones.find(z=>z.name==='relaywa.com');
+          if(!zone)throw Error('Cloudflare zone missing');
+          const [routes,domains,dns]=await Promise.all([
+            cf('/zones/'+zone.id+'/workers/routes'),
+            cf('/accounts/'+account+'/workers/domains'),
+            cf('/zones/'+zone.id+'/dns_records?name=api.relaywa.com')
+          ]);
+          console.log('ROUTES',JSON.stringify(routes.filter(r=>r.pattern.includes('relaywa.com')).map(r=>({pattern:r.pattern,script:r.script}))));
+          console.log('CUSTOM_DOMAINS',JSON.stringify(domains.filter(d=>d.hostname?.endsWith('relaywa.com')).map(d=>({hostname:d.hostname,service:d.service}))));
+          console.log('API_DNS',JSON.stringify(dns.map(d=>({type:d.type,name:d.name,proxied:d.proxied}))));
+          const live=await (await fetch('https://relaywa.com/api/health',{signal:AbortSignal.timeout(10000)})).json();
+          const origin=await (await fetch('https://108.165.233.125/api/health',{signal:AbortSignal.timeout(10000)}).catch(()=>({json:async()=>({status:'origin direct IP requires SNI'})}))).json();
+          console.log('PUBLIC_RUNTIME',live.runtime||live.service||'unknown');
+          console.log('ORIGIN_DIRECT_IP',origin.service||origin.status||'SNI required');
+          if(!routes.length&&!domains.length)throw Error('No Cloudflare routing metadata');
+          NODE
