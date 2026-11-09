@@ -18,6 +18,7 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
+          async function main(){
           const account=process.env.CF_ACCOUNT,token=process.env.CF_TOKEN;
           if(!account||!token)throw Error('Cloudflare credentials unavailable');
           const root='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(account)+'/workers/scripts/relaywa-api';
@@ -44,4 +45,6 @@ jobs:
           const target=candidates[0].id;
           if(target===current[0].version_id){console.log('ALREADY_ON_NOV8_VERSION',target);return;}
           console.log('SAFE_STOP', 'A Nov 8 version exists but is not uniquely proven healthy; no automatic promotion',target);
+          }
+          await main();
           NODE
