@@ -1,0 +1,47 @@
+name: RelayWA D1 bridge compatibility audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-bridge-compatibility.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read D1 heartbeat and worker bindings safely
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(process.env.CF_ACCOUNT);
+          const headers={Authorization:'Bearer '+process.env.CF_TOKEN,'content-type':'application/json'};
+          async function call(path,options={}) {
+            const r=await fetch(root+path,{headers,...options});
+            const j=await r.json().catch(()=>({}));
+            if(!r.ok||!j.success)throw Error(path+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]).slice(0,200));
+            return j.result;
+          }
+          const db='967df9ac-f1f7-468f-86d8-cfb04ac3b752';
+          for(const [label,sql] of [
+            ['HEARTBEAT_TABLE', "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%worker%heartbeat%'"],
+            ['HEARTBEAT_RECENCY', "SELECT worker_id,last_seen_at FROM relaywa_worker_heartbeats ORDER BY last_seen_at DESC LIMIT 5"],
+            ['SESSION_COUNTS', "SELECT status,COUNT(*) AS count FROM whatsapp_sessions WHERE deleted_at IS NULL GROUP BY status"],
+            ['RECENT_SESSIONS', "SELECT MAX(updated_at) AS newest_update, COUNT(*) AS count FROM whatsapp_sessions WHERE deleted_at IS NULL"]
+          ]) {
+            try {
+              const result=await call('/d1/database/'+db+'/query',{method:'POST',body:JSON.stringify({sql})});
+              console.log(label,JSON.stringify((result||[]).map(x=>x.results||[])).slice(0,1200));
+            }catch(e){console.log(label+'_ERROR',e.message)}
+          }
+          for(const script of ['relaywa-web','relaywa-api']) {
+            try{
+              const result=await call('/workers/scripts/'+script+'/settings');
+              console.log('SCRIPT_BINDINGS',script,JSON.stringify((result.bindings||[]).map(b=>({name:b.name,type:b.type,database_id:b.type==='d1'?b.id:undefined}))));
+            }catch(e){console.log('SCRIPT_BINDINGS_ERROR',script,e.message)}
+          }
+          NODE
