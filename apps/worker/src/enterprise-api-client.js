@@ -53,8 +53,8 @@ export class EnterpriseWorkerApiClient {
  commandClaim(commandId){return this.request('commands/claim',{commandId});}
  commandComplete(commandId){return this.request('commands/complete',{commandId});}
  commandFail(commandId,error){return this.request('commands/fail',{commandId,error});}
- messagePoll(stripeLivemode){return this.request('messages/poll',{stripeLivemode});}
- messageClaim(messageId,stripeLivemode){return this.request('messages/claim',{messageId,stripeLivemode});}
+ messagePoll(){return this.request('messages/poll');}
+ messageClaim(messageId){return this.request('messages/claim',{messageId});}
  messageSent(messageId,providerMessageId){return this.request('messages/sent',{messageId,providerMessageId});}
  messageFailed(messageId,error){return this.request('messages/failed',{messageId,error});}
  sessionStatus(sessionId,status,details={}){return this.request('sessions/status',{sessionId,status,details});}
