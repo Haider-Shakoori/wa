@@ -42,7 +42,7 @@ jobs:
           const routePattern='relaywa.com/api/*';
           const existingRoute=routes.find(r=>r.pattern===routePattern);
           if(existingRoute && existingRoute.script!==script)throw Error('API route already claimed by '+existingRoute.script);
-          const code=`export default {async fetch(request){const u=new URL(request.url);u.hostname='relaywa-vps-origin.relaywa.com';const headers=new Headers(request.headers);headers.set('X-Forwarded-Host',new URL(request.url).host);return fetch(new Request(u,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));}}`;
+          const code=`addEventListener('fetch', event => { event.respondWith((async () => { const request=event.request; const u=new URL(request.url); u.hostname='relaywa-vps-origin.relaywa.com'; const headers=new Headers(request.headers); headers.set('X-Forwarded-Host',new URL(request.url).host); return fetch(new Request(u,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'})); })()); });`;
           async function restore(){
             if(routeCreated)await cf(base+'/workers/routes/'+routeCreated,'DELETE').catch(e=>console.log('ROLLBACK_ROUTE_ERROR',e.message));
             if(scriptCreated)await cf('/accounts/'+account+'/workers/scripts/'+script,'DELETE').catch(e=>console.log('ROLLBACK_SCRIPT_ERROR',e.message));
