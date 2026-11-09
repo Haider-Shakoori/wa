@@ -34,7 +34,7 @@ test('incident archives preserve failure rows and auto restore new problems to a
  assert.match(migration,/ALTER TABLE system_alerts ADD COLUMN IF NOT EXISTS resolved_at/);
  const block=service.slice(service.indexOf('  async recentErrors('),service.indexOf('  async supportAnswer('));
  assert.match(block,/view:'active'\|'archived'/);
- assert.match(block,/a\.archived_at>=t\.updated_at/);
+ assert.match(block,/a\.archived_at::timestamptz>=t\.updated_at/);
  assert.match(block,/archived_by/);
  assert.match(block,/diagnostic\.archived/);
  assert.doesNotMatch(block,/DELETE FROM whatsapp_messages|DELETE FROM webhook_deliveries|DELETE FROM whatsapp_sessions/);
