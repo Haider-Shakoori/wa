@@ -1,0 +1,53 @@
+name: RelayWA fix customer workspace session routing
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-fix-customer-session-routing-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Fix customer billing reads and preserve Stripe webhook on Cloudflare
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4',script='relaywa-emergency-api-vps';
+          const code=`export default {async fetch(request) {
+            const incoming=new URL(request.url);
+            if(!incoming.pathname.startsWith('/api/')&&!incoming.pathname.startsWith('/internal/'))return new Response('Not Found',{status:404});
+            // Only payment-provider callbacks stay on Cloudflare. Customer billing reads and auth must share VPS JWT validation.
+            const billingWebhook=/^\\/api\\/(?:webhooks\\/stripe(?:\\/|$)|stripe\\/webhook(?:\\/|$)|billing\\/webhook\\/stripe(?:\\/|$)|payments\\/stripe\\/webhook(?:\\/|$))/i.test(incoming.pathname);
+            const target=new URL(incoming.pathname+incoming.search,billingWebhook?'https://relaywa-api.relaywa8.workers.dev':'https://relaywa-vps-origin.relaywa.com');
+            const headers=new Headers(request.headers);headers.delete('host');
+            const upstream=await fetch(new Request(target.toString(),{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));
+            const out=new Response(upstream.body,upstream);
+            out.headers.set('x-relaywa-api-route',billingWebhook?'cloudflare-stripe-webhook':'vps-emergency');
+            return out;
+          }}`;
+          const form=new FormData();form.append('metadata',new Blob([JSON.stringify({main_module:'index.js',compatibility_date:'2026-10-01'})],{type:'application/json'}));form.append('index.js',new Blob([code],{type:'application/javascript+module'}),'index.js');
+          const r=await fetch(base+'/accounts/'+process.env.CF_ACCOUNT+'/workers/scripts/'+script,{method:'PUT',headers:{authorization:'Bearer '+process.env.CF_TOKEN},body:form});
+          const j=await r.json();if(!r.ok||!j.success)throw Error('Worker deployment failed '+JSON.stringify(j.errors));console.log('DEPLOYED',script);
+          for(const host of ['relaywa.com','api.relaywa.com']){
+            for(const path of ['/api/health','/api/billing/subscription','/api/billing/payments','/api/billing/providers']){
+              let ok=false;
+              for(let i=0;i<4;i++){
+                const q=await fetch('https://'+host+path,{headers:{'cache-control':'no-cache'}});const route=q.headers.get('x-relaywa-api-route');
+                console.log(host,path,q.status,route);
+                if(route==='vps-emergency'&&(path==='/api/health'?q.status===200:q.status===401)){ok=true;break}
+                await new Promise(done=>setTimeout(done,1000));
+              }
+              if(!ok)throw Error('Failed route verification '+host+path);
+            }
+          }
+          const w=await fetch('https://relaywa.com/api/payments/stripe/webhook');
+          console.log('STRIPE_WEBHOOK_ROUTE',w.status,w.headers.get('x-relaywa-api-route'));
+          if(w.headers.get('x-relaywa-api-route')!=='cloudflare-stripe-webhook')throw Error('Stripe webhook route changed unexpectedly');
+          console.log('CUSTOMER_BILLING_ROUTING_FIXED');
+          NODE
