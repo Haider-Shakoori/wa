@@ -1,5 +1,10 @@
 name: RelayWA web API cutover to VPS (asset-aware)
 on:
+  push:
+    branches:
+      - fix/relaywa-vps-api-routing-20261109
+    paths:
+      - .github/workflows/relaywa-web-api-cutover-20261109.yml
   workflow_dispatch:
     inputs:
       promote_production:
@@ -19,7 +24,7 @@ jobs:
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      PROMOTE_PRODUCTION: ${{ inputs.promote_production }}
+      PROMOTE_PRODUCTION: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_production }}
     steps:
       - name: Build and stage an asset-preserving Worker version
         run: |
