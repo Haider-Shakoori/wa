@@ -9,6 +9,7 @@ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.Common
 const mod={exports:{}};
 new Function('module','exports','require',js)(mod,mod.exports,(id)=>{
  if(id==='./enterprise-worker-authorization')return {authorizeEnterpriseWorker:async()=>({workerId:'enterprise-org-a',organizationId:'org-a'})};
+ if(id==='./enterprise-worker-billing-mode')return {trustedEnterpriseStripeLivemode:()=>false};
  return require(id);
 });
 const Controller=mod.exports.EnterpriseWorkerDispatchController;
