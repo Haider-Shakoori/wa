@@ -1,16 +1,10 @@
 name: RelayWA emergency API cutover
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Enter SWITCH to move relaywa.com/api/* and api.relaywa.com to VPS'
-        required: true
-        type: string
 permissions:
   contents: read
 jobs:
   cutover:
-    if: inputs.confirm == 'SWITCH'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
