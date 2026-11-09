@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
+import { EnterpriseWorkerMessageController } from './worker-bridge/enterprise-worker-message.controller';
 import { EnterpriseWorkerSessionController } from './worker-bridge/enterprise-worker-session.controller';
 import { EnterpriseWorkerHeartbeatController } from './worker-bridge/enterprise-worker-heartbeat.controller';
 import { WorkerBridgeController } from './worker-bridge/worker-bridge.controller';
@@ -38,6 +39,6 @@ import { OnboardingModule } from './onboarding/onboarding.module';
     PaymentsModule,
     OnboardingModule,
   ],
-  controllers: [AppController, EnterpriseWorkerHeartbeatController, EnterpriseWorkerSessionController, WorkerBridgeController, WorkerSessionController, WorkerDirectoryController, WorkerMessagesController, WorkerWebhooksController, WorkerAlertsController],
+  controllers: [AppController, EnterpriseWorkerHeartbeatController, EnterpriseWorkerSessionController, EnterpriseWorkerMessageController, WorkerBridgeController, WorkerSessionController, WorkerDirectoryController, WorkerMessagesController, WorkerWebhooksController, WorkerAlertsController],
 })
 export class AppModule {}
