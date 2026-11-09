@@ -1,6 +1,7 @@
 import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { authorizeEnterpriseWorker } from './enterprise-worker-authorization';
+import { trustedEnterpriseStripeLivemode } from './enterprise-worker-billing-mode';
 
 type Input = Record<string, unknown>;
 function uuid(value: unknown): string {
@@ -46,7 +47,7 @@ export class EnterpriseWorkerDispatchController {
   @Post('messages/claim') @HttpCode(200)
   async claimMessage(@Headers('authorization') h: string | undefined, @Body() b: Input) {
     const w = await this.identity(h,b), id = uuid(b.messageId);
-    if (typeof b.stripeLivemode !== 'boolean') throw new ForbiddenException();
+    const stripeLivemode = trustedEnterpriseStripeLivemode();
     const r = await this.db.query(
       `UPDATE whatsapp_messages m SET status='claimed',worker_id=$3,claimed_at=now(),attempts=attempts+1,updated_at=now()
        FROM whatsapp_sessions s,organizations o,organization_subscriptions sub
@@ -62,7 +63,7 @@ export class EnterpriseWorkerDispatchController {
        AND EXISTS(SELECT 1 FROM enterprise_workers ew
          WHERE ew.worker_id=$3 AND ew.organization_id=$2 AND ew.status='ready')
        RETURNING m.*`,
-      [id,w.organizationId,w.workerId,b.stripeLivemode],
+      [id,w.organizationId,w.workerId,stripeLivemode],
     );
     return {message:r.rows[0]??null};
   }
