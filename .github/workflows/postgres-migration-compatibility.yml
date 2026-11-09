@@ -1,0 +1,28 @@
+name: PostgreSQL migration compatibility
+on:
+  push:
+    paths:
+      - 'apps/api/migrations/**'
+      - 'apps/api/test/*temporal*'
+      - 'ops/migration/audit-d1-temporal-columns.sql'
+      - '.github/workflows/postgres-migration-compatibility.yml'
+  pull_request:
+    paths:
+      - 'apps/api/migrations/**'
+      - 'apps/api/test/*temporal*'
+      - 'ops/migration/audit-d1-temporal-columns.sql'
+      - '.github/workflows/postgres-migration-compatibility.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate timestamp migrations and audit contract
+        run: node --test apps/api/test/platform-login-timestamp-migration.test.mjs apps/api/test/d1-temporal-schema-audit.test.mjs apps/api/test/d1-temporal-migration-contract.test.mjs
