@@ -1,0 +1,16 @@
+name: Enterprise worker claim isolation
+on:
+  push:
+    branches:
+      - test/enterprise-worker-auth-boundaries-20261109
+  workflow_dispatch:
+jobs:
+  isolation-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate enterprise worker claim isolation
+        run: node --test apps/api/test/enterprise-worker-claim-isolation.test.mjs
