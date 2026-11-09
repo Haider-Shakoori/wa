@@ -12,6 +12,7 @@ const PATHS=new Set([
  'sessions/qr','sessions/status','sessions/inbound','messages/lookup',
  'messages/poll','messages/claim','messages/sent','messages/failed',
  'commands/poll','commands/claim','commands/complete','commands/fail',
+ 'directory/contact','directory/chat','directory/group',
 ]);
 export class EnterpriseWorkerApiClient {
  constructor({apiUrl,workerId,token,fetchImpl=globalThis.fetch,timeoutMs=10000}={}){
@@ -61,4 +62,7 @@ export class EnterpriseWorkerApiClient {
  sessionStatus(sessionId,status,details={}){return this.request('sessions/status',{sessionId,status,details});}
  sessionQr(sessionId,qr,ttlMs){return this.request('sessions/qr',{sessionId,qr,ttlMs});}
  inbound(sessionId,message){return this.request('sessions/inbound',{sessionId,message});}
+ contact(sessionId,contact){return this.request('directory/contact',{sessionId,contact});}
+ chat(sessionId,chat){return this.request('directory/chat',{sessionId,chat});}
+ group(sessionId,group){return this.request('directory/group',{sessionId,group});}
 }
