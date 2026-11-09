@@ -27,7 +27,7 @@ export class EnterpriseWorkerMessageController {
       `SELECT m.id,m.session_id,m.status,m.direction,m.message_type
        FROM whatsapp_messages m
        JOIN whatsapp_sessions s ON s.id=m.session_id AND s.organization_id=m.organization_id
-       WHERE m.id=$1 AND m.organization_id=$2 AND s.deleted_at IS NULL
+       WHERE m.id=$1 AND m.organization_id=$2 AND s.worker_id=$3 AND s.deleted_at IS NULL
          AND EXISTS (
            SELECT 1 FROM enterprise_workers ew
            WHERE ew.worker_id=$3 AND ew.organization_id=$2 AND ew.status='ready'
