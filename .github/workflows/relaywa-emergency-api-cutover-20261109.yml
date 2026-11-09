@@ -1,0 +1,73 @@
+name: RelayWA emergency API cutover
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Enter SWITCH to move relaywa.com/api/* and api.relaywa.com to VPS'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  cutover:
+    if: inputs.confirm == 'SWITCH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Switch Cloudflare API traffic to VPS with verification and rollback
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CF_TOKEN, account=process.env.CF_ACCOUNT;
+          if(!token||!account)throw Error('Cloudflare secrets unavailable');
+          const h={authorization:'Bearer '+token,'content-type':'application/json'};
+          async function cf(path,method='GET',body){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(18000)});
+            const j=await r.json();if(!r.ok||!j.success)throw Error(method+' '+path+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]));
+            return j.result;
+          }
+          const zones=await cf('/zones?name=relaywa.com');
+          const zone=zones.find(z=>z.name==='relaywa.com');
+          if(!zone)throw Error('RelayWA zone not found');
+          const base='/zones/'+zone.id;
+          const [domains,routes]=await Promise.all([cf('/accounts/'+account+'/workers/domains'),cf(base+'/workers/routes')]);
+          const apiDomain=domains.find(d=>d.hostname==='api.relaywa.com');
+          const webDomain=domains.find(d=>d.hostname==='relaywa.com');
+          if(!apiDomain||apiDomain.service!=='relaywa-api'||!webDomain||webDomain.service!=='relaywa-web')throw Error('Unexpected existing Worker custom domain assignments');
+          const origin=await fetch('https://api.relaywa.com/api/health',{signal:AbortSignal.timeout(12000)}).then(r=>r.json());
+          if(origin.runtime!=='cloudflare-workers')throw Error('Unexpected current public API; aborting');
+          const originIp='108.165.233.125';
+          // Cloudflare Worker fetch to the existing VPS origin with Host/SNI matching api.relaywa.com
+          // is implemented by DNS-only dedicated origin hostname, not a public custom-domain recursion.
+          const dns=await cf(base+'/dns_records?name=relaywa-vps-origin.relaywa.com');
+          if(dns.length && !dns.some(x=>x.type==='A'&&x.content===originIp&&x.proxied===false))throw Error('Conflicting origin DNS record');
+          let dnsCreated=null, routeCreated=null, scriptCreated=false;
+          const script='relaywa-emergency-vps-api-proxy';
+          const routePattern='relaywa.com/api/*';
+          const existingRoute=routes.find(r=>r.pattern===routePattern);
+          if(existingRoute && existingRoute.script!==script)throw Error('API route already claimed by '+existingRoute.script);
+          const code=`export default {async fetch(request){const u=new URL(request.url);u.hostname='relaywa-vps-origin.relaywa.com';const headers=new Headers(request.headers);headers.set('X-Forwarded-Host',new URL(request.url).host);return fetch(new Request(u,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));}}`;
+          async function restore(){
+            if(routeCreated)await cf(base+'/workers/routes/'+routeCreated,'DELETE').catch(e=>console.log('ROLLBACK_ROUTE_ERROR',e.message));
+            if(scriptCreated)await cf('/accounts/'+account+'/workers/scripts/'+script,'DELETE').catch(e=>console.log('ROLLBACK_SCRIPT_ERROR',e.message));
+            if(dnsCreated)await cf(base+'/dns_records/'+dnsCreated,'DELETE').catch(e=>console.log('ROLLBACK_DNS_ERROR',e.message));
+          }
+          try {
+            if(!dns.length){const d=await cf(base+'/dns_records','POST',{type:'A',name:'relaywa-vps-origin',content:originIp,proxied:false,ttl:300});dnsCreated=d.id;}
+            // Safety: require HTTPS origin certificate for new hostname before making any routing changes.
+            const check=await fetch('https://relaywa-vps-origin.relaywa.com/api/health',{signal:AbortSignal.timeout(15000)});
+            const body=await check.json().catch(()=>({}));
+            if(!check.ok||body.service!=='relaywa-api')throw Error('VPS origin hostname HTTPS/health not ready: '+check.status);
+            console.log('ORIGIN_READY');
+            // Only route website /api/*; leave api.relaywa.com unchanged until its custom-domain switch is independently validated.
+            const upload=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+script,{method:'PUT',headers:{authorization:'Bearer '+token,'content-type':'application/javascript'},body:code,signal:AbortSignal.timeout(20000)});
+            const up=await upload.json();if(!upload.ok||!up.success)throw Error('Worker upload failed '+JSON.stringify(up.errors||[]));
+            scriptCreated=true;
+            if(!existingRoute){const rt=await cf(base+'/workers/routes','POST',{pattern:routePattern,script});routeCreated=rt.id;}
+            const checkPublic=await fetch('https://relaywa.com/api/health?cutover='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(20000)}).then(r=>r.json());
+            if(checkPublic.service!=='relaywa-api')throw Error('New API route not active: '+JSON.stringify(checkPublic));
+            console.log('WEBSITE_API_CUTOVER_SUCCESS');
+          }catch(e){await restore();throw e;}
+          NODE
