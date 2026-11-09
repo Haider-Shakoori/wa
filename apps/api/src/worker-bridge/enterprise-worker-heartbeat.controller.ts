@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { authorizeEnterpriseWorker } from './enterprise-worker-authorization';
 
@@ -19,11 +19,12 @@ export class EnterpriseWorkerHeartbeatController {
     @Body() body: HeartbeatInput,
   ) {
     const identity = await authorizeEnterpriseWorker(this.db, authorization, body?.workerId);
-    await this.db.query(
+    const result = await this.db.query(
       `UPDATE enterprise_workers SET last_heartbeat_at=now(),updated_at=now()
        WHERE worker_id=$1 AND organization_id=$2 AND status='ready'`,
       [identity.workerId, identity.organizationId],
     );
+    if (result.rowCount !== 1) throw new ForbiddenException();
     return { ok: true };
   }
 }
