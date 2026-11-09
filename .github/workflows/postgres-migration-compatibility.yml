@@ -25,4 +25,4 @@ jobs:
         with:
           node-version: '22'
       - name: Validate timestamp migrations and audit contract
-        run: node --test apps/api/test/platform-login-timestamp-migration.test.mjs apps/api/test/d1-temporal-schema-audit.test.mjs apps/api/test/d1-temporal-migration-contract.test.mjs
+        run: node --test apps/api/test/platform-login-timestamp-migration.test.mjs apps/api/test/d1-temporal-schema-audit.test.mjs apps/api/test/d1-temporal-migration-contract.test.mjs apps/api/test/platform-diagnostic-archive-index.test.mjs
