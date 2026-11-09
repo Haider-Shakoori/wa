@@ -12,6 +12,7 @@ test('enterprise lifecycle adapter uses API only and validates acknowledgements'
   sessionStatus:async()=>({updated:true}),
   sessionQr:async()=>({updated:true}),
   inbound:async()=>({saved:null}),
+  contact:async()=>({updated:true}),chat:async()=>({updated:true}),group:async()=>({updated:true}),
   messagePoll:async()=>({message:null}),
   messageClaim:async()=>({message:null}),
   messageSent:async()=>({updated:true}),
@@ -27,6 +28,9 @@ test('enterprise lifecycle adapter uses API only and validates acknowledgements'
  assert.equal((await store.claimRecoverableSessions()).length,1);
  await store.setStatus(id,'connected');
  await store.setQr(id,'qr');
+ await store.upsertContact(id,{id:'123@s.whatsapp.net'});
+ await store.upsertChat(id,{id:'123@s.whatsapp.net'});
+ await store.upsertGroup(id,{id:'123@g.us'});
  assert.equal(await store.saveInboundMessage(id,{providerMessageId:'msg'}),null);
  assert.equal(await store.pollMessage(),null);
  assert.equal(await store.claimMessage(id),null);
