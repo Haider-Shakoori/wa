@@ -1,0 +1,27 @@
+name: RelayWA emergency Cloudflare routing inventory
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-emergency-routing-inventory-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read Cloudflare worker routes and scripts
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const h={authorization:'Bearer '+process.env.CF_TOKEN};
+          async function get(label,url){const r=await fetch(url,{headers:h});const j=await r.json();const v=j.result;console.log(label,'HTTP',r.status,'success',j.success,'errors',JSON.stringify(j.errors||[]));if(Array.isArray(v))console.log(JSON.stringify(v.map(x=>({id:x.id,pattern:x.pattern,script:x.script,zone_name:x.zone_name}))).slice(0,12000));else console.log(JSON.stringify(v||{}).slice(0,1500));return v}
+          const base='https://api.cloudflare.com/client/v4';
+          const zones=await get('ZONES',base+'/zones?name=relaywa.com');
+          for(const z of zones||[])await get('ROUTES',base+'/zones/'+z.id+'/workers/routes');
+          await get('SCRIPTS',base+'/accounts/'+process.env.CF_ACCOUNT+'/workers/scripts');
+          NODE
