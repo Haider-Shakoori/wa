@@ -16,7 +16,7 @@ export async function api<T>(path: string, token?: string, options: RequestInit 
     cache: 'no-store',
   });
   if (!response.ok) {
-    if (response.status === 401 && token) expireBrowserSession(token);
+    if (response.status === 401 && token && (path === '/auth/me' || path === '/v1/auth/me')) expireBrowserSession(token);
     const payload = await response.json().catch(() => null);
     throw new Error(payload?.message ?? `Request failed with HTTP ${response.status}`);
   }
