@@ -16,6 +16,35 @@ export class EnterpriseWorkerDispatchController {
     return authorizeEnterpriseWorker(this.db, header, body?.workerId);
   }
 
+
+  /** Atomic command discovery, restricted to sessions already leased to this worker. */
+  @Post('commands/poll') @HttpCode(200)
+  async pollCommand(@Headers('authorization') h: string | undefined, @Body() b: Input) {
+    const w=await this.identity(h,b);
+    const command=await this.db.transaction(async client=>{
+      const r=await client.query(
+        `SELECT c.id,c.session_id,c.command FROM whatsapp_session_commands c
+         JOIN whatsapp_sessions s ON s.id=c.session_id AND s.organization_id=c.organization_id
+         WHERE c.organization_id=$1 AND c.status='queued'
+         AND s.worker_id=$2 AND s.worker_lease_expires_at>now() AND s.deleted_at IS NULL
+         AND EXISTS(SELECT 1 FROM enterprise_workers ew
+           WHERE ew.worker_id=$2 AND ew.organization_id=$1 AND ew.status='ready')
+         ORDER BY c.created_at ASC FOR UPDATE OF c SKIP LOCKED LIMIT 1`,
+        [w.organizationId,w.workerId],
+      );
+      const candidate=r.rows[0];
+      if(!candidate)return null;
+      const updated=await client.query(
+        `UPDATE whatsapp_session_commands SET status='claimed',worker_id=$2,
+         claimed_at=now(),attempts=attempts+1 WHERE id=$1 AND status='queued'
+         RETURNING id,session_id,command`,
+        [candidate.id,w.workerId],
+      );
+      return updated.rows[0]??null;
+    });
+    return {command};
+  }
+
   @Post('commands/claim') @HttpCode(200)
   async claimCommand(@Headers('authorization') h: string | undefined, @Body() b: Input) {
     const w = await this.identity(h,b), id = uuid(b.commandId);
