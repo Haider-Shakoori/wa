@@ -63,12 +63,18 @@ jobs:
             if(start<0||end<0)throw Error('Existing gateway structure unrecognized; abort');
             const existing=source.slice(start,end);
             if(!existing.includes('whatsapp-sessions'))throw Error('Existing gateway routes unrecognized; abort');
-            if(existing.includes('platform'))throw Error('Platform routing already present; no staging change required');
+            if(existing.includes('platform')){patched=source;}else{
             const expanded=existing.replace('whatsapp-sessions',String.raw`platform(?:\/|$)|v1\/platform(?:\/|$)|whatsapp-sessions`);
             patched=source.slice(0,start)+expanded+source.slice(end);
+            }
           }else{
             if(source.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape');
             patched=source.replace(needle,injected+needle);
+          }
+          const providerBridge=`if(new URL(request.url).pathname==="/api/billing/providers"){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";target.pathname="/api/platform/payment-providers";const headers=new Headers(request.headers);headers.delete("host");return fetch(new Request(target.toString(),{method:request.method,headers,body:request.body,redirect:"manual"}));}`;
+          if(!patched.includes('target.pathname="/api/platform/payment-providers"')){
+            if(patched.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape for provider bridge');
+            patched=patched.replace(needle,providerBridge+needle);
           }
           if(patched.length-source.length>1400)throw Error('Patch size exceeds bound');
           const hasAssets=(settings.bindings||[]).some(b=>b.type==='assets');
