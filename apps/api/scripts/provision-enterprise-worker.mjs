@@ -76,6 +76,7 @@ async function main(){
   });
   process.stdout.write(JSON.stringify({workerId:args.workerId,...result})+'\n');
  }catch(e){
+  if(handle){await handle.close().catch(()=>{});handle=null;}
   if(outputCreated)await unlink(resolve(args.output)).catch(()=>{});
   throw e;
  }finally{await handle?.close();await client.end().catch(()=>{});}
