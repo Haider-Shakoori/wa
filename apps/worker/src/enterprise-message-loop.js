@@ -25,8 +25,16 @@ export async function processEnterpriseMessage({store,sessions}){
   }
   const providerId=typeof result==='string'?result:result?.providerMessageId??result?.key?.id??result?.id;
   if(typeof providerId!=='string'||!providerId)throw Error('WhatsApp send returned no provider message ID');
-  await store.markMessageSent(message.id,providerId);
+  // Once WhatsApp acknowledges delivery, never transition this message to
+  // failed on a subsequent API error: that would allow duplicate delivery.
+  try { await store.markMessageSent(message.id,providerId); }
+  catch(error){
+   const uncertain=new Error('Enterprise sent acknowledgement unavailable; manual reconciliation required');
+   uncertain.cause=error;
+   throw uncertain;
+  }
  }catch(error){
+  if(error?.message==='Enterprise sent acknowledgement unavailable; manual reconciliation required')throw error;
   await store.markMessageFailed(message.id,error);
  }
  return true;
