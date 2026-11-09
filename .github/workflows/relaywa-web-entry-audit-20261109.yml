@@ -1,0 +1,31 @@
+name: RelayWA web entry routing audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-web-entry-audit-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect Worker entrypoint safely
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4/accounts/'+process.env.CF_ACCOUNT+'/workers/scripts/relaywa-web';
+          const h={authorization:'Bearer '+process.env.CF_TOKEN};
+          const [r,s,d]=await Promise.all([fetch(base,{headers:h}),fetch(base+'/settings',{headers:h}),fetch(base+'/deployments',{headers:h})]);
+          if(!r.ok||!s.ok||!d.ok)throw Error('Read failed '+[r.status,s.status,d.status]);
+          const form=await r.formData(),settings=(await s.json()).result,deployment=(await d.json()).result;
+          console.log('SETTINGS',JSON.stringify({main:settings.main_module,compatibility_date:settings.compatibility_date,flags:settings.compatibility_flags,bindings:settings.bindings?.map(b=>({name:b.name,type:b.type}))}));
+          console.log('ACTIVE',JSON.stringify(deployment.deployments?.[0]?.versions));
+          console.log('MODULES',JSON.stringify(Array.from(form.entries()).map(([name,v])=>({name,size:typeof v==='string'?v.length:v.size})).sort((a,b)=>b.size-a.size).slice(0,15)));
+          for(const name of ['index.js','worker.js']){
+            const v=form.get(name);if(!v)continue;const code=typeof v==='string'?v:await v.text();
+            console.log('ENTRY',name,'START',JSON.stringify(code.slice(0,900)),'END',JSON.stringify(code.slice(-1200)));
+          }
+          NODE
