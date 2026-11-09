@@ -58,6 +58,11 @@ export class EnterpriseSessionStore {
   const response=await this.client.messageFailed(messageId,String(error?.message??error).slice(0,2000));
   if(response.updated!==true)throw Error('Enterprise failure acknowledgement rejected');
  }
+ async pollCommand(){
+  const response=await this.client.commandPoll();
+  if(!response||!Object.hasOwn(response,'command'))throw Error('Invalid enterprise command poll response');
+  return response.command;
+ }
  async completeCommand(commandId){
   const response=await this.client.commandComplete(commandId);
   if(response.updated!==true)throw Error('Enterprise command completion rejected');
