@@ -1,0 +1,46 @@
+name: RelayWA Cloudflare D1 bridge read-only preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-bridge-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check production Cloudflare access and D1 metadata without mutations
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CF_TOKEN,account=process.env.CF_ACCOUNT;
+          console.log('CF_TOKEN_CONFIGURED',Boolean(token));
+          console.log('CF_ACCOUNT_CONFIGURED',Boolean(account));
+          if(!token||!account)process.exit(1);
+          const root='https://api.cloudflare.com/client/v4';
+          async function read(path){
+            const r=await fetch(root+path,{headers:{Authorization:'Bearer '+token}});
+            const j=await r.json().catch(()=>({}));
+            if(!r.ok||!j.success)throw Error('Cloudflare read '+path.split('?')[0]+' failed HTTP '+r.status);
+            return j.result;
+          }
+          try{
+            const dbs=await read('/accounts/'+encodeURIComponent(account)+'/d1/database?per_page=100');
+            console.log('D1_DATABASES',JSON.stringify((dbs||[]).map(d=>({name:d.name,uuid:d.uuid,num_tables:d.num_tables,file_size:d.file_size}))));
+          }catch(e){console.log('D1_READ_ERROR',e.message);process.exitCode=1}
+          try{
+            const scripts=await read('/accounts/'+encodeURIComponent(account)+'/workers/scripts');
+            console.log('WORKER_SCRIPTS',JSON.stringify((scripts||[]).filter(s=>/relaywa/i.test(s.id||s.name||'')).map(s=>({id:s.id||s.name,modified_on:s.modified_on}))));
+          }catch(e){console.log('WORKERS_READ_ERROR',e.message);process.exitCode=1}
+          try{
+            const r=await fetch('https://relaywa.com/api/health',{signal:AbortSignal.timeout(10000)});
+            console.log('PRODUCTION_HEALTH_HTTP',r.status);
+            const j=await r.json();
+            console.log('PRODUCTION_HEALTH',JSON.stringify({status:j.status,runtime:j.runtime,db:j.db,tables:j.tables}));
+          }catch(e){console.log('HEALTH_ERROR',e.message);process.exitCode=1}
+          NODE
