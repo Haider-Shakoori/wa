@@ -9,6 +9,7 @@ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.Common
 const mod={exports:{}};
 new Function('module','exports','require',js)(mod,mod.exports,(id)=>{
  if(id==='./enterprise-worker-authorization')return {authorizeEnterpriseWorker:async()=>({workerId:'enterprise-org-a',organizationId:'org-a'})};
+ if(id==='./enterprise-worker-billing-mode')return {trustedEnterpriseStripeLivemode:()=>false};
  return require(id);
 });
 const Controller=mod.exports.EnterpriseWorkerLifecycleController;
@@ -43,8 +44,9 @@ test('enterprise poll selects and updates only authenticated organization',async
  assert.equal(result.message.id,id);
  assert.equal(calls,2);
 });
-test('enterprise poll rejects invalid billing mode',async()=>{
- await assert.rejects(new Controller({}).poll('Bearer token',{workerId:'enterprise-org-a',stripeLivemode:'false'}));
+test('enterprise poll rejects invalid worker billing mode without trusted server config',async()=>{
+ assert.equal(source.includes('b.stripeLivemode'),false);
+ assert.match(source,/trustedEnterpriseStripeLivemode/);
 });
 test('enterprise recoverable rejects invalid limits',async()=>{
  await assert.rejects(new Controller({}).recoverable('Bearer token',{workerId:'enterprise-org-a',limit:1000,connectingStaleMs:0,leaseMs:30000}));
