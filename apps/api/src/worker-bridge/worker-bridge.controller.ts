@@ -40,7 +40,7 @@ export class WorkerBridgeController {
  async claim(@Headers('authorization') auth:string|undefined,@Body() body:Input) {
   this.authenticate(auth);const workerId=this.id(body),ms=this.lease(body.leaseMs);
   const command=await this.db.transaction(async client=>{
-   const result=await client.query(`SELECT c.id,c.organization_id,c.session_id,c.command FROM whatsapp_session_commands c JOIN organizations o ON o.id=c.organization_id AND o.suspended_at IS NULL WHERE c.status='queued' ORDER BY c.created_at ASC FOR UPDATE OF c SKIP LOCKED LIMIT 1`);
+   const result=await client.query(`SELECT c.id,c.organization_id,c.session_id,c.command FROM whatsapp_session_commands c JOIN organizations o ON o.id=c.organization_id AND o.suspended_at IS NULL WHERE c.status='queued' AND ((EXISTS (SELECT 1 FROM enterprise_workers ew WHERE ew.worker_id=$1 AND ew.status='ready' AND ew.organization_id=c.organization_id)) OR (NOT EXISTS (SELECT 1 FROM enterprise_workers ew WHERE ew.worker_id=$1) AND NOT EXISTS (SELECT 1 FROM enterprise_workers ew WHERE ew.organization_id=c.organization_id))) ORDER BY c.created_at ASC FOR UPDATE OF c SKIP LOCKED LIMIT 1`,[workerId]);
    const candidate=result.rows[0];if(!candidate)return null;
    const row=await client.query(`SELECT id,organization_id,status,worker_id,worker_lease_expires_at FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL FOR UPDATE`,[candidate.session_id,candidate.organization_id]);
    const session=row.rows[0];
