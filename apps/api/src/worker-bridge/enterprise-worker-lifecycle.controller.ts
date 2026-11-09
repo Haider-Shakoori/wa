@@ -1,6 +1,7 @@
 import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { authorizeEnterpriseWorker } from './enterprise-worker-authorization';
+import { trustedEnterpriseStripeLivemode } from './enterprise-worker-billing-mode';
 type Input = Record<string, unknown>;
 function uuid(v:unknown):string {
  if(typeof v!=='string'||!/^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/.test(v))throw new ForbiddenException();
@@ -47,7 +48,7 @@ export class EnterpriseWorkerLifecycleController {
  @Post('messages/poll') @HttpCode(200)
  async poll(@Headers('authorization') h:string|undefined,@Body() b:Input) {
   const w=await this.auth(h,b);
-  if(typeof b.stripeLivemode!=='boolean')throw new ForbiddenException();
+  const stripeLivemode=trustedEnterpriseStripeLivemode();
   const message=await this.db.transaction(async client=>{
    const r=await client.query(
     `SELECT m.id FROM whatsapp_messages m JOIN whatsapp_sessions s
@@ -63,7 +64,7 @@ export class EnterpriseWorkerLifecycleController {
      AND (sub.status<>'trialing' OR sub.trial_ends_at IS NULL OR sub.trial_ends_at>now())
      AND EXISTS(SELECT 1 FROM enterprise_workers ew WHERE ew.worker_id=$2 AND ew.organization_id=$1 AND ew.status='ready')
      ORDER BY m.queued_at ASC FOR UPDATE OF m SKIP LOCKED LIMIT 1`,
-    [w.organizationId,w.workerId,b.stripeLivemode]);
+    [w.organizationId,w.workerId,stripeLivemode]);
    if(!r.rows[0])return null;
    const updated=await client.query(
     `UPDATE whatsapp_messages SET status='claimed',worker_id=$2,claimed_at=now(),
