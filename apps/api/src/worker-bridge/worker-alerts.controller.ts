@@ -1,21 +1,22 @@
 import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
+
 import { DatabaseService } from '../database/database.service';
+import { authorizeSharedWorker } from './shared-worker-authorization';
 type Input=Record<string,unknown>;
 @Controller('internal/worker')
 export class WorkerAlertsController {
  constructor(private readonly db:DatabaseService){}
- private auth(h:string|undefined,b:Input){const secret=process.env.WORKER_DISPATCH_SECRET;if(!secret||!h?.startsWith('Bearer '))throw new ForbiddenException();const a=Buffer.from(h.slice(7)),s=Buffer.from(secret);if(a.length!==s.length||!timingSafeEqual(a,s)||typeof b.workerId!=='string'||!/^[a-zA-Z0-9._:-]{1,120}$/.test(b.workerId))throw new ForbiddenException();return b.workerId;}
+ private async auth(h:string|undefined,b:Input):Promise<string>{return authorizeSharedWorker(this.db,h,b.workerId); }
  private uuid(v:unknown){if(typeof v!=='string'||!/^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/.test(v))throw new ForbiddenException();return v;}
  @Post('alerts/admins') @HttpCode(200)
  async admins(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);
+  await this.auth(h,b);
   const r=await this.db.query(`SELECT email FROM users WHERE is_platform_admin=true AND disabled_at IS NULL ORDER BY created_at ASC`);
   return {emails:r.rows.map(row=>String(row.email??'').trim()).filter(Boolean)};
  }
  @Post('alerts/claim') @HttpCode(200)
  async claim(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  const worker=this.auth(h,b);
+  const worker=await this.auth(h,b);
   const alert=await this.db.transaction(async client=>{
    const r=await client.query(`SELECT * FROM system_alerts WHERE status='queued' AND next_attempt_at<=now() ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`);
    const item=r.rows[0];if(!item)return null;
@@ -25,13 +26,13 @@ export class WorkerAlertsController {
  }
  @Post('alerts/sent') @HttpCode(200)
  async sent(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  const worker=this.auth(h,b),id=this.uuid(b.alertId);
+  const worker=await this.auth(h,b),id=this.uuid(b.alertId);
   const r=await this.db.query(`UPDATE system_alerts SET status='sent',sent_at=now(),last_error=NULL,updated_at=now() WHERE id=$1 AND worker_id=$2 AND status='sending' RETURNING id`,[id,worker]);
   return {ok:true,updated:r.rowCount===1};
  }
  @Post('alerts/reschedule') @HttpCode(200)
  async reschedule(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  const worker=this.auth(h,b);
+  const worker=await this.auth(h,b);
   if(!b.alert||typeof b.alert!=='object'||Array.isArray(b.alert))throw new ForbiddenException();
   const alert=b.alert as Record<string,unknown>,id=this.uuid(alert.id),attempts=Number(alert.attempts);
   const max=Number(process.env.ALERT_EMAIL_MAX_ATTEMPTS??6);
@@ -44,7 +45,7 @@ export class WorkerAlertsController {
  }
  @Post('alerts/queue') @HttpCode(200)
  async queue(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);
+  await this.auth(h,b);
   const required=['eventType','dedupeKey','subject','summary'];
   if(required.some(k=>typeof b[k]!=='string'||!b[k]))throw new ForbiddenException();
   const cooldown=Number(b.cooldownSeconds??process.env.ALERT_DEDUPE_SECONDS??900);
@@ -54,7 +55,7 @@ export class WorkerAlertsController {
  }
  @Post('alerts/session/queue') @HttpCode(200)
  async queueSession(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);
+  await this.auth(h,b);
   const id=this.uuid(b.sessionId);
   if(!b.input||typeof b.input!=='object'||Array.isArray(b.input))throw new ForbiddenException();
   const r=await this.db.query('SELECT s.organization_id,s.name AS session_name,s.phone_number,s.engine,s.status,o.name AS organization_name FROM whatsapp_sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.deleted_at IS NULL LIMIT 1',[id]);
@@ -65,7 +66,7 @@ export class WorkerAlertsController {
  }
  @Post('health-scan') @HttpCode(200)
  async healthScan(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);
+  await this.auth(h,b);
   await this.db.query(`UPDATE system_alerts a SET resolved_at=now(),updated_at=now() FROM whatsapp_sessions s WHERE a.event_type='worker.session_lease_expired' AND a.resolved_at IS NULL AND a.session_id=s.id AND s.deleted_at IS NULL AND s.worker_id IS NOT NULL AND s.worker_lease_expires_at>now()`);
   const stale=await this.db.query(`SELECT s.id,s.organization_id,s.name,s.status,s.worker_id,s.worker_lease_expires_at,o.name AS organization_name FROM whatsapp_sessions s JOIN organizations o ON o.id=s.organization_id AND o.suspended_at IS NULL WHERE s.deleted_at IS NULL AND s.worker_id IS NOT NULL AND s.worker_lease_expires_at IS NOT NULL AND s.worker_lease_expires_at<now()-interval '1 minute' AND s.status IN ('connected','connecting','reconnecting') ORDER BY s.worker_lease_expires_at ASC LIMIT 25`);
   const stalled=await this.db.query(`SELECT organization_id,count(*)::int AS stalled FROM (SELECT m.organization_id FROM whatsapp_messages m JOIN organizations o ON o.id=m.organization_id AND o.suspended_at IS NULL WHERE m.direction='outbound' AND m.status='queued' AND m.queued_at<now()-interval '10 minutes' ORDER BY m.queued_at ASC LIMIT 500) pending GROUP BY organization_id HAVING count(*)>=10 LIMIT 20`);
@@ -83,10 +84,10 @@ export class WorkerAlertsController {
   });
  }
  @Post('billing/claim') @HttpCode(200)
- async billingClaim(@Headers('authorization') h:string|undefined,@Body() b:Input){this.auth(h,b);return {notification:await this.claimBillingRow(String(b.workerId))};}
+ async billingClaim(@Headers('authorization') h:string|undefined,@Body() b:Input){await this.auth(h,b);return {notification:await this.claimBillingRow(String(b.workerId))};}
  @Post('billing/sent') @HttpCode(200)
  async billingSent(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);const id=this.uuid(b.id);
+  await this.auth(h,b);const id=this.uuid(b.id);
   const hasAttempts=b.attempts!==undefined&&b.attempts!==null;
   const attempts=hasAttempts?Number(b.attempts):null;
   if(hasAttempts&&(attempts===null||!Number.isSafeInteger(attempts)||attempts<1||attempts>10000))throw new ForbiddenException();
@@ -95,7 +96,7 @@ export class WorkerAlertsController {
  }
  @Post('billing/failed') @HttpCode(200)
  async billingFailed(@Headers('authorization') h:string|undefined,@Body() b:Input){
-  this.auth(h,b);const id=this.uuid(b.id),attempts=Number(b.attempts);
+  await this.auth(h,b);const id=this.uuid(b.id),attempts=Number(b.attempts);
   if(!Number.isSafeInteger(attempts)||attempts<1||attempts>10000)throw new ForbiddenException();
   const max=Number(process.env.BILLING_EMAIL_MAX_ATTEMPTS??6);
   if(!Number.isSafeInteger(max)||max<1)throw new ForbiddenException();
