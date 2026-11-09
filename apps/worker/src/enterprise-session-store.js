@@ -42,6 +42,18 @@ export class EnterpriseSessionStore {
   if(!Object.hasOwn(response,'saved'))throw Error('Invalid enterprise inbound acknowledgement');
   return response.saved;
  }
+ async upsertContact(sessionId,contact){
+  const response=await this.client.contact(sessionId,contact);
+  if(response.updated!==true)throw Error('Enterprise contact update rejected');
+ }
+ async upsertChat(sessionId,chat){
+  const response=await this.client.chat(sessionId,chat);
+  if(response.updated!==true)throw Error('Enterprise chat update rejected');
+ }
+ async upsertGroup(sessionId,group){
+  const response=await this.client.group(sessionId,group);
+  if(response.updated!==true)throw Error('Enterprise group update rejected');
+ }
  async pollMessage(){
   const response=await this.client.messagePoll();
   return response.message??null;
