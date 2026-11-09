@@ -46,7 +46,7 @@ jobs:
           async function restore(){
             if(routeCreated)await cf(base+'/workers/routes/'+routeCreated,'DELETE').catch(e=>console.log('ROLLBACK_ROUTE_ERROR',e.message));
             if(scriptCreated)await cf('/accounts/'+account+'/workers/scripts/'+script,'DELETE').catch(e=>console.log('ROLLBACK_SCRIPT_ERROR',e.message));
-            if(dnsCreated)await cf(base+'/dns_records/'+dnsCreated,'DELETE').catch(e=>console.log('ROLLBACK_DNS_ERROR',e.message));
+            if(dnsCreated)console.log('PRESERVING_ORIGIN_DNS_FOR_TLS',dnsCreated);
           }
           try {
             if(!dns.length){const d=await cf(base+'/dns_records','POST',{type:'A',name:'relaywa-vps-origin',content:originIp,proxied:false,ttl:300});dnsCreated=d.id;}
