@@ -11,17 +11,25 @@ new Function('module','exports','require',js)(mod,mod.exports,require);
 const mode=mod.exports.trustedEnterpriseStripeLivemode;
 test('enterprise billing mode comes from server key only and fails closed',()=>{
  const previous=process.env.STRIPE_SECRET_KEY;
+ const previousMode=process.env.ENTERPRISE_STRIPE_MODE;
  try{
   delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.ENTERPRISE_STRIPE_MODE;
   assert.throws(()=>mode());
-  process.env.STRIPE_SECRET_KEY='sk_test_serverconfigured';
+  process.env.ENTERPRISE_STRIPE_MODE='test';
   assert.equal(mode(),false);
-  process.env.STRIPE_SECRET_KEY='sk_live_serverconfigured';
+  process.env.ENTERPRISE_STRIPE_MODE='live';
   assert.equal(mode(),true);
+  process.env.STRIPE_SECRET_KEY='sk_test_serverconfigured';
+  assert.throws(()=>mode());
+  process.env.ENTERPRISE_STRIPE_MODE='test';
+  assert.equal(mode(),false);
   process.env.STRIPE_SECRET_KEY='invalid';
   assert.throws(()=>mode());
  }finally{
   if(previous===undefined)delete process.env.STRIPE_SECRET_KEY;
   else process.env.STRIPE_SECRET_KEY=previous;
+  if(previousMode===undefined)delete process.env.ENTERPRISE_STRIPE_MODE;
+  else process.env.ENTERPRISE_STRIPE_MODE=previousMode;
  }
 });
