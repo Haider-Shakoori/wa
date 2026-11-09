@@ -22,6 +22,12 @@ export const workerIdentity = Object.freeze({
 });
 
 export async function startWorker() {
+  // Dedicated enterprise workers require the isolated API transport. The legacy
+  // worker connects directly to the shared database and must never impersonate
+  // an enterprise worker before that transport is implemented and validated.
+  if (workerIdentity.workerId.startsWith('enterprise-')) {
+    throw new Error('Enterprise worker startup blocked: dedicated API transport is not yet implemented');
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
 
