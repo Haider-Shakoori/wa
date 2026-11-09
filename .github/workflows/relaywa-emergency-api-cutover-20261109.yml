@@ -57,9 +57,18 @@ jobs:
           try {
             if(!dns.length){const d=await cf(base+'/dns_records','POST',{type:'A',name:'relaywa-vps-origin',content:originIp,proxied:false,ttl:300});dnsCreated=d.id;}
             // Safety: require HTTPS origin certificate for new hostname before making any routing changes.
-            const check=await fetch('https://relaywa-vps-origin.relaywa.com/api/health',{signal:AbortSignal.timeout(15000)});
-            const body=await check.json().catch(()=>({}));
-            if(!check.ok||body.service!=='relaywa-api')throw Error('VPS origin hostname HTTPS/health not ready: '+check.status);
+            let ready=false,lastError='';
+            for(let attempt=0;attempt<24;attempt++){
+              try{
+                const check=await fetch('https://relaywa-vps-origin.relaywa.com/api/health',{signal:AbortSignal.timeout(7000)});
+                const body=await check.json().catch(()=>({}));
+                if(check.ok&&body.service==='relaywa-api'){ready=true;break;}
+                lastError='HTTP '+check.status+' '+JSON.stringify(body).slice(0,120);
+              }catch(e){lastError=String(e.cause?.code||e.message);}
+              console.log('ORIGIN_WAIT',attempt+1,lastError);
+              await new Promise(resolve=>setTimeout(resolve,5000));
+            }
+            if(!ready)throw Error('VPS origin DNS/TLS not ready: '+lastError);
             console.log('ORIGIN_READY');
             // Only route website /api/*; leave api.relaywa.com unchanged until its custom-domain switch is independently validated.
             const upload=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+script,{method:'PUT',headers:{authorization:'Bearer '+token,'content-type':'application/javascript'},body:code,signal:AbortSignal.timeout(20000)});
