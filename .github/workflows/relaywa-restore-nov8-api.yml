@@ -1,0 +1,47 @@
+name: RelayWA restore November 8 Cloudflare API release
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-restore-nov8-api.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect Cloudflare deployment history and safely restore verified Nov 8 API version
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const account=process.env.CF_ACCOUNT,token=process.env.CF_TOKEN;
+          if(!account||!token)throw Error('Cloudflare credentials unavailable');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(account)+'/workers/scripts/relaywa-api';
+          async function request(path,init={}){
+            const r=await fetch(root+path,{...init,headers:{Authorization:'Bearer '+token,...init.headers}});
+            const j=await r.json().catch(()=>({}));
+            if(!r.ok||!j.success)throw Error(path+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]).slice(0,300));
+            return j.result;
+          }
+          const deployed=await request('/deployments');
+          console.log('DEPLOYMENT_HISTORY',JSON.stringify((deployed.deployments||[]).slice(0,12).map(d=>({id:d.id,created_on:d.created_on,versions:d.versions?.map(v=>({id:v.version_id,percentage:v.percentage}))}))));
+          const versions=await request('/versions');
+          console.log('VERSION_HISTORY',JSON.stringify((versions.items||versions.versions||[]).slice(0,30).map(v=>({id:v.id,created_on:v.metadata?.created_on||v.created_on,message:v.annotations?.['workers/message']}))));
+          const current=deployed.deployments?.[0]?.versions||[];
+          if(current.length!==1||current[0].percentage!==100)throw Error('STOP: production traffic split not single-version');
+          const candidates=(versions.items||versions.versions||[]).filter(v=>{
+            const t=v.metadata?.created_on||v.created_on||'';
+            return t.startsWith('2026-11-08');
+          });
+          if(candidates.length!==1){
+            console.log('SAFE_STOP',candidates.length,'Nov 8 candidate versions: cannot identify uniquely');
+            return;
+          }
+          const target=candidates[0].id;
+          if(target===current[0].version_id){console.log('ALREADY_ON_NOV8_VERSION',target);return;}
+          console.log('SAFE_STOP', 'A Nov 8 version exists but is not uniquely proven healthy; no automatic promotion',target);
+          NODE
