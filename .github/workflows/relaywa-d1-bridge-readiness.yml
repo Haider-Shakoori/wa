@@ -1,0 +1,42 @@
+name: RelayWA D1 bridge cutover readiness
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-d1-bridge-readiness.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DEPLOY_HOST: ${{ secrets.RELAYWA_DEPLOY_HOST }}
+      DEPLOY_SSH_KEY: ${{ secrets.RELAYWA_DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.RELAYWA_DEPLOY_KNOWN_HOSTS }}
+    steps:
+      - name: Verify permissions and SSH reachability without changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in CF_TOKEN CF_ACCOUNT DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            if [ -n "${!v}" ]; then echo "$v configured"; else echo "$v missing"; exit 1; fi
+          done
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes "$DEPLOY_HOST" 'printf "VPS_SSH_OK user="; id -un; printf "DOCKER_ACCESS="; if docker info >/dev/null 2>&1; then echo yes; else echo no; fi; printf "WORKER_CONTAINER="; docker inspect relaywa-edge-worker --format "{{.State.Running}}" 2>/dev/null || true'
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+encodeURIComponent(process.env.CF_ACCOUNT);
+          const h={Authorization:'Bearer '+process.env.CF_TOKEN};
+          for(const name of ['relaywa-api','relaywa-web']){
+            const r=await fetch(root+'/workers/scripts/'+name+'/settings',{headers:h});
+            const j=await r.json().catch(()=>({}));
+            console.log('WORKER_SETTINGS_ACCESS',name,r.status,j.success===true);
+            if(!r.ok||!j.success)process.exitCode=1;
+          }
+          NODE
