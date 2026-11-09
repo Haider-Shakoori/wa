@@ -1,0 +1,42 @@
+name: RelayWA emergency platform API failover
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/relaywa-emergency-platform-api-20261109.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Route platform API only to VPS with rollback on failure
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4',zone='80963d61146f7f3ec51f793e6b8de8d9',script='relaywa-emergency-platform-vps',pattern='platform.relaywa.com/api/*',auth={Authorization:'Bearer '+process.env.CF_TOKEN};
+          async function api(path,options={}){const r=await fetch(base+path,{...options,headers:{...auth,...options.headers}});const j=await r.json();if(!r.ok||!j.success)throw Error(path+' '+r.status+' '+JSON.stringify(j.errors));return j.result}
+          const code=`export default {async fetch(request){
+            const incoming=new URL(request.url);
+            if(!incoming.pathname.startsWith('/api/'))return new Response('Not Found',{status:404});
+            const target=new URL(incoming.pathname+incoming.search,'https://relaywa-vps-origin.relaywa.com');
+            const headers=new Headers(request.headers);headers.delete('host');
+            const upstream=await fetch(new Request(target.toString(),{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));
+            const out=new Response(upstream.body,upstream);out.headers.set('x-relaywa-platform-route','vps-emergency');return out;
+          }}`;
+          const form=new FormData();form.append('metadata',new Blob([JSON.stringify({main_module:'index.js',compatibility_date:'2026-10-01'})],{type:'application/json'}));form.append('index.js',new Blob([code],{type:'application/javascript+module'}),'index.js');
+          await api('/accounts/'+process.env.CF_ACCOUNT+'/workers/scripts/'+script,{method:'PUT',body:form});
+          const before=await api('/zones/'+zone+'/workers/routes');if(before.some(r=>r.pattern===pattern))throw Error('Existing platform API route');
+          const route=await api('/zones/'+zone+'/workers/routes',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pattern,script})});console.log('ROUTE_CREATED',route.id);
+          try {
+            let good=false;
+            for(let i=0;i<5;i++){await new Promise(resolve=>setTimeout(resolve,1600));const r=await fetch('https://platform.relaywa.com/api/health',{headers:{'cache-control':'no-cache'}});const t=await r.text();console.log('CHECK',i,r.status,r.headers.get('x-relaywa-platform-route'),t.slice(0,100));if(r.ok&&r.headers.get('x-relaywa-platform-route')==='vps-emergency'&&t.includes('relaywa-api')){good=true;break}}
+            if(!good)throw Error('Platform API health did not verify');
+            const r=await fetch('https://platform.relaywa.com/api/platform/whoami');console.log('WHOAMI_UNAUTH',r.status);if(r.status!==401&&r.status!==403)throw Error('Platform auth guard unexpected status');
+            console.log('PLATFORM_API_VERIFIED');
+          }catch(e){console.log('ROLLBACK',e.message);await api('/zones/'+zone+'/workers/routes/'+route.id,{method:'DELETE'});throw e}
+          NODE
