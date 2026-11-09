@@ -12,7 +12,7 @@ function load(relative, exported) {
  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,experimentalDecorators:true}}).outputText;
  const mod={exports:{}};
  new Function('module','exports','require',js)(mod,mod.exports,(id)=>{
-  if(id.startsWith('./enterprise-worker-'))return load('../src/worker-bridge/'+id.slice(2)+'.ts',id.includes('authorization')?'authorizeEnterpriseWorker':'unused');
+  if(id.startsWith('./enterprise-worker-'))return load('../src/worker-bridge/'+id.slice(2)+'.ts','unused');
   return require(id);
  });
  return exported==='unused'?mod.exports:mod.exports[exported];
