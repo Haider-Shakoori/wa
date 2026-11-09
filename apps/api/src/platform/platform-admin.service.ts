@@ -1089,6 +1089,11 @@ export class PlatformAdminService {
     return { messages: messages.rows, webhooks: webhooks.rows, commands: commands.rows };
   }
 
+  async paymentProviders() {
+    const result = await this.db.query(`SELECT provider, enabled, public_config, updated_at FROM payment_provider_settings ORDER BY provider`);
+    return result.rows;
+  }
+
   async payments() {
     const result = await this.db.query(
       `SELECT p.id, p.organization_id, o.name AS organization_name,
