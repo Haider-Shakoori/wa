@@ -11,7 +11,10 @@ BEGIN
   ) AS targets(table_name,column_name) LOOP
     SELECT data_type INTO actual_type FROM information_schema.columns
       WHERE table_schema=current_schema() AND table_name=item.table_name AND column_name=item.column_name;
-    IF actual_type IN ('text','character varying') THEN
+    IF actual_type IS NULL THEN
+      -- Some isolated installations omit optional auth tables/columns.
+      CONTINUE;
+    ELSIF actual_type IN ('text','character varying') THEN
       EXECUTE format('SELECT count(*) FROM %I WHERE %I IS NOT NULL AND %I !~ %L',
         item.table_name,item.column_name,item.column_name,
         '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$') INTO invalid_count;
