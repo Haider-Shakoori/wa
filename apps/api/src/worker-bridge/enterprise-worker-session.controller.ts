@@ -25,7 +25,7 @@ export class EnterpriseWorkerSessionController {
     const sessionId = uuid(body?.sessionId);
     const result = await this.db.query(
       `SELECT id,status,worker_id FROM whatsapp_sessions
-       WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL
+       WHERE id=$1 AND organization_id=$2 AND worker_id=$3 AND deleted_at IS NULL
          AND EXISTS (
            SELECT 1 FROM enterprise_workers ew
            WHERE ew.worker_id=$3 AND ew.organization_id=$2 AND ew.status='ready'
