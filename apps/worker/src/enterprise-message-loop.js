@@ -23,7 +23,7 @@ export async function processEnterpriseMessage({store,sessions}){
   }else{
    throw Error('Enterprise action delivery is not yet enabled');
   }
-  const providerId=typeof result==='string'?result:result?.key?.id??result?.id;
+  const providerId=typeof result==='string'?result:result?.providerMessageId??result?.key?.id??result?.id;
   if(typeof providerId!=='string'||!providerId)throw Error('WhatsApp send returned no provider message ID');
   await store.markMessageSent(message.id,providerId);
  }catch(error){
