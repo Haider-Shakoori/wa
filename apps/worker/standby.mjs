@@ -14,7 +14,7 @@ if (!workerId || !/^relaywa-worker-[a-z0-9-]+$/.test(workerId) || !apiUrl || !se
   process.exit(1);
 }
 const endpoint = new URL('/internal/worker/heartbeat', apiUrl);
-if (!['https:', 'http:'].includes(endpoint.protocol)) throw Error('Invalid API protocol');
+if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['127.0.0.1','localhost','::1'].includes(endpoint.hostname))) throw Error('HTTPS required except loopback');
 const abort = new AbortController();
 process.once('SIGTERM', () => abort.abort());
 process.once('SIGINT', () => abort.abort());
