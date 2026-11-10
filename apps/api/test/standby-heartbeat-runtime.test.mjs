@@ -25,6 +25,7 @@ test('dedicated token authorizes worker heartbeat', async () => {
     assert.equal(await authorizeWorkerHeartbeat(db, 'Bearer ' + token, workerId), workerId);
     await assert.rejects(authorizeSharedWorker(db, 'Bearer ' + token, workerId));
     await assert.rejects(authorizeWorkerHeartbeat(db, 'Bearer wrong-token', workerId));
+    await assert.rejects(authorizeWorkerHeartbeat(db, 'Bearer test-legacy-secret-not-production', workerId));
     await assert.rejects(authorizeWorkerHeartbeat(db, undefined, workerId));
   } finally {
     if (original === undefined) delete process.env.WORKER_DISPATCH_SECRET;
