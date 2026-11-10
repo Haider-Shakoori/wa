@@ -1,0 +1,30 @@
+# Worker 02 standby deployment (not production activation)
+#
+# Set WORKER_02_API_URL to a reachable HTTPS API endpoint and provide a
+# dedicated worker credential via a root-readable, non-repository env file.
+# Do not reuse existing worker credentials or WhatsApp authentication mounts.
+# No session recovery, command processing, or WhatsApp runtime is started.
+services:
+  relaywa-worker-02:
+    image: node:22-alpine
+    container_name: relaywa-worker-02
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "standby.mjs"]
+    volumes:
+      - ./apps/worker/standby.mjs:/app/standby.mjs:ro
+    env_file:
+      - ${WORKER_02_ENV_FILE:?Set an isolated worker credential env file}
+    environment:
+      WORKER_ID: relaywa-worker-02
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    cpus: 0.25
+    pids_limit: 64
+    networks:
+      - worker02
+networks:
+  worker02:
+    driver: bridge
