@@ -39,6 +39,13 @@ jobs:
           grep -q 'worker-heartbeat-authorization' apps/api/dist/worker-bridge/worker-bridge.controller.js
       - name: Execute compiled heartbeat authorization tests
         run: node --test apps/api/test/standby-heartbeat-runtime.test.mjs
+      - name: Upload isolated API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-worker02-candidate-api-dist
+          path: apps/api/dist/
+          retention-days: 3
+          if-no-files-found: error
       - name: Check standby syntax
         run: node --check apps/worker/standby.mjs
       - name: Check provisioning script syntax
