@@ -2,6 +2,10 @@ name: RelayWA Worker 02 Standby
 on:
   pull_request:
     paths:
+      - 'apps/api/src/worker-bridge/worker-heartbeat-authorization.ts'
+      - 'apps/api/src/worker-bridge/worker-bridge.controller.ts'
+      - 'apps/api/migrations/055_standby_worker_credentials.sql'
+      - 'apps/api/scripts/provision-standby-worker.mjs'
       - 'apps/worker/standby.mjs'
       - 'apps/worker/test/standby.test.mjs'
       - 'docker-compose.worker02-standby.yml'
@@ -19,6 +23,8 @@ jobs:
           node-version: '22'
       - name: Check standby syntax
         run: node --check apps/worker/standby.mjs
+      - name: Check provisioning script syntax
+        run: node --check apps/api/scripts/provision-standby-worker.mjs
       - name: Run isolated standby tests
         run: node --test apps/worker/test/standby.test.mjs
       - name: Validate compose configuration without credentials
