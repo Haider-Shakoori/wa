@@ -29,6 +29,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck API integration
         run: pnpm --filter @wa/api typecheck
+      - name: Build API distribution in CI isolation
+        run: pnpm --filter @wa/api build
+      - name: Verify compiled heartbeat controller
+        run: |
+          test -f apps/api/dist/worker-bridge/worker-bridge.controller.js
+          test -f apps/api/dist/worker-bridge/worker-heartbeat-authorization.js
+          grep -q 'worker-heartbeat-authorization' apps/api/dist/worker-bridge/worker-bridge.controller.js
       - name: Check standby syntax
         run: node --check apps/worker/standby.mjs
       - name: Check provisioning script syntax
