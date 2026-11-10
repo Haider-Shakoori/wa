@@ -1,5 +1,6 @@
 import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
 import { authorizeSharedWorker } from './shared-worker-authorization';
+import { authorizeWorkerHeartbeat } from './worker-heartbeat-authorization';
 import { DatabaseService } from '../database/database.service';
 type Input = { workerId?: unknown; sessionId?: unknown; leaseMs?: unknown; commandId?: unknown; error?: unknown };
 @Controller('internal/worker')
@@ -16,7 +17,7 @@ export class WorkerBridgeController {
  }
  @Post('heartbeat') @HttpCode(200)
  async heartbeat(@Headers('authorization') auth:string|undefined,@Body() body:Input) {
-  const workerId=await authorizeSharedWorker(this.db,auth,body.workerId);
+  const workerId=await authorizeWorkerHeartbeat(this.db,auth,body.workerId);
   await this.db.query(`INSERT INTO relaywa_worker_heartbeats(worker_id,first_seen_at,last_seen_at) VALUES ($1,now(),now()) ON CONFLICT(worker_id) DO UPDATE SET last_seen_at=now()`,[workerId]);
   return {ok:true};
  }

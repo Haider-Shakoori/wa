@@ -1,0 +1,79 @@
+name: RelayWA Worker 02 Standby
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/worker-bridge/worker-heartbeat-authorization.ts'
+      - 'apps/api/src/worker-bridge/worker-bridge.controller.ts'
+      - 'apps/api/migrations/055_standby_worker_credentials.sql'
+      - 'apps/api/scripts/provision-standby-worker.mjs'
+      - 'apps/api/test/standby-heartbeat-isolation.test.mjs'
+      - 'apps/api/test/standby-heartbeat-runtime.test.mjs'
+      - 'apps/api/test/standby-postgres-integration.test.mjs'
+      - 'apps/worker/standby.mjs'
+      - 'apps/worker/test/standby.test.mjs'
+      - 'docker-compose.worker02-standby.yml'
+      - '.github/workflows/worker02-standby.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-standby:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: standbytest
+          POSTGRES_PASSWORD: standbytest
+          POSTGRES_DB: standbytest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U standbytest -d standbytest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '12.9.1'
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck API integration
+        run: pnpm --filter @wa/api typecheck
+      - name: Build API distribution in CI isolation
+        run: pnpm --filter @wa/api build
+      - name: Verify compiled heartbeat controller
+        run: |
+          test -f apps/api/dist/worker-bridge/worker-bridge.controller.js
+          test -f apps/api/dist/worker-bridge/worker-heartbeat-authorization.js
+          grep -q 'worker-heartbeat-authorization' apps/api/dist/worker-bridge/worker-bridge.controller.js
+      - name: Execute compiled heartbeat authorization tests
+        run: node --test apps/api/test/standby-heartbeat-runtime.test.mjs
+      - name: Upload isolated API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: relaywa-worker02-candidate-api-dist
+          path: apps/api/dist/
+          retention-days: 3
+          if-no-files-found: error
+      - name: Test standby credentials against isolated PostgreSQL
+        env:
+          DATABASE_URL: postgresql://standbytest:standbytest@127.0.0.1:5432/standbytest
+        run: node --test apps/api/test/standby-postgres-integration.test.mjs
+      - name: Check standby syntax
+        run: node --check apps/worker/standby.mjs
+      - name: Check provisioning script syntax
+        run: node --check apps/api/scripts/provision-standby-worker.mjs
+      - name: Run isolated standby tests
+        run: node --test apps/worker/test/standby.test.mjs
+      - name: Test heartbeat authorization isolation
+        run: node --test apps/api/test/standby-heartbeat-isolation.test.mjs
+      - name: Validate compose configuration without credentials
+        run: |
+          touch /tmp/relaywa-worker02-test.env
+          WORKER_02_ENV_FILE=/tmp/relaywa-worker02-test.env docker compose -f docker-compose.worker02-standby.yml config --quiet
