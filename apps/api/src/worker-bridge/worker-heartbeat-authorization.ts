@@ -7,9 +7,6 @@ import { authorizeSharedWorker } from './shared-worker-authorization';
 export async function authorizeWorkerHeartbeat(
   db: DatabaseService, authorization: string | undefined, workerId: unknown,
 ): Promise<string> {
-  if (typeof workerId !== 'string' || !/^relaywa-worker-[a-z0-9-]{1,100}$/.test(workerId)) {
-    throw new ForbiddenException();
-  }
   if (!authorization?.startsWith('Bearer ')) throw new ForbiddenException();
   const token = authorization.slice(7);
   if (!token || token.length > 512) throw new ForbiddenException();
@@ -22,6 +19,7 @@ export async function authorizeWorkerHeartbeat(
       return authorizeSharedWorker(db, authorization, workerId);
     }
   }
+  if (typeof workerId !== 'string' || !/^relaywa-worker-[a-z0-9-]{1,100}$/.test(workerId)) throw new ForbiddenException();
   const result = await db.query(
     'SELECT token_sha256 FROM relaywa_standby_worker_credentials WHERE worker_id=$1 AND enabled=true AND revoked_at IS NULL LIMIT 1',
     [workerId],
