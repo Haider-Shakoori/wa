@@ -1,0 +1,26 @@
+name: RelayWA Worker 02 Standby
+on:
+  pull_request:
+    paths:
+      - 'apps/worker/standby.mjs'
+      - 'apps/worker/test/standby.test.mjs'
+      - 'docker-compose.worker02-standby.yml'
+      - '.github/workflows/worker02-standby.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-standby:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check standby syntax
+        run: node --check apps/worker/standby.mjs
+      - name: Run isolated standby tests
+        run: node --test apps/worker/test/standby.test.mjs
+      - name: Validate compose configuration without credentials
+        run: |
+          WORKER_02_ENV_FILE=/tmp/relaywa-worker02-test.env docker compose -f docker-compose.worker02-standby.yml config --quiet
