@@ -8,6 +8,7 @@ on:
       - 'apps/api/scripts/provision-standby-worker.mjs'
       - 'apps/api/test/standby-heartbeat-isolation.test.mjs'
       - 'apps/api/test/standby-heartbeat-runtime.test.mjs'
+      - 'apps/api/test/standby-postgres-integration.test.mjs'
       - 'apps/worker/standby.mjs'
       - 'apps/worker/test/standby.test.mjs'
       - 'docker-compose.worker02-standby.yml'
@@ -18,6 +19,20 @@ permissions:
 jobs:
   validate-standby:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: standbytest
+          POSTGRES_PASSWORD: standbytest
+          POSTGRES_DB: standbytest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U standbytest -d standbytest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,6 +61,10 @@ jobs:
           path: apps/api/dist/
           retention-days: 3
           if-no-files-found: error
+      - name: Test standby credentials against isolated PostgreSQL
+        env:
+          DATABASE_URL: postgresql://standbytest:standbytest@127.0.0.1:5432/standbytest
+        run: node --test apps/api/test/standby-postgres-integration.test.mjs
       - name: Check standby syntax
         run: node --check apps/worker/standby.mjs
       - name: Check provisioning script syntax
