@@ -22,6 +22,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '12.9.1'
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck API integration
+        run: pnpm --filter @wa/api typecheck
       - name: Check standby syntax
         run: node --check apps/worker/standby.mjs
       - name: Check provisioning script syntax
