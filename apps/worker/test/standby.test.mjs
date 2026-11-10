@@ -32,7 +32,7 @@ test('standby only sends a heartbeat with worker identity and stops on SIGTERM',
     });
   } finally {
     child.kill('SIGTERM');
-    await new Promise(resolve => child.once('exit', resolve));
+    if (child.exitCode === null && child.signalCode === null) await new Promise(resolve => child.once('exit', resolve));
     await new Promise(resolve => server.close(resolve));
   }
 });
