@@ -10,12 +10,15 @@ export async function authorizeWorkerHeartbeat(
   if (!authorization?.startsWith('Bearer ')) throw new ForbiddenException();
   const token = authorization.slice(7);
   if (!token || token.length > 512) throw new ForbiddenException();
+  // Reserve Worker 02 for its own credential, even if a legacy shared token is supplied.
+  // Other existing worker IDs retain the legacy authentication path unchanged.
+  const reservedStandby = workerId === 'relaywa-worker-02';
   // Preserve the current shared worker heartbeat path for existing deployments.
   const legacy = process.env.WORKER_DISPATCH_SECRET;
   if (legacy) {
     const actual = Buffer.from(token);
     const expected = Buffer.from(legacy);
-    if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
+    if (!reservedStandby && actual.length === expected.length && timingSafeEqual(actual, expected)) {
       return authorizeSharedWorker(db, authorization, workerId);
     }
   }
