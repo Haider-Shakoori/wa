@@ -23,4 +23,5 @@ jobs:
         run: node --test apps/worker/test/standby.test.mjs
       - name: Validate compose configuration without credentials
         run: |
+          touch /tmp/relaywa-worker02-test.env
           WORKER_02_ENV_FILE=/tmp/relaywa-worker02-test.env docker compose -f docker-compose.worker02-standby.yml config --quiet
