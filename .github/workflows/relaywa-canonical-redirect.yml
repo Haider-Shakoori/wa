@@ -1,0 +1,89 @@
+name: RelayWA canonical host redirect (guarded)
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Set true to apply after dry-run inspection'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: relaywa-canonical-redirect
+  cancel-in-progress: false
+jobs:
+  redirect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Inspect or apply isolated canonical redirect rule
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CF_TOKEN,account=process.env.CF_ACCOUNT;
+          if(!token||!account) throw Error('Required Cloudflare secrets missing');
+          const api='https://api.cloudflare.com/client/v4/';
+          async function cf(method,path,body) {
+            const response=await fetch(api+path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+            const json=await response.json();
+            if(!response.ok||!json.success) throw Error('Cloudflare '+method+' '+path+' failed (HTTP '+response.status+'): '+(json.errors||[]).map(e=>e.code).join(','));
+            return json.result;
+          }
+          const zones=await cf('GET','zones?name=relaywa.com');
+          const matching=zones.filter(z=>z.name==='relaywa.com'&&z.status==='active'&&z.account?.id===account);
+          if(matching.length!==1) throw Error('Expected one active relaywa.com zone in authorized account');
+          const zid=matching[0].id;
+          const phase='http_request_dynamic_redirect';
+          const rulesets=await cf('GET','zones/'+zid+'/rulesets');
+          const existing=rulesets.filter(r=>r.phase===phase&&r.kind==='zone');
+          if(existing.length>1) throw Error('Ambiguous redirect entrypoint; refusing to modify');
+          const rs=existing.length?await cf('GET','zones/'+zid+'/rulesets/'+existing[0].id):null;
+          const expr='(http.host in {"relaywa.com" "www.relaywa.com"} and (http.request.scheme eq "http" or http.host eq "www.relaywa.com"))';
+          const desired={action:'redirect',expression:expr,description:'RelayWA canonical HTTPS apex redirect (GitHub managed)',enabled:true,action_parameters:{from_value:{status_code:301,preserve_query_string:true,target_url:{expression:'concat("https://relaywa.com", http.request.uri.path)'}}}};
+          const mine=(rs?.rules||[]).filter(r=>r.description===desired.description);
+          if(mine.length>1) throw Error('Duplicate managed redirect rules; manual review required');
+          if(mine.length===1) {
+            const r=mine[0];
+            if(r.expression!==desired.expression||r.action!=='redirect'||r.action_parameters?.from_value?.status_code!==301||r.action_parameters?.from_value?.target_url?.expression!==desired.action_parameters.from_value.target_url.expression||r.action_parameters?.from_value?.preserve_query_string!==true||!r.enabled) throw Error('Managed rule differs from expected configuration; manual review required');
+            console.log('Existing correct canonical redirect rule found; no changes required');process.exit(0);
+          }
+          if(!process.env.APPLY||process.env.APPLY!=='true') {console.log('DRY RUN: would add one 301 redirect rule for HTTP apex and HTTP/HTTPS www. Existing zone redirect rules:',rs?.rules?.length||0);process.exit(0);}
+          let createdRuleId=null,createdRulesetId=null;
+          try {
+            if(rs) {
+              const updated=await cf('POST','zones/'+zid+'/rulesets/'+rs.id+'/rules',desired);
+              createdRuleId=updated.rules?.find(r=>r.description===desired.description)?.id;
+              if(!createdRuleId) throw Error('Created rule not present in API response');
+            } else {
+              const created=await cf('POST','zones/'+zid+'/rulesets',{name:'RelayWA canonical host redirects',kind:'zone',phase,rules:[desired]});
+              createdRulesetId=created.id;
+              if(!createdRulesetId) throw Error('Ruleset creation returned no ID');
+            }
+            const checks=[
+              ['http://relaywa.com/','https://relaywa.com/'],
+              ['https://www.relaywa.com/pricing?source=seo','https://relaywa.com/pricing?source=seo'],
+              ['http://www.relaywa.com/api-docs','https://relaywa.com/api-docs']
+            ];
+            for(let attempt=0;attempt<12;attempt++){
+              await new Promise(resolve=>setTimeout(resolve,5000));
+              const results=await Promise.all(checks.map(async ([url,target])=>{
+                const res=await fetch(url,{redirect:'manual',cache:'no-store'});
+                return res.status===301&&res.headers.get('location')===target;
+              }));
+              if(results.every(Boolean)){console.log('Verified 301 redirects and preserved paths/query strings');process.exit(0);}
+              console.log('Waiting for edge propagation, attempt',attempt+1);
+            }
+            throw Error('Redirect verification did not pass within propagation window');
+          } catch(err) {
+            console.error('Release failed; attempting rollback of only this run changes');
+            try {
+              if(createdRuleId&&rs) await cf('DELETE','zones/'+zid+'/rulesets/'+rs.id+'/rules/'+createdRuleId);
+              if(createdRulesetId) await cf('DELETE','zones/'+zid+'/rulesets/'+createdRulesetId);
+            }catch(rollbackError){console.error('Rollback failed; inspect Cloudflare ruleset manually:',String(rollbackError));}
+            throw err;
+          }
+          NODE
