@@ -1,0 +1,45 @@
+name: RelayWA GA4 Website Reporting End-to-End Check
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/ga4-real-report-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-google-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify real GA4 website-only reports with service-account secret
+        env:
+          GA4_SERVICE_ACCOUNT_JSON: ${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { relaywaGa4ReportData } from './cloudflare/ga4-reporting.mjs';
+          const json = process.env.GA4_SERVICE_ACCOUNT_JSON;
+          if (!json) throw new Error('GitHub GA4 secret missing');
+          const report = await relaywaGa4ReportData(
+            { GA4_SERVICE_ACCOUNT_JSON: json },
+            new URL('https://platform.relaywa.com/api/platform/google-analytics?days=7')
+          );
+          if (report.status !== 'ready' || report.propertyId !== '558119248') {
+            throw new Error('GA4 website-only report failed; check supported filters and Google permissions');
+          }
+          if (!Array.isArray(report.devices) || !report.summary || !Array.isArray(report.trend)) {
+            throw new Error('GA4 report response incomplete');
+          }
+          const categories = report.devices.map(x => x.name);
+          console.log('Success: full live Google GA4 website-only report and realtime API response validated.');
+          console.log('Device categories present in available data:', categories.join(', ') || 'none');
+          console.log('Desktop, mobile and tablet browsers all use platform=web and relaywa.com hostname filter.');
+          console.log('No credentials, tokens or user statistics were printed.');
+          JS

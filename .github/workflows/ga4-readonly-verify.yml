@@ -1,0 +1,27 @@
+name: GA4 Read-only Service Account Verification
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/ga4-readonly-verify.yml
+      - scripts/verify-ga4-service-account.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ga4-readonly:
+    name: Verify Google credentials and GA4 Viewer access
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Authenticate and request GA4 report (read only)
+        env:
+          GA4_SERVICE_ACCOUNT_JSON: ${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/verify-ga4-service-account.mjs

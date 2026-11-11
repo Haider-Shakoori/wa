@@ -1,0 +1,90 @@
+name: Cloudflare GA4 Binding Audit (read only)
+
+on:
+  push:
+    branches: [feat/ga4-cloudflare-credentials]
+    paths:
+      - .github/workflows/cloudflare-ga4-binding-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-ga4-binding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect RelayWA zone routing and named GA4 binding (GET only)
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          from urllib.parse import quote
+          token = os.getenv('CF_TOKEN', '')
+          account = os.getenv('CF_ACCOUNT', '')
+          if not token or not account:
+              print('Cloudflare credentials unavailable; cannot audit binding.')
+              raise SystemExit(1)
+
+          def get(path):
+              req = Request('https://api.cloudflare.com/client/v4/' + path,
+                            headers={'Authorization':'Bearer ' + token, 'Accept':'application/json'},
+                            method='GET')
+              try:
+                  with urlopen(req, timeout=12) as response:
+                      data = json.load(response)
+                  return data.get('result') if data.get('success') else None
+              except HTTPError as exc:
+                  print('Read-only API endpoint unavailable: HTTP', exc.code)
+                  return None
+              except Exception:
+                  print('Read-only API request unavailable.')
+                  return None
+
+          zones = get('zones?name=relaywa.com')
+          zone = next((z for z in zones if z.get('name') == 'relaywa.com'), None) if isinstance(zones, list) else None
+          if not zone:
+              print('relaywa.com Cloudflare zone not found in accessible zones.')
+              raise SystemExit(0)
+
+          routes = get('zones/' + quote(zone['id'], safe='') + '/workers/routes')
+          scripts = set()
+          if isinstance(routes, list):
+              for route in routes:
+                  if 'relaywa.com' in str(route.get('pattern','')):
+                      script = route.get('script')
+                      if script: scripts.add(script)
+              print('RelayWA Workers zone routes inspected:', len(routes))
+          else:
+              print('Worker route inspection unavailable with current token permissions.')
+
+          if not scripts:
+              known = get('accounts/' + quote(account, safe='') + '/workers/scripts')
+              if isinstance(known, list):
+                  scripts.update(item.get('id') for item in known
+                                 if 'relaywa' in str(item.get('id','')).lower() and item.get('id'))
+              print('Matching Worker scripts located:', len(scripts))
+
+          if not scripts:
+              print('Cannot determine the live RelayWA Worker script/binding from API permissions.')
+              raise SystemExit(0)
+
+          for name in sorted(scripts):
+              settings = get('accounts/' + quote(account, safe='') + '/workers/scripts/' +
+                             quote(name, safe='') + '/settings')
+              bindings = settings.get('bindings', []) if isinstance(settings, dict) else None
+              if bindings is None:
+                  print('RelayWA Worker:', name, 'secret-binding metadata unavailable.')
+                  continue
+              found = any(b.get('name') == 'GA4_SERVICE_ACCOUNT_JSON' and
+                          b.get('type') in ('secret_text','secret') for b in bindings)
+              print('RelayWA Worker:', name, '| GA4_SERVICE_ACCOUNT_JSON encrypted binding:',
+                    'present' if found else 'not listed')
+          print('Inspection complete; no Cloudflare configuration was modified.')
+          PY
