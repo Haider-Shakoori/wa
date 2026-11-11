@@ -156,6 +156,88 @@ export class PaymentsService {
     return {paymentId:id,demo:true,activated:subscription.subscription.status==='active'&&subscription.subscription.plan_code===plan.code,amountCents:amount,currency:plan.currency,subscription:subscription.subscription,invoice};
   }
 
+  async syncPendingStripeCheckout(input: any) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!input || !uuid.test(input.paymentId) || !uuid.test(input.organizationId) ||
+      !/^[a-z0-9_-]{1,40}$/.test(input.planCode) ||
+      !['monthly','annual'].includes(input.billingInterval) ||
+      !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0 ||
+      !/^[A-Z]{3}$/.test(input.currency) || typeof input.livemode !== 'boolean' ||
+      typeof input.checkoutId !== 'string' || !/^cs_(test_|live_)[A-Za-z0-9]+$/.test(input.checkoutId) ||
+      (input.livemode && !input.checkoutId.startsWith('cs_live_')) ||
+      (!input.livemode && !input.checkoutId.startsWith('cs_test_'))) {
+      throw new BadRequestException('Invalid pending Stripe checkout');
+    }
+    return this.db.transaction(async client => {
+      const org = await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[input.organizationId]);
+      if (!org.rows.length) throw new NotFoundException('Checkout organization not found');
+      const plan = await client.query<PlanRow>(
+        'SELECT code,monthly_price_cents,annual_price_cents,currency FROM subscription_plans WHERE code=$1',[input.planCode]);
+      const selected = plan.rows[0];
+      if (!selected || Number(input.amountCents) !== Number(input.billingInterval === 'annual' ? selected.annual_price_cents : selected.monthly_price_cents) ||
+        input.currency !== selected.currency.toUpperCase()) throw new ConflictException('Checkout does not match the plan catalog');
+      const existing = await client.query(`SELECT organization_id,plan_code,billing_interval,status,amount_cents,currency,
+        provider_checkout_id,stripe_livemode,provider FROM payments WHERE id=$1 FOR UPDATE`,[input.paymentId]);
+      if (existing.rows.length) {
+        const row=existing.rows[0];
+        if (row.organization_id!==input.organizationId || row.plan_code!==input.planCode ||
+          row.billing_interval!==input.billingInterval || Number(row.amount_cents)!==input.amountCents ||
+          row.currency.toUpperCase()!==input.currency || row.stripe_livemode!==input.livemode ||
+          row.provider!=='stripe' || row.provider_checkout_id!==input.checkoutId) {
+          throw new ConflictException('Pending checkout identity mismatch');
+        }
+        if (row.status==='pending' || row.status==='paid') return {synced:true,duplicate:true};
+        throw new ConflictException('Checkout is no longer eligible');
+      }
+      await client.query(`INSERT INTO payments
+        (id,organization_id,plan_code,provider,billing_interval,status,amount_cents,currency,stripe_livemode,provider_checkout_id)
+        VALUES ($1,$2,$3,'stripe',$4,'pending',$5,$6,$7,$8)`,
+        [input.paymentId,input.organizationId,input.planCode,input.billingInterval,input.amountCents,
+          input.currency,input.livemode,input.checkoutId]);
+      return {synced:true,duplicate:false};
+    });
+  }
+
+  async handleForwardedStripeEvent(event: any) {
+    const eventId = event.id as string;
+    const eventType = event.type as string;
+    const live = event.livemode;
+    if (typeof live !== 'boolean') throw new BadRequestException('Missing Stripe event mode');
+    const claimed = await this.db.query<{status:string}>(`
+      INSERT INTO stripe_forwarded_event_receipts
+        (event_id,event_type,stripe_livemode,status,lease_until)
+      VALUES ($1,$2,$3,'processing',now()+interval '2 minutes')
+      ON CONFLICT (event_id) DO UPDATE SET
+        status='processing',lease_until=now()+interval '2 minutes',
+        attempts=stripe_forwarded_event_receipts.attempts+1,updated_at=now()
+      WHERE stripe_forwarded_event_receipts.status='processing'
+        AND stripe_forwarded_event_receipts.lease_until < now()
+        AND stripe_forwarded_event_receipts.event_type=EXCLUDED.event_type
+        AND stripe_forwarded_event_receipts.stripe_livemode=EXCLUDED.stripe_livemode
+      RETURNING status`,[eventId,eventType,live]);
+    if (!claimed.rows.length) {
+      const prior = await this.db.query<{status:string,event_type:string,stripe_livemode:boolean}>(
+        `SELECT status,event_type,stripe_livemode FROM stripe_forwarded_event_receipts WHERE event_id=$1`,[eventId]);
+      if (prior.rows[0]?.event_type!==eventType || prior.rows[0]?.stripe_livemode!==live) {
+        throw new ConflictException('Stripe event identity conflict');
+      }
+      if (prior.rows[0]?.status==='completed') return {duplicate:true};
+      throw new ConflictException('Stripe event already processing; retry later');
+    }
+    try {
+      const result = await this.handleStripeEvent(event);
+      await this.db.query(`UPDATE stripe_forwarded_event_receipts SET status='completed',
+        completed_at=now(),updated_at=now() WHERE event_id=$1`,[eventId]);
+      return result;
+    } catch (error) {
+      // Release failed attempts for Stripe's next delivery. A crash is covered
+      // by the lease; existing payment/subscription transitions are idempotent.
+      await this.db.query(`DELETE FROM stripe_forwarded_event_receipts
+        WHERE event_id=$1 AND status='processing'`,[eventId]);
+      throw error;
+    }
+  }
+
   async handleStripeEvent(event: any) {
     if (event.type === 'invoice.paid') {
       return this.handleStripeRenewal(event);
