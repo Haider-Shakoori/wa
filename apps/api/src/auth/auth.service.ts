@@ -98,7 +98,7 @@ export class AuthService {
     if (user?.is_platform_admin) {
       const failures=await this.db.query<{total:number}>(`SELECT count(*)::int AS total
         FROM platform_login_events WHERE user_id=$1 AND outcome='failed'
-        AND created_at > now()-interval '15 minutes'`,[user.id]);
+        AND created_at::timestamptz > now()-interval '15 minutes'`,[user.id]);
       if ((failures.rows[0]?.total??0)>=5) {
         throw new HttpException('Too many failed administrator sign-in attempts. Try again in 15 minutes.',429);
       }
@@ -514,7 +514,7 @@ export class AuthService {
         context?.ip?.slice(0,64) ?? null, context?.userAgent?.slice(0,256) ?? null]);
     if (outcome === 'failed' && method === 'password') {
       const failures=await this.db.query<{total:number}>(`SELECT count(*)::int AS total FROM platform_login_events
-        WHERE user_id=$1 AND outcome='failed' AND created_at > now()-interval '15 minutes'`,[userId]);
+        WHERE user_id=$1 AND outcome='failed' AND created_at::timestamptz > now()-interval '15 minutes'`,[userId]);
       if ((failures.rows[0]?.total??0)>=5) {
         await this.db.query(`INSERT INTO system_alerts
           (id,event_type,severity,dedupe_key,resource_type,resource_id,subject,summary,details)

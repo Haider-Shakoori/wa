@@ -83,14 +83,14 @@ export class ApiAccessGuard implements CanActivate {
     // Tenant suspension invalidates existing user JWTs and organization API keys.
     const result = await this.db.query(
       `SELECT m.id FROM organization_memberships m
-       JOIN users u ON u.id = m.user_id
-       JOIN organizations o ON o.id = m.organization_id
-       WHERE m.id = $1 AND m.organization_id = $2 AND m.user_id = $3
+       JOIN users u ON u.id::text = m.user_id::text
+       JOIN organizations o ON o.id::text = m.organization_id::text
+       WHERE m.id::text = $1::text AND m.organization_id::text = $2::text AND m.user_id::text = $3::text
          AND m.status = 'active' AND u.disabled_at IS NULL
          AND o.suspended_at IS NULL
          AND u.token_version=COALESCE($4::int,0)
-         AND ($5::uuid IS NULL OR EXISTS (SELECT 1 FROM user_login_sessions ls
-           WHERE ls.id=$5::uuid AND ls.user_id=u.id AND ls.revoked_at IS NULL AND ls.expires_at>now()))
+         AND ($5::text IS NULL OR EXISTS (SELECT 1 FROM user_login_sessions ls
+           WHERE ls.id::text=$5::text AND ls.user_id::text=u.id::text AND ls.revoked_at IS NULL AND ls.expires_at::timestamptz>now()))
          LIMIT 1`,
       [request.auth.membership, request.auth.org, request.auth.sub,request.auth.ver??0,request.auth.sid??null],
     );

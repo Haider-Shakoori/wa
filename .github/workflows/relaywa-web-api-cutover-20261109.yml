@@ -1,73 +1,125 @@
-name: RelayWA web API cutover to VPS
+name: RelayWA web API cutover to VPS (asset-aware)
 on:
+  push:
+    branches:
+      - fix/relaywa-vps-api-routing-20261109
+    paths:
+      - .github/workflows/relaywa-web-api-cutover-20261109.yml
   workflow_dispatch:
+    inputs:
+      promote_production:
+        description: 'Promote the validated staged Worker version to 100% production traffic'
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
+concurrency:
+  group: relaywa-web-api-cutover
+  cancel-in-progress: false
 jobs:
-  switch:
+  cutover:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 12
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROMOTE_PRODUCTION: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_production }}
     steps:
-      - name: Patch live web Worker API path with versioned rollback
+      - name: Build and stage an asset-preserving Worker version
         run: |
           node --input-type=module <<'NODE'
-          const account=process.env.CF_ACCOUNT,token=process.env.CF_TOKEN;
+          const account=process.env.CF_ACCOUNT, token=process.env.CF_TOKEN;
           if(!account||!token)throw Error('Cloudflare credentials missing');
           const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/relaywa-web';
           const h={authorization:'Bearer '+token};
           async function json(url,init={}){
             const r=await fetch(url,{...init,headers:{...h,...init.headers},signal:AbortSignal.timeout(30000)});
-            const j=await r.json();if(!r.ok||!j.success)throw Error(url+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]));return j.result;
+            const j=await r.json().catch(()=>({}));
+            if(!r.ok||!j.success)throw Error(url+' HTTP '+r.status+' '+JSON.stringify(j.errors||[]));
+            return j.result;
           }
           const origin=await fetch('https://relaywa-vps-origin.relaywa.com/api/health',{signal:AbortSignal.timeout(12000)}).then(r=>r.json());
           if(origin.service!=='relaywa-api')throw Error('VPS origin not ready');
           const deployed=await json(base+'/deployments');
-          const versions=deployed.deployments?.[0]?.versions;
-          if(versions?.length!==1||versions[0].percentage!==100)throw Error('Unexpected web traffic split');
-          const original=versions[0].version_id;
+          const active=deployed.deployments?.[0]?.versions?.find(v=>v.percentage===100);
+          if(!active)throw Error('No single 100% active Worker version');
+          const original=active.version_id;
           const settings=await json(base+'/settings');
           const download=await fetch(base,{headers:h,signal:AbortSignal.timeout(30000)});
-          if(!download.ok)throw Error('Cannot download web Worker');
-          const form=await download.formData();
-          const entry=form.get('index.js');if(!entry)throw Error('Missing web entrypoint');
+          if(!download.ok)throw Error('Cannot download complete deployed Worker bundle');
+          const modules=await download.formData();
+          const entry=modules.get('index.js');
+          if(!entry)throw Error('Missing index.js in deployed Worker bundle');
           const source=typeof entry==='string'?entry:await entry.text();
           const needle='const response=await xy.fetch(request,env,ctx);';
-          if(source.includes('relaywa-vps-origin.relaywa.com'))throw Error('Already patched; inspect manually');
-          if(source.split(needle).length!==2)throw Error('Unexpected web entrypoint shape');
-          const injected=`if(new URL(request.url).pathname.match(/^\\/api(?:\\/|$)/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
-          const patched=source.replace(needle,injected+needle);
-          if(patched.length-source.length>1000)throw Error('Patch size exceeds bound');
-          if((settings.bindings||[]).some(b=>b.type==='assets'))throw Error('SAFE_STOP: Existing Worker has static assets; require complete asset manifest/JWT from original build before creating a version. Never upload code-only or replace ASSETS.');
-          const metadata={main_module:'index.js',bindings:(settings.bindings||[]).map(b=>({type:'inherit',name:b.name})),compatibility_date:settings.compatibility_date,compatibility_flags:settings.compatibility_flags||[],annotations:{'workers/message':'RelayWA emergency same-origin API to VPS'}};
-          const upload=new FormData();upload.append('metadata',JSON.stringify(metadata));
-          for(const [name,v] of form.entries()){
-            if(name==='index.js')upload.append(name,new Blob([patched],{type:'application/javascript+module'}),name);
-            else if(typeof v==='string')upload.append(name,new Blob([v],{type:'application/javascript+module'}),name);
-            else upload.append(name,new Blob([await v.arrayBuffer()],{type:v.type||'application/javascript+module'}),name);
-          }
-          const again=await json(base+'/deployments');
-          if(again.deployments?.[0]?.versions?.[0]?.version_id!==original)throw Error('Concurrent web deployment; abort');
-          const staged=await json(base+'/versions?bindings_inherit=strict',{method:'POST',body:upload});
-          const next=staged.id??staged.version?.id;if(!next)throw Error('Staging version missing');
-          console.log('STAGED',next,'ROLLBACK',original);
-          const deployment=await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:next,percentage:100}]})});
-          console.log('DEPLOYED',next);
-          try{
-            let ok=false;
-            for(let i=0;i<8;i++){
-              const res=await fetch('https://relaywa.com/api/health?check='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(10000)});
-              const data=await res.json().catch(()=>({}));
-              if(res.ok&&data.service==='relaywa-api'){ok=true;break;}
-              await new Promise(resolve=>setTimeout(resolve,2000));
+          // Existing gateway is updated in place after structural validation.
+          // Check entrypoint shape in the branch below.
+          const injected=`if(new URL(request.url).pathname.match(/^\\/api\\/(?:auth(?:\\/|$)|v1\\/(?:auth|sessions)(?:\\/|$)|platform(?:\\/|$)|v1\\/platform(?:\\/|$)|whatsapp-sessions(?:\\/|$))/)){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";const headers=new Headers(request.headers);headers.delete("host");headers.set("X-Forwarded-Host",new URL(request.url).host);return fetch(new Request(target.toString(),{method:request.method,headers,body:["GET","HEAD"].includes(request.method)?undefined:request.body,redirect:"manual"}));}\n`;
+          let patched;
+          if(source.includes('relaywa-vps-origin.relaywa.com')){
+            const start=source.indexOf('if(new URL(request.url).pathname.match(');
+            const end=start<0?-1:source.indexOf(')){const target=',start);
+            if(start<0||end<0)throw Error('Existing gateway structure unrecognized; abort');
+            const existing=source.slice(start,end);
+            if(!existing.includes('whatsapp-sessions'))throw Error('Existing gateway routes unrecognized; abort');
+            if(existing.includes('platform')){patched=source;}else{
+            const expanded=existing.replace('whatsapp-sessions',String.raw`platform(?:\/|$)|v1\/platform(?:\/|$)|whatsapp-sessions`);
+            patched=source.slice(0,start)+expanded+source.slice(end);
             }
-            if(!ok)throw Error('Public website API did not reach VPS');
-            console.log('WEBSITE_API_CUTOVER_SUCCESS');
-          }catch(error){
-            console.log('VERIFICATION_FAILED_ROLLING_BACK',error.message);
-            await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:original,percentage:100}]})});
-            throw error;
+          }else{
+            if(source.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape');
+            patched=source.replace(needle,injected+needle);
           }
+          const providerBridge=`if(new URL(request.url).pathname==="/api/billing/providers"){const target=new URL(request.url);target.hostname="relaywa-vps-origin.relaywa.com";target.pathname="/api/platform/payment-providers";const headers=new Headers(request.headers);headers.delete("host");return fetch(new Request(target.toString(),{method:request.method,headers,body:request.body,redirect:"manual"}));}`;
+          if(!patched.includes('target.pathname="/api/platform/payment-providers"')){
+            if(patched.split(needle).length!==2)throw Error('Unexpected Worker entrypoint shape for provider bridge');
+            patched=patched.replace(needle,providerBridge+needle);
+          }
+          if(patched.length-source.length>1400)throw Error('Patch size exceeds bound');
+          const hasAssets=(settings.bindings||[]).some(b=>b.type==='assets');
+          const metadata={
+            main_module:settings.main_module||'index.js',
+            bindings:(settings.bindings||[]).map(b=>b.type==='assets'?{type:'assets',name:b.name}:{type:'inherit',name:b.name}),
+            ...(hasAssets?{keep_assets:true}:{}),
+            ...(settings.compatibility_date?{compatibility_date:settings.compatibility_date}:{}),
+            ...(settings.compatibility_flags?{compatibility_flags:settings.compatibility_flags}:{}),
+            annotations:{'workers/message':'RelayWA client API VPS gateway; assets retained; B2B excluded'}
+          };
+          const upload=new FormData();
+          upload.append('metadata',JSON.stringify(metadata));
+          let copied=0;
+          for(const [name,value] of modules.entries()){
+            const bytes=typeof value==='string'?new Blob([name==='index.js'?patched:value],{type:'application/javascript+module'}):new Blob([await value.arrayBuffer()],{type:value.type||'application/octet-stream'});
+            upload.append(name,bytes,name);
+            copied++;
+          }
+          if(!copied)throw Error('Complete Worker bundle was empty');
+          const staged=await json(base+'/versions?bindings_inherit=strict',{method:'POST',body:upload});
+          const next=staged.id??staged.version?.id;
+          if(!next)throw Error('Staged version ID missing');
+          const check=await json(base+'/deployments');
+          const still=check.deployments?.[0]?.versions?.find(v=>v.percentage===100)?.version_id;
+          if(still!==original)throw Error('Active Worker changed during staging');
+          console.log('STAGED_VERSION',next);
+          console.log('ROLLBACK_VERSION',original);
+          console.log('ASSETS_PRESERVED',hasAssets);
+          console.log('MODULE_COUNT',copied);
+          if(process.env.PROMOTE_PRODUCTION!=='true'){
+            console.log('STAGE_ONLY_COMPLETE');
+            process.exit(0);
+          }
+          const deployment=await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:next,percentage:100}]})});
+          let ok=false;
+          for(let i=0;i<10;i++){
+            const r=await fetch('https://relaywa.com/api/health?check='+Date.now(),{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(10000)});
+            const data=await r.json().catch(()=>({}));
+            if(r.ok&&data.service==='relaywa-api'){ok=true;break}
+            await new Promise(resolve=>setTimeout(resolve,2000));
+          }
+          if(!ok){
+            await json(base+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({strategy:'percentage',versions:[{version_id:original,percentage:100}]})});
+            throw Error('Production verification failed; rolled back to '+original);
+          }
+          console.log('PRODUCTION_CUTOVER_SUCCESS',next);
           NODE

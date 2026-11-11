@@ -173,7 +173,7 @@ export default function PlatformPage() {
         api('/platform/queues',current),
         api('/platform/errors?view='+diagnosticView,current),
         api('/platform/payments',current),
-        api('/billing/providers',current),
+        api('/platform/payment-providers',current),
         api('/platform/settings/auth-providers',current),
         api('/platform/settings/messaging-engine',current),
         api('/platform/settings/messaging-safety',current),
@@ -544,7 +544,16 @@ export default function PlatformPage() {
         </div>)}
       </nav>
       <div className="sidebar-bottom">
-        <a className="ghost-button platform-link" href="/dashboard">↗ Customer workspace</a>
+        <button type="button" className="ghost-button platform-link" onClick={async()=>{
+          setError('');
+          const current=localStorage.getItem('relaywa_access_token');
+          if(!current){setError('Your customer workspace session is missing. Sign in with your workspace account.');return;}
+          try {
+            const response=await fetch(API_BASE+'/auth/me',{headers:{authorization:'Bearer '+current},cache:'no-store'});
+            if(!response.ok){setError(response.status===401?'Your customer workspace session has expired. Sign in again to access it.':'Customer workspace access could not be verified (HTTP '+response.status+').');return;}
+            router.push('/dashboard');
+          } catch {setError('Could not reach the workspace authentication service. Please retry.');}
+        }}>↗ Customer workspace</button>
         <div className="status-pill"><span className="live-dot"/>Platform operations · Admin</div>
         <button className="danger-button account-logout" onClick={accountLogout}>Sign out</button>
       </div>

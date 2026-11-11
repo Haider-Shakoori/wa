@@ -234,6 +234,9 @@ export class PlatformAdminController {
   @Get('queues')
   queues() { return this.platform.queues(); }
 
+  @Get('payment-providers')
+  paymentProviders() { return this.platform.paymentProviders(); }
+
   @Get('payments')
   payments() { return this.platform.payments(); }
 

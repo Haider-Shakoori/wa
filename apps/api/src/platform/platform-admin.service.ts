@@ -37,11 +37,11 @@ export class PlatformAdminService {
       this.count(`SELECT count(*)::text AS count FROM whatsapp_messages m
         LEFT JOIN platform_diagnostic_archives a ON a.resource_type='message' AND a.resource_id=m.id
         WHERE m.direction='outbound' AND m.status='failed'
-        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=m.updated_at)`),
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at::timestamptz>=m.updated_at)`),
       this.count(`SELECT count(*)::text AS count FROM webhook_deliveries w
         LEFT JOIN platform_diagnostic_archives a ON a.resource_type='webhook' AND a.resource_id=w.id
         WHERE w.status='failed'
-        AND NOT(a.archived_at IS NOT NULL AND a.archived_at>=w.updated_at)`),
+        AND NOT(a.archived_at IS NOT NULL AND a.archived_at::timestamptz>=w.updated_at)`),
     ]);
 
     return {
@@ -410,7 +410,7 @@ export class PlatformAdminService {
        LEFT JOIN organization_subscriptions s ON s.organization_id = o.id
        LEFT JOIN whatsapp_sessions ws ON ws.organization_id = o.id AND ws.deleted_at IS NULL
        LEFT JOIN organization_memberships m ON m.organization_id = o.id AND m.status = 'active'
-       GROUP BY o.id, s.plan_code, s.status, s.current_period_end, s.trial_ends_at
+       GROUP BY o.id, o.name, o.slug, o.created_at, o.suspended_at, o.suspension_reason, s.plan_code, s.status, s.current_period_end, s.trial_ends_at
        ORDER BY o.created_at DESC
        LIMIT 200`,
     );
@@ -1089,6 +1089,11 @@ export class PlatformAdminService {
     return { messages: messages.rows, webhooks: webhooks.rows, commands: commands.rows };
   }
 
+  async paymentProviders() {
+    const result = await this.db.query(`SELECT provider, enabled, public_config, updated_at FROM payment_provider_settings ORDER BY provider`);
+    return result.rows;
+  }
+
   async payments() {
     const result = await this.db.query(
       `SELECT p.id, p.organization_id, o.name AS organization_name,
@@ -1116,7 +1121,7 @@ export class PlatformAdminService {
           ON a.resource_type='${resource}' AND a.resource_id=t.id
         WHERE t.last_error IS NOT NULL
           AND (${archived?'NOT':' '}(${condition})
-            ${archived?'OR':'AND'} ${archived?'':'NOT'}(a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))
+            ${archived?'OR':'AND'} ${archived?'':'NOT'}(a.archived_at IS NOT NULL AND a.archived_at::timestamptz>=t.updated_at))
         ORDER BY t.updated_at DESC LIMIT 50`);
     const sessionsQuery=this.db.query(`SELECT t.id,t.organization_id,t.name,t.status,
       t.last_connection_error,t.updated_at,a.archived_at,
@@ -1126,8 +1131,8 @@ export class PlatformAdminService {
         ON a.resource_type='session' AND a.resource_id=t.id
       WHERE t.last_connection_error IS NOT NULL
         AND ${archived?
-          "(t.status='connected' OR (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))":
-          "(t.status<>'connected' AND NOT (a.archived_at IS NOT NULL AND a.archived_at>=t.updated_at))"}
+          "(t.status='connected' OR (a.archived_at IS NOT NULL AND a.archived_at::timestamptz>=t.updated_at))":
+          "(t.status<>'connected' AND NOT (a.archived_at IS NOT NULL AND a.archived_at::timestamptz>=t.updated_at))"}
       ORDER BY t.updated_at DESC LIMIT 50`);
     const [sessions,messages,webhooks]=await Promise.all([
       sessionsQuery,

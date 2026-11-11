@@ -26,6 +26,7 @@ test('expired browser JWTs send platform and tenant accounts to their own sign-i
 test('unauthorized protected API requests log out but failed password logins do not', async()=>{
  const api=await read('../lib/api.ts');
  assert.match(api,/response\.status === 401 && token/);
+ assert.match(api,/path === '\/auth\/me'/);
  assert.match(api,/expireBrowserSession\(token\)/);
  assert.match(api,/if \(!response\.ok\)/);
  assert.doesNotMatch(api,/response\.status === 403 && token/);
