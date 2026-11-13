@@ -15,7 +15,9 @@ permissions:
 
 jobs:
   browser-qa:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 browser dependencies are not supported on Ubuntu 26.04.
+    # Pin to a supported runner until Playwright and its browser package are upgraded.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
