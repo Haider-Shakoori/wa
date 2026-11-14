@@ -67,6 +67,10 @@ export default async function Tutorial({params}:Params){
       <section className="rw-article-next">
         <h2>Use the tested examples and canonical API reference</h2>
         <p>Browse the complete example source at <a href={'https://github.com/Haider-Shakoori/wa/blob/main/'+article.sourcePath} target="_blank" rel="noopener noreferrer">RelayWA's example source on GitHub</a>. Keep production secrets private. Run the tests before integrating with real customer accounts.</p>
+        {article.slug === 'laravel-whatsapp-api-order-notifications' && <div>
+          <p><strong>Prefer a Composer SDK?</strong> The tutorial above uses Laravel's native HTTP client. Alternatively, install the published <a href="https://packagist.org/packages/relaywa/sdk" target="_blank" rel="noopener noreferrer">RelayWA PHP SDK on Packagist</a> and adapt its <a href="https://github.com/Haider-Shakoori/relaywa-php-sdk/tree/main/examples/laravel-order-notifications" target="_blank" rel="noopener noreferrer">Laravel order-shipped notification example</a>. The example covers opted-in recipients and cautious timeout handling.</p>
+          <p><Link href="/register">Start a free trial</Link> to connect a test session, then verify the integration with a recipient who expects your message. A connected QR-linked session is required.</p>
+        </div>}
         <p><Link href="/api-docs#quickstart">REST API quickstart</Link> · <Link href="/api-docs#webhooks">Signed webhook specification</Link> · <Link href="/pricing">Compare plans</Link></p>
         <Link href="/blog">← All developer tutorials</Link>
       </section>
