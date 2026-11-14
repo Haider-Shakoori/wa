@@ -426,6 +426,7 @@ export default function DocsPage() {
               <h3>PHP (Packagist)</h3>
               <pre><code>composer require relaywa/sdk</code></pre>
               <p><a href="https://packagist.org/packages/relaywa/sdk" target="_blank" rel="noopener noreferrer">Package and usage instructions on Packagist</a></p>
+              <p><a href="https://github.com/Haider-Shakoori/relaywa-php-sdk/tree/main/examples/laravel-order-notifications" target="_blank" rel="noopener noreferrer">Laravel order-notification example (source and setup)</a></p>
             </section>
             <section className="docs-framework-guide">
               <h3>C# / .NET 8+ (NuGet)</h3>
@@ -448,6 +449,7 @@ export default function DocsPage() {
               <p><strong>Setup:</strong> {guide.requirements}</p>
               <pre><code>{integrationExamples[guide.codeKey]}</code></pre>
               <p><strong>Receiving events:</strong> {guide.webhook}</p>
+              {guide.id === 'integration-laravel' && <p><a href="https://github.com/Haider-Shakoori/relaywa-php-sdk/tree/main/examples/laravel-order-notifications" target="_blank" rel="noopener noreferrer">Use the ready-to-adapt Laravel order notification SDK example</a></p>}
               <p className="docs-framework-links"><a href="#quickstart">API quickstart</a><a href="#webhooks">Webhook signatures</a><a href="#queue">Scheduling and retries</a></p>
             </section>)}
           </div>
