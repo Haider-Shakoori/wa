@@ -17,3 +17,13 @@ test('renewal and restrictions require known Stripe subscription and mode',()=>{
  assert.match(bots,/invoice.payment_failed/);
  assert.match(bots,/customer.subscription.deleted/);
 });
+
+test('late renewal cannot resurrect canceled entitlement',()=>{
+ assert.match(bots,/status==='canceled'/);
+ assert.match(bots,/AND status<>'canceled'/);
+});
+test('renewal uses Stripe invoice billing period, not guessed month',()=>{
+ assert.match(bots,/line.period\?\.end/);
+ assert.match(bots,/missing_billing_period/);
+ assert.match(bots,/to_timestamp\(\$4\)/);
+});
