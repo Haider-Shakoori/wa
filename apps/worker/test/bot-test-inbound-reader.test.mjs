@@ -18,6 +18,7 @@ test('reads only allowed stored inbound messages and previews without sending',a
   assert.equal(result.decisions[0].action,'preview');
   assert.equal(result.liveSendPermitted,false);
   assert.match(queries[1].sql,/direction='inbound'/);
+  assert.match(queries[1].sql,/chat_jid NOT LIKE/);
   assert.doesNotMatch(queries[1].sql,/raw_payload/);
   assert.deepEqual(queries[1].args,[TEST_SESSION_ID,'tenant_1',since,10]);
 });
