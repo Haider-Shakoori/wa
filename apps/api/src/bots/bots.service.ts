@@ -1,13 +1,118 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { StripeProvider } from '../payments/stripe.provider';
-import { botAddonPlan, type BotAddonPlan } from './bot-billing-policy';
+import { botAddonPlan, verifyBotAddonCheckout, type BotAddonPlan } from './bot-billing-policy';
 import { DatabaseService } from '../database/database.service';
 import { CreateBotDto, CreateFaqDto } from './bots.dto';
 
 @Injectable()
 export class BotsService {
   constructor(private readonly db: DatabaseService, private readonly stripe: StripeProvider) {}
+
+  async ownsStripeSubscription(subscriptionId: string, livemode: boolean) {
+    const found=await this.db.query(
+      'SELECT 1 FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2 LIMIT 1',
+      [subscriptionId,livemode]);
+    return !!found.rowCount;
+  }
+
+  async handleStripeEvent(event: any) {
+    const object = event.data?.object;
+    if (event.type === 'checkout.session.completed') {
+      if (object?.metadata?.relaywa_product !== 'bot_addon') return {ignored:true};
+      const orderId = object.metadata.relaywa_bot_order_id;
+      if (!orderId) return {ignored:true};
+      return this.db.transaction(async client => {
+        const found = await client.query(
+          'SELECT organization_id FROM relaywa_bot_checkout_orders WHERE id=$1 AND stripe_livemode=$2',
+          [orderId,event.livemode]);
+        if (!found.rows[0]) return {ignored:true};
+        const org=found.rows[0].organization_id;
+        await client.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[org]);
+        const selected=await client.query(
+          'SELECT * FROM relaywa_bot_checkout_orders WHERE id=$1 AND organization_id=$2 FOR UPDATE',
+          [orderId,org]);
+        const order=selected.rows[0];
+        if (order.status==='paid') return {duplicate:true};
+        if (order.status!=='pending') return {ignored:true};
+        const ref=typeof object.subscription==='string'?object.subscription:object.subscription?.id;
+        const checked=verifyBotAddonCheckout({
+          checkoutId:object.id,checkoutMode:object.mode,paymentStatus:object.payment_status,
+          subscriptionId:ref??null,metadata:object.metadata??null,
+          currency:object.currency??'',amountTotal:Number(object.amount_total),
+          livemode:event.livemode,
+          expected:{checkoutId:order.stripe_checkout_id,organizationId:org,
+            planCode:order.plan_code,amountCents:order.amount_cents,
+            livemode:order.stripe_livemode},
+        });
+        if (!checked.verified) throw new BadRequestException('Bot checkout verification failed');
+        const existing=await client.query(
+          'SELECT stripe_subscription_id FROM relaywa_bot_entitlements WHERE organization_id=$1 FOR UPDATE',[org]);
+        if (existing.rows[0]?.stripe_subscription_id &&
+            existing.rows[0].stripe_subscription_id!==ref)
+          throw new ConflictException('Another Bot Builder subscription already exists');
+        const plan=botAddonPlan(order.plan_code);
+        await client.query(
+          `INSERT INTO relaywa_bot_entitlements
+           (organization_id,plan_code,status,max_bots,monthly_reply_limit,stripe_subscription_id,
+            stripe_livemode,current_period_end)
+           VALUES($1,$2,'active',$3,$4,$5,$6,now()+interval '1 month')
+           ON CONFLICT (organization_id) DO UPDATE SET
+           plan_code=EXCLUDED.plan_code,status='active',max_bots=EXCLUDED.max_bots,
+           monthly_reply_limit=EXCLUDED.monthly_reply_limit,
+           stripe_subscription_id=EXCLUDED.stripe_subscription_id,
+           stripe_livemode=EXCLUDED.stripe_livemode,
+           current_period_end=EXCLUDED.current_period_end,updated_at=now()`,
+          [org,order.plan_code,plan.maxBots,plan.monthlyReplyLimit,ref,event.livemode]);
+        await client.query(
+          "UPDATE relaywa_bot_checkout_orders SET status='paid' WHERE id=$1 AND status='pending'",[orderId]);
+        return {activated:true};
+      });
+    }
+    const ref=event.type==='invoice.paid'||event.type==='invoice.payment_failed'
+      ?object?.parent?.subscription_details?.subscription:object?.id;
+    const subscriptionId=typeof ref==='string'?ref:ref?.id;
+    if (!subscriptionId) return {ignored:true};
+    // Never grant an entitlement from an unrecognized subscription event.
+    if (event.type==='invoice.paid') {
+      if (object.billing_reason!=='subscription_cycle' || object.status!=='paid' ||
+          !object.id || Number(object.amount_paid)<=0) return {ignored:true};
+      const found=await this.db.query(
+        'SELECT plan_code FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2',
+        [subscriptionId,event.livemode]);
+      if (!found.rows[0] || Number(object.amount_paid)!==botAddonPlan(found.rows[0].plan_code).monthlyCents ||
+          object.currency!=='usd') return {ignored:true};
+      const result=await this.db.transaction(async client => {
+        const selected=await client.query(
+          'SELECT organization_id FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2 FOR UPDATE',
+          [subscriptionId,event.livemode]);
+        if (!selected.rows[0]) return {ignored:true};
+        const org=selected.rows[0].organization_id;
+        const inserted=await client.query(
+          `INSERT INTO relaywa_bot_renewal_events(stripe_invoice_id,stripe_livemode,organization_id)
+           VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING stripe_invoice_id`,
+          [object.id,event.livemode,org]);
+        if (!inserted.rowCount) return {duplicate:true};
+        await client.query(
+          `UPDATE relaywa_bot_entitlements SET status='active',
+           current_period_end=GREATEST(COALESCE(current_period_end,now()),now())+interval '1 month',
+           updated_at=now() WHERE organization_id=$1 AND stripe_subscription_id=$2 AND stripe_livemode=$3`,
+          [org,subscriptionId,event.livemode]);
+        return {renewed:true};
+      });
+      return result;
+    }
+    const restricted=event.type==='customer.subscription.deleted'?'canceled':
+      event.type==='invoice.payment_failed'?'past_due':
+      event.type==='customer.subscription.updated'?
+        (['past_due','unpaid'].includes(object.status)?'past_due':
+         ['canceled','incomplete_expired'].includes(object.status)?'canceled':null):null;
+    if (!restricted) return {ignored:true};
+    await this.db.query(
+      'UPDATE relaywa_bot_entitlements SET status=$3,updated_at=now() WHERE stripe_subscription_id=$1 AND stripe_livemode=$2',
+      [subscriptionId,event.livemode,restricted]);
+    return {restricted:true};
+  }
 
   async checkout(org: string, planCode: string) {
     const plan = botAddonPlan(planCode);
