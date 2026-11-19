@@ -22,6 +22,7 @@ export async function inspectStoredTestInbound({ db, pipeline, since, limit = 10
       WHERE session_id=$1 AND organization_id=$2
         AND direction='inbound' AND message_type='text'
         AND provider_message_id IS NOT NULL
+        AND chat_jid IS NOT NULL AND chat_jid NOT LIKE '%@g.us'
         AND received_at >= $3
       ORDER BY received_at ASC, id ASC LIMIT $4`,
     [TEST_SESSION_ID, preflight.tenantId, since, limit],
