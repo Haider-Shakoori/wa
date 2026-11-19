@@ -1,11 +1,53 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { StripeProvider } from '../payments/stripe.provider';
+import { botAddonPlan, type BotAddonPlan } from './bot-billing-policy';
 import { DatabaseService } from '../database/database.service';
 import { CreateBotDto, CreateFaqDto } from './bots.dto';
 
 @Injectable()
 export class BotsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService, private readonly stripe: StripeProvider) {}
+
+  async checkout(org: string, planCode: string) {
+    const plan = botAddonPlan(planCode);
+    const access = await this.entitlement(org);
+    if (access.entitled) throw new ConflictException('Manage your existing Bot Builder subscription');
+    const livemode = this.stripe.isLiveMode();
+    const successUrl = process.env.STRIPE_SUCCESS_URL;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL;
+    if (!successUrl || !cancelUrl || !/^https:\/\//.test(successUrl) || !/^https:\/\//.test(cancelUrl))
+      throw new BadRequestException('Secure Stripe return URLs are required');
+    const orderId = randomUUID();
+    try {
+      await this.db.query(
+        `INSERT INTO relaywa_bot_checkout_orders
+         (id,organization_id,plan_code,amount_cents,stripe_livemode)
+         VALUES($1,$2,$3,$4,$5)`,
+        [orderId,org,planCode,plan.monthlyCents,livemode]);
+    } catch (error) {
+      if ((error as {code?:string}).code === '23505')
+        throw new ConflictException('Bot Builder checkout already pending');
+      throw error;
+    }
+    // Checkout is separate from the existing RelayWA core plan and subscription.
+    // The order stays pending until a verified webhook activates the entitlement.
+    try {
+      const checkout = await this.stripe.createBotAddonCheckout({
+        organizationId: org, orderId, planCode: planCode as BotAddonPlan,
+        amountCents: plan.monthlyCents, successUrl, cancelUrl,
+      });
+      await this.db.query(
+        'UPDATE relaywa_bot_checkout_orders SET stripe_checkout_id=$2 WHERE id=$1 AND organization_id=$3',
+        [orderId,checkout.checkoutId,org]);
+      return {checkoutUrl:checkout.url,orderId};
+    } catch (error) {
+      await this.db.query(
+        "UPDATE relaywa_bot_checkout_orders SET status='expired' WHERE id=$1 AND status='pending'",
+        [orderId]);
+      throw error;
+    }
+  }
 
   async entitlement(org: string) {
     const result = await this.db.query(
