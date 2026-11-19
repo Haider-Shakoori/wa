@@ -6,12 +6,14 @@ const bot={id:'bot_1',tenantId:'tenant_1',sessionId:'test_1',enabled:true,mode:'
  faqs:[{id:'faq_1',question:'hours',answer:'9 to 5'}]};
 const event={tenantId:'tenant_1',sessionId:'test_1',chatId:'chat_1',
  messageId:'msg_1',direction:'inbound',type:'text',text:'hours'};
-function mockDb({ duplicate=false, takeover=false, owned=true }={}) {
+function mockDb({ duplicate=false, takeover=false, owned=true, entitled=true, used=0, limit=1000 }={}) {
  const queries=[];
  const client={
   async query(sql) {
    queries.push(sql);
    if(sql.includes('SELECT id FROM relaywa_bots'))return {rowCount:owned?1:0,rows:owned?[{id:'bot_1'}]:[]};
+   if(sql.includes('SELECT monthly_reply_limit'))return {rowCount:entitled?1:0,rows:entitled?[{monthly_reply_limit:limit}]:[]};
+   if(sql.includes('SELECT count(*)::int AS used'))return {rowCount:1,rows:[{used}]};
    if(sql.includes('SELECT human_takeover'))return {rowCount:1,rows:[{human_takeover:takeover}]};
    if(sql.includes('INSERT INTO relaywa_bot_outbox'))return {rowCount:duplicate?0:1,rows:duplicate?[]:[{id:'held_1'}]};
    return {rowCount:1,rows:[]};
@@ -55,4 +57,21 @@ test('outbox is permanently held by schema and has no dispatch integration',()=>
  const schema=readFileSync(new URL('../../api/migrations/057_bot_isolated_conversations.sql',import.meta.url),'utf8');
  assert.match(schema,/CHECK\(status='held'\)/);
  assert.match(schema,/UNIQUE\(organization_id,bot_id,inbound_message_id\)/);
+});
+
+test('expired or absent subscription blocks held reply',async()=>{
+ const {db,queries}=mockDb({entitled:false});
+ assert.equal((await holdTestReply({db,bot,event,allowedSessionIds:['test_1']})).reason,'subscription_required');
+ assert.ok(!queries.some(q=>q.includes('INSERT INTO relaywa_bot_outbox')));
+});
+test('monthly allowance blocks extra reply without sending',async()=>{
+ const {db,queries}=mockDb({used:1000,limit:1000});
+ assert.equal((await holdTestReply({db,bot,event,allowedSessionIds:['test_1']})).reason,'monthly_reply_limit_reached');
+ assert.ok(!queries.some(q=>q.includes('INSERT INTO relaywa_bot_outbox')));
+});
+test('quota reservations lock entitlement and count current calendar month',async()=>{
+ const {db,queries}=mockDb({used:999,limit:1000});
+ assert.equal((await holdTestReply({db,bot,event,allowedSessionIds:['test_1']})).action,'held');
+ assert.ok(queries.some(q=>q.includes('relaywa_bot_entitlements')&&q.includes('FOR UPDATE')));
+ assert.ok(queries.some(q=>q.includes("date_trunc('month',now())")));
 });
