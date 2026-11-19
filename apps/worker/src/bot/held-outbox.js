@@ -47,6 +47,28 @@ export async function holdTestReply({ db, bot, event, allowedSessionIds = [] }) 
         [randomUUID(),bot.tenantId,bot.id,event.chatId],
       );
     } else if (decision.action === 'reply') {
+      // Lock the tenant entitlement to serialize reservations across all bots.
+      // Held replies reserve monthly capacity; no WhatsApp send is performed.
+      const access = await client.query(
+        `SELECT monthly_reply_limit FROM relaywa_bot_entitlements
+         WHERE organization_id=$1 AND (
+          (status='active' AND current_period_end>now()) OR
+          (status='trialing' AND trial_ends_at>now())
+         ) FOR UPDATE`,[bot.tenantId]);
+      if (!access.rowCount) {
+        await client.query('ROLLBACK');
+        return {action:'ignore',reason:'subscription_required'};
+      }
+      const usage = await client.query(
+        `SELECT count(*)::int AS used FROM relaywa_bot_outbox
+         WHERE organization_id=$1
+         AND created_at>=date_trunc('month',now())
+         AND created_at<date_trunc('month',now())+interval '1 month'`,
+        [bot.tenantId]);
+      if (Number(usage.rows[0]?.used ?? 0) >= Number(access.rows[0].monthly_reply_limit)) {
+        await client.query('ROLLBACK');
+        return {action:'ignore',reason:'monthly_reply_limit_reached'};
+      }
       const inserted = await client.query(
         `INSERT INTO relaywa_bot_outbox
          (id,organization_id,bot_id,session_id,chat_id,inbound_message_id,response_text,status)
