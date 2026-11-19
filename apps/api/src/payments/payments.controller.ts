@@ -10,12 +10,14 @@ import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { CreateCheckoutDto, CreateManualPaymentDto, UpdateProviderDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 import { StripeProvider } from './stripe.provider';
+import { BotsService } from '../bots/bots.service';
 
 @Controller(['billing', 'v1/billing'])
 export class PaymentsController {
   constructor(
     private readonly payments: PaymentsService,
     private readonly stripe: StripeProvider,
+    private readonly bots: BotsService,
   ) {}
 
   @Get('providers')
@@ -74,6 +76,15 @@ export class PaymentsController {
   ) {
     if (!signature || !request.rawBody) throw new BadRequestException('Missing Stripe webhook signature or body');
     const event = this.stripe.constructEvent(request.rawBody, signature);
+    if ((event.data?.object as {metadata?:Record<string,string>})?.metadata?.relaywa_product === 'bot_addon')
+      return this.bots.handleStripeEvent(event);
+    // Subscription and invoice events may not contain bot metadata.
+    const ref = event.type.startsWith('invoice.') ?
+      (event.data?.object as any)?.parent?.subscription_details?.subscription :
+      (event.data?.object as any)?.id;
+    const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
+    if (subscriptionId && await this.bots.ownsStripeSubscription(subscriptionId,event.livemode))
+      return this.bots.handleStripeEvent(event);
     return this.payments.handleStripeEvent(event);
   }
 
