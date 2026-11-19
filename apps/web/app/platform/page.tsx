@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, API_BASE } from '../../lib/api';
+import { PlatformBotSubscriptions } from '../../components/platform-bot-subscriptions';
 import { PlatformSupportBot } from '../../components/platform-support-bot';
 import { PlatformMfaSettings } from '../../components/platform-mfa-settings';
 import { PlatformMonitoring } from '../../components/platform-monitoring';
@@ -16,7 +17,7 @@ import { Brand } from '../../components/relay-workspace';
 
 const navigationGroups = [
   { label:'Operations', items:['Overview','Clients','Sessions','Messaging'] },
-  { label:'Commercial', items:['Website subscriptions','Subscriptions','Payments','Providers'] },
+  { label:'Commercial', items:['Website subscriptions','Subscriptions','Bot subscriptions','Payments','Providers'] },
   { label:'System', items:['Monitoring','Website traffic','Google Analytics','Analytics','Audit log','Security','Administrators','Infrastructure','Authentication','Message storage','Diagnostics'] },
 ] as const;
 
@@ -564,6 +565,7 @@ export default function PlatformPage() {
       {error && <div className="alert">{error}</div>}
       {notice && <div className="success-alert">{notice}</div>}
 
+      {active === 'Bot subscriptions' && <PlatformBotSubscriptions token={token}/>}
       {active === 'Overview' && <>
         <section className="platform-command-center" aria-label="Platform operational priorities">
           <div className="platform-command-heading"><div><span className="platform-kicker">OPERATIONS CENTER</span><h2>{attentionCount ? attentionCount+' areas need review' : 'All monitored areas look clear'}</h2><p>Real-time priorities from your platform data. Select an item to investigate.</p></div><span className="platform-updated">Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : 'on refresh'}</span></div>
