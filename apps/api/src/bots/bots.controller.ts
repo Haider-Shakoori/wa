@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard, type AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { PlatformAdminGuard } from '../auth/platform-admin.guard';
+import { PlatformRoles } from '../auth/platform-roles.decorator';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermissions } from '../auth/require-permissions.decorator';
 import { PERMISSIONS } from '../auth/permissions';
@@ -48,4 +50,14 @@ export class BotsController {
   removeFaq(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Param('faqId') faqId:string) {
     return this.bots.removeFaq(req.auth.org,id,faqId);
   }
+}
+
+
+@Controller('platform/bot-subscriptions')
+export class PlatformBotSubscriptionsController {
+  constructor(private readonly bots: BotsService) {}
+  @Get()
+  @PlatformRoles('super_admin','billing_admin','support_admin','read_only')
+  @UseGuards(JwtAuthGuard,PlatformAdminGuard)
+  overview() { return this.bots.platformOverview(); }
 }
