@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { CreateBotDto, CreateFaqDto } from './bots.dto';
@@ -7,7 +7,31 @@ import { CreateBotDto, CreateFaqDto } from './bots.dto';
 export class BotsService {
   constructor(private readonly db: DatabaseService) {}
 
+  async entitlement(org: string) {
+    const result = await this.db.query(
+      `SELECT plan_code,status,max_bots,monthly_reply_limit,trial_ends_at,current_period_end
+       FROM relaywa_bot_entitlements WHERE organization_id=$1`, [org]);
+    const row = result.rows[0];
+    const now = Date.now();
+    const active = !!row && (
+      (row.status === 'active' && row.current_period_end &&
+        new Date(row.current_period_end).getTime() > now) ||
+      (row.status === 'trialing' && row.trial_ends_at &&
+        new Date(row.trial_ends_at).getTime() > now)
+    );
+    return { entitled: Boolean(active), plan: row?.plan_code ?? null,
+      maxBots: active ? row.max_bots : 0,
+      monthlyReplyLimit: active ? row.monthly_reply_limit : 0 };
+  }
+
+  private async requireEntitlement(org: string) {
+    const access = await this.entitlement(org);
+    if (!access.entitled) throw new ForbiddenException('Bot Builder subscription required');
+    return access;
+  }
+
   async list(org: string) {
+    await this.requireEntitlement(org);
     const result = await this.db.query(
       'SELECT id,name,session_id,mode,created_at,updated_at FROM relaywa_bots WHERE organization_id=$1 ORDER BY created_at DESC',
       [org],
@@ -16,6 +40,11 @@ export class BotsService {
   }
 
   async create(org: string, user: string, body: CreateBotDto) {
+    const access = await this.requireEntitlement(org);
+    const count = await this.db.query(
+      'SELECT count(*)::int AS count FROM relaywa_bots WHERE organization_id=$1', [org]);
+    if (Number(count.rows[0]?.count ?? 0) >= access.maxBots)
+      throw new ForbiddenException('Bot plan limit reached');
     const session = await this.db.query(
       'SELECT id,worker_id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL',
       [body.sessionId, org],
@@ -38,6 +67,7 @@ export class BotsService {
   }
 
   async get(org: string, id: string) {
+    await this.requireEntitlement(org);
     const result = await this.db.query(
       'SELECT id,name,session_id,mode,created_at,updated_at FROM relaywa_bots WHERE id=$1 AND organization_id=$2',
       [id,org],
