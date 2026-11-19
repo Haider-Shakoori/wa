@@ -10,6 +10,11 @@ import { CreateBotDto, CreateFaqDto } from './bots.dto';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class BotsController {
   constructor(private readonly bots: BotsService) {}
+  @Post('checkout')
+  @RequirePermissions(PERMISSIONS.BILLING_MANAGE)
+  checkout(@Req() req: AuthenticatedRequest, @Body() body: {planCode:string}) {
+    return this.bots.checkout(req.auth.org,body?.planCode);
+  }
   @Get('entitlement')
   @RequirePermissions(PERMISSIONS.SESSIONS_READ)
   entitlement(@Req() req: AuthenticatedRequest) {
