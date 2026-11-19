@@ -98,10 +98,19 @@ export class BotsService {
           object.currency!=='usd') return {ignored:true};
       const result=await this.db.transaction(async client => {
         const selected=await client.query(
-          'SELECT organization_id FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2 FOR UPDATE',
+          'SELECT organization_id,status,current_period_end FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2 FOR UPDATE',
           [subscriptionId,event.livemode]);
         if (!selected.rows[0]) return {ignored:true};
         const org=selected.rows[0].organization_id;
+        // A delayed paid invoice must never resurrect a canceled subscription.
+        if (selected.rows[0].status==='canceled') return {ignored:true,reason:'subscription_canceled'};
+        const periodEnds=(object.lines?.data??[])
+          .filter((line:any)=>line.parent?.subscription_item_details?.subscription===subscriptionId ||
+            line.subscription===subscriptionId)
+          .map((line:any)=>Number(line.period?.end))
+          .filter((end:number)=>Number.isSafeInteger(end)&&end>0);
+        const latestPeriodEnd=periodEnds.length?Math.max(...periodEnds):null;
+        if (!latestPeriodEnd) return {ignored:true,reason:'missing_billing_period'};
         const inserted=await client.query(
           `INSERT INTO relaywa_bot_renewal_events(stripe_invoice_id,stripe_livemode,organization_id)
            VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING stripe_invoice_id`,
@@ -109,9 +118,10 @@ export class BotsService {
         if (!inserted.rowCount) return {duplicate:true};
         await client.query(
           `UPDATE relaywa_bot_entitlements SET status='active',
-           current_period_end=GREATEST(COALESCE(current_period_end,now()),now())+interval '1 month',
-           updated_at=now() WHERE organization_id=$1 AND stripe_subscription_id=$2 AND stripe_livemode=$3`,
-          [org,subscriptionId,event.livemode]);
+           current_period_end=GREATEST(COALESCE(current_period_end,to_timestamp(0)),to_timestamp($4)),
+           updated_at=now() WHERE organization_id=$1 AND stripe_subscription_id=$2 AND stripe_livemode=$3
+           AND status<>'canceled'`,
+          [org,subscriptionId,event.livemode,latestPeriodEnd]);
         return {renewed:true};
       });
       return result;
