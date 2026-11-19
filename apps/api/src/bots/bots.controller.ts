@@ -10,6 +10,11 @@ import { CreateBotDto, CreateFaqDto } from './bots.dto';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class BotsController {
   constructor(private readonly bots: BotsService) {}
+  @Get('entitlement')
+  @RequirePermissions(PERMISSIONS.SESSIONS_READ)
+  entitlement(@Req() req: AuthenticatedRequest) {
+    return this.bots.entitlement(req.auth.org);
+  }
   @Get()
   @RequirePermissions(PERMISSIONS.SESSIONS_READ)
   list(@Req() req: AuthenticatedRequest) { return this.bots.list(req.auth.org); }
