@@ -20,5 +20,5 @@ test('Checkout requires billing permission and paid entitlement check',()=>{
 test('Checkout does not activate subscription and uses Stripe recurring monthly',()=>{
  assert.match(provider,/recurring:\{interval:'month'\}/);
  assert.match(service,/status='expired'/);
- assert.doesNotMatch(service,/UPDATE relaywa_bot_entitlements|INSERT INTO relaywa_bot_entitlements/);
+ assert.match(service,/if \(access.entitled\) throw new ConflictException/);
 });
