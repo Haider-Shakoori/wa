@@ -9,6 +9,20 @@ import { CreateBotDto, CreateFaqDto } from './bots.dto';
 export class BotsService {
   constructor(private readonly db: DatabaseService, private readonly stripe: StripeProvider) {}
 
+  async platformOverview() {
+    const result=await this.db.query(
+      `SELECT e.organization_id,o.name AS organization_name,e.plan_code,e.status,
+       e.max_bots,e.monthly_reply_limit,e.current_period_end,
+       COUNT(b.id)::int AS bot_count
+       FROM relaywa_bot_entitlements e
+       JOIN organizations o ON o.id=e.organization_id
+       LEFT JOIN relaywa_bots b ON b.organization_id=e.organization_id
+       GROUP BY e.organization_id,o.name,e.plan_code,e.status,
+        e.max_bots,e.monthly_reply_limit,e.current_period_end
+       ORDER BY o.name LIMIT 200`);
+    return result.rows;
+  }
+
   async ownsStripeSubscription(subscriptionId: string, livemode: boolean) {
     const found=await this.db.query(
       'SELECT 1 FROM relaywa_bot_entitlements WHERE stripe_subscription_id=$1 AND stripe_livemode=$2 LIMIT 1',
