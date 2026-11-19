@@ -19,6 +19,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { BotsModule } from './bots/bots.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
     SubscriptionsModule,
     PaymentsModule,
     OnboardingModule,
+    BotsModule,
   ],
   controllers: [AppController, WorkerBridgeController, WorkerSessionController, WorkerDirectoryController, WorkerMessagesController, WorkerWebhooksController, WorkerAlertsController],
 })
