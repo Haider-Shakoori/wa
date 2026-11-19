@@ -6,11 +6,13 @@ import { api } from '../../../lib/api';
 
 type Bot = {id:string;name:string;session_id:string;mode:string};
 type Session = {id:string;name:string;status:string};
+type Entitlement = {entitled:boolean;plan:string|null;maxBots:number;monthlyReplyLimit:number};
 type Faq = {id:string;question:string;answer:string;aliases:string[]};
 
 export default function BotsPage() {
  const router=useRouter();
  const [token,setToken]=useState('');
+ const [entitlement,setEntitlement]=useState<Entitlement|null>(null);
  const [sessions,setSessions]=useState<Session[]>([]);
  const [bots,setBots]=useState<Bot[]>([]);
  const [selected,setSelected]=useState('');
@@ -26,6 +28,9 @@ export default function BotsPage() {
  const [loading,setLoading]=useState(true);
  const current=bots.find(b=>b.id===selected);
  async function refresh(t:string) {
+   const access=await api<Entitlement>('/bots/entitlement',t);
+   setEntitlement(access);
+   if(!access.entitled){setBots([]);setSessions([]);return;}
    const [nextBots,nextSessions]=await Promise.all([
      api<Bot[]>('/bots',t),api<Session[]>('/whatsapp-sessions',t)
    ]);
@@ -47,7 +52,7 @@ export default function BotsPage() {
    return ()=>{cancelled=true;};
  },[selected,token]);
  async function create(e:FormEvent) {
-   e.preventDefault();setBusy(true);setError('');
+   e.preventDefault();if(!entitlement?.entitled)return;setBusy(true);setError('');
    try {
      const bot=await api<Bot>('/bots',token,{method:'POST',body:JSON.stringify({name,sessionId})});
      await refresh(token);setSelected(bot.id);setName('');setSessionId('');
@@ -55,7 +60,7 @@ export default function BotsPage() {
    finally{setBusy(false);}
  }
  async function addFaq(e:FormEvent){
-   e.preventDefault();if(!selected)return;setBusy(true);setError('');
+   e.preventDefault();if(!selected||!entitlement?.entitled)return;setBusy(true);setError('');
    try{
      const faq=await api<Faq>('/bots/'+encodeURIComponent(selected)+'/faqs',token,{
        method:'POST',body:JSON.stringify({question,answer})
@@ -65,7 +70,7 @@ export default function BotsPage() {
    finally{setBusy(false);}
  }
  async function removeFaq(id:string){
-   if(!selected)return;setBusy(true);setError('');
+   if(!selected||!entitlement?.entitled)return;setBusy(true);setError('');
    try{
      await api('/bots/'+encodeURIComponent(selected)+'/faqs/'+encodeURIComponent(id),token,{method:'DELETE'});
      setFaqs(items=>items.filter(item=>item.id!==id));
@@ -89,7 +94,12 @@ export default function BotsPage() {
    <h1>WhatsApp Bot Builder</h1>
    <p>Configure FAQs safely. All bots remain in standby; no WhatsApp messages are sent from this page.</p>
    {error&&<p role="alert" style={{color:'#b91c1c'}}>{error}</p>}
-   {loading?<p role="status">Loading bot workspace…</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:24}}>
+   {loading?<p role="status">Loading bot workspace…</p>:entitlement&&!entitlement.entitled?<section style={{border:'1px solid #cbd5e1',borderRadius:12,padding:24}}>
+     <h2>Unlock Bot Builder</h2><p>Bot Builder requires a separate paid add-on. Your existing WhatsApp sessions are unaffected.</p>
+     <ul><li>Starter — $5/month · 1 bot · 1,000 replies</li><li>Pro — $12/month · 3 bots · 5,000 replies</li><li>Business — $25/month · 10 bots · 20,000 replies</li></ul>
+     <p>Subscriptions are not available for purchase yet. Stripe checkout will be enabled after billing integration is tested.</p>
+     <Link href="/subscription">View current RelayWA subscription</Link>
+   </section>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:24}}>
      <section style={{display:'grid',gap:16,alignContent:'start'}}>
        <h2>Create bot</h2>
        <form onSubmit={create} style={{display:'grid',gap:10}}>
