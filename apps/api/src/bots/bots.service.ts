@@ -201,30 +201,42 @@ export class BotsService {
   }
 
   async create(org: string, user: string, body: CreateBotDto) {
-    const access = await this.requireEntitlement(org);
-    const count = await this.db.query(
-      'SELECT count(*)::int AS count FROM relaywa_bots WHERE organization_id=$1', [org]);
-    if (Number(count.rows[0]?.count ?? 0) >= access.maxBots)
-      throw new ForbiddenException('Bot plan limit reached');
-    const session = await this.db.query(
-      'SELECT id,worker_id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL',
-      [body.sessionId, org],
-    );
-    if (!session.rowCount) throw new NotFoundException('WhatsApp session not found');
-    // A bot is never automatically activated and never moves session ownership.
-    const id = randomUUID();
-    try {
-      const result = await this.db.query(
-        `INSERT INTO relaywa_bots(id,organization_id,session_id,created_by_user_id,name,mode)
-         VALUES($1,$2,$3,$4,$5,'standby')
-         RETURNING id,name,session_id,mode,created_at,updated_at`,
-        [id, org, body.sessionId, user, body.name.trim()],
-      );
-      return result.rows[0];
-    } catch (error) {
-      if ((error as {code?:string}).code === '23505') throw new ConflictException('A bot already exists for this session');
-      throw error;
-    }
+    // Serialize all bot creations per tenant, including concurrent API requests.
+    // Lock the organization row first, then re-read paid access and capacity in
+    // the same transaction. The UI entitlement is never trusted for writes.
+    return this.db.transaction(async client => {
+      const owner = await client.query(
+        'SELECT id FROM organizations WHERE id=$1 FOR UPDATE',[org]);
+      if (!owner.rowCount) throw new NotFoundException('Organization not found');
+      const entitlement = await client.query(
+        `SELECT max_bots FROM relaywa_bot_entitlements
+         WHERE organization_id=$1 AND (
+           (status='active' AND current_period_end>now()) OR
+           (status='trialing' AND trial_ends_at>now())
+         ) FOR UPDATE`,[org]);
+      const access = entitlement.rows[0];
+      if (!access) throw new ForbiddenException('Bot Builder subscription required');
+      const count = await client.query(
+        'SELECT count(*)::int AS count FROM relaywa_bots WHERE organization_id=$1',[org]);
+      if (Number(count.rows[0]?.count ?? 0) >= Number(access.max_bots))
+        throw new ForbiddenException('Bot plan limit reached');
+      const session = await client.query(
+        'SELECT id FROM whatsapp_sessions WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL',
+        [body.sessionId,org]);
+      if (!session.rowCount) throw new NotFoundException('WhatsApp session not found');
+      try {
+        const result = await client.query(
+          `INSERT INTO relaywa_bots(id,organization_id,session_id,created_by_user_id,name,mode)
+           VALUES($1,$2,$3,$4,$5,'standby')
+           RETURNING id,name,session_id,mode,created_at,updated_at`,
+          [randomUUID(),org,body.sessionId,user,body.name.trim()]);
+        return result.rows[0];
+      } catch (error) {
+        if ((error as {code?:string}).code === '23505')
+          throw new ConflictException('A bot already exists for this session');
+        throw error;
+      }
+    });
   }
 
   async get(org: string, id: string) {
