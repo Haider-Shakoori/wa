@@ -11,6 +11,6 @@ test('legacy shared credentials cannot impersonate registered enterprise workers
 });
 test('all bridge handlers invoke enterprise identity gate',()=>{
  const handlers=[...bridge.matchAll(/@Post\('/g)].length;
- const gates=[...bridge.matchAll(/await authorizeSharedWorker\(/g)].length;
+ const gates=[...bridge.matchAll(/await (?:authorizeSharedWorker|authorizeWorkerHeartbeat)\(/g)].length;
  assert.equal(gates,handlers);
 });
