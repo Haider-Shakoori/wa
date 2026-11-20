@@ -1,0 +1,43 @@
+name: Bot Builder isolated CI
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/bots/**'
+      - 'apps/api/src/payments/**'
+      - 'apps/api/test/bot-*.test.mjs'
+      - 'apps/web/app/dashboard/bots/**'
+      - 'apps/web/test/bot-*.test.mjs'
+      - 'apps/worker/src/bot/**'
+      - 'apps/worker/test/bot-*.test.mjs'
+      - 'apps/api/migrations/05[6-9]*'
+      - 'apps/api/migrations/06[0-1]*'
+      - '.github/workflows/relaywa-bot-builder-ci.yml'
+  push:
+    branches:
+      - 'feature/relaywa-bot-builder-isolated-20261119'
+      - 'staging/relaywa-bot-builder-20261120'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Bot Builder isolated tests (no Stripe payment or live outbound)
+        run: node --test apps/api/test/bot-*.test.mjs apps/web/test/bot-*.test.mjs apps/worker/test/bot-*.test.mjs
+      - name: Full web and worker test suites
+        run: pnpm --filter @wa/web test && pnpm --filter @wa/worker test
+      - name: API tests without external database integration
+        run: find apps/api/test -maxdepth 1 -name '*.test.mjs' ! -name 'standby-postgres-integration.test.mjs' -print0 | xargs -0 node --test
