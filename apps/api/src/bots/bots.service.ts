@@ -157,6 +157,14 @@ export class BotsService {
     const cancelUrl = process.env.STRIPE_CANCEL_URL;
     if (!successUrl || !cancelUrl || !/^https:\/\//.test(successUrl) || !/^https:\/\//.test(cancelUrl))
       throw new BadRequestException('Secure Stripe return URLs are required');
+    // Stripe Checkout sessions normally expire within 24 hours. A stale pending
+    // order must not permanently block a customer from retrying checkout.
+    // Keep a one-hour safety margin so an in-flight session is not replaced.
+    await this.db.query(
+      `UPDATE relaywa_bot_checkout_orders SET status='expired'
+       WHERE organization_id=$1 AND stripe_livemode=$2 AND status='pending'
+       AND created_at < now() - interval '25 hours'`,
+      [org,livemode]);
     const orderId = randomUUID();
     try {
       await this.db.query(
