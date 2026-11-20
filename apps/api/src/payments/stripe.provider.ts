@@ -65,6 +65,42 @@ export class StripeProvider implements PaymentProvider {
     return { checkoutId: session.id, url: session.url };
   }
 
+  async createBotAddonCheckout(input: {
+    organizationId:string;orderId:string;planCode:string;amountCents:number;
+    successUrl:string;cancelUrl:string;
+  }) {
+    const session = await this.client().checkout.sessions.create({
+      mode:'subscription',success_url:input.successUrl,cancel_url:input.cancelUrl,
+      client_reference_id:input.organizationId,
+      line_items:[{quantity:1,price_data:{
+        currency:'usd',unit_amount:input.amountCents,
+        recurring:{interval:'month'},
+        product_data:{name:`RelayWA Bot Builder ${input.planCode}`},
+      }}],
+      metadata:{
+        relaywa_product:'bot_addon',relaywa_bot_order_id:input.orderId,
+        organization_id:input.organizationId,bot_plan:input.planCode,
+      },
+      subscription_data:{metadata:{
+        relaywa_product:'bot_addon',relaywa_bot_order_id:input.orderId,
+        organization_id:input.organizationId,bot_plan:input.planCode,
+      }},
+    });
+    if (!session.url) throw new Error('Stripe Checkout did not return a URL');
+    return {checkoutId:session.id,url:session.url};
+  }
+
+  async getBotSubscriptionPeriod(subscriptionId: string) {
+    const subscription = await this.client().subscriptions.retrieve(subscriptionId);
+    const periods = subscription.items.data
+      .map(item=>({start:item.current_period_start,end:item.current_period_end}))
+      .filter(period=>Number.isSafeInteger(period.start)&&Number.isSafeInteger(period.end)&&
+        period.start>0&&period.end>period.start);
+    if (periods.length!==1 || subscription.status!=='active')
+      throw new Error('Bot subscription does not have one active billing period');
+    return periods[0];
+  }
+
   async createBillingPortal(customerId: string) {
     const returnUrl = process.env.STRIPE_PORTAL_RETURN_URL || process.env.STRIPE_SUCCESS_URL;
     if (!returnUrl || !/^https:\/\//.test(returnUrl)) {

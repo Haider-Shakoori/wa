@@ -25,7 +25,7 @@ test('website subscription page edits public plans without duplicating customer 
  const dashboard=await load('../components/platform-website-subscriptions.tsx');
  const editor=await load('../components/platform-website-plan-editor.tsx');
  const pricing=await load('../components/relay-home.tsx');
- assert.match(page, /'Website subscriptions','Subscriptions','Payments'/);
+ assert.match(page, /'Website subscriptions','Subscriptions','Bot subscriptions','Payments'/);
  assert.match(page, /active === 'Website subscriptions'/);
  assert.match(page, /<PlatformWebsiteSubscriptions/);
  assert.match(page, /plans=\{subscriptionPlans\} payments=\{payments\} token=\{token\}/);

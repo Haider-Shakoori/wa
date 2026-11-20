@@ -157,6 +157,7 @@ export class PaymentsService {
   }
 
   async handleStripeEvent(event: any) {
+    if (event.data?.object?.metadata?.relaywa_product === 'bot_addon') return { ignored: true };
     if (event.type === 'invoice.paid') {
       return this.handleStripeRenewal(event);
     }
