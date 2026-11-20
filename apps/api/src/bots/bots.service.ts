@@ -84,7 +84,10 @@ export class BotsService {
       });
     }
     const ref=event.type==='invoice.paid'||event.type==='invoice.payment_failed'
-      ?object?.parent?.subscription_details?.subscription:object?.id;
+      ?(object?.parent?.subscription_details?.subscription ??
+         object?.subscription ??
+         object?.lines?.data?.[0]?.parent?.subscription_item_details?.subscription)
+      :object?.id;
     const subscriptionId=typeof ref==='string'?ref:ref?.id;
     if (!subscriptionId) return {ignored:true};
     // Never grant an entitlement from an unrecognized subscription event.
@@ -133,7 +136,9 @@ export class BotsService {
          ['canceled','incomplete_expired'].includes(object.status)?'canceled':null):null;
     if (!restricted) return {ignored:true};
     await this.db.query(
-      'UPDATE relaywa_bot_entitlements SET status=$3,updated_at=now() WHERE stripe_subscription_id=$1 AND stripe_livemode=$2',
+      `UPDATE relaywa_bot_entitlements SET status=$3,updated_at=now()
+       WHERE stripe_subscription_id=$1 AND stripe_livemode=$2
+       AND (status<>'canceled' OR $3='canceled')`,
       [subscriptionId,event.livemode,restricted]);
     return {restricted:true};
   }
