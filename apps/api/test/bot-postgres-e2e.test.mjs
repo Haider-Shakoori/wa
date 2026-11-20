@@ -12,7 +12,15 @@ const {BotsService}=require('./bots.service.ts');
 const {DatabaseService}=require('../database/database.service.ts');
 const {randomUUID}=require('node:crypto');
 const org='00000000-0000-4000-8000-000000000001';
-const db=process.env.BOT_E2E_DATABASE_URL?new DatabaseService():null;
+const testUrl=process.env.BOT_E2E_DATABASE_URL;
+const databaseUrl=process.env.DATABASE_URL;
+if(testUrl){
+ const target=new URL(testUrl);
+ if(databaseUrl!==testUrl || target.hostname!=='127.0.0.1' ||
+    target.port!=='55439' || target.pathname!=='/bot_e2e')
+   throw new Error('Bot E2E requires the explicitly isolated local bot_e2e database');
+}
+const db=testUrl?new DatabaseService():null;
 test('isolated PostgreSQL checkout, activation, replay, renewal and cancellation', {skip:!db}, async()=>{
  try{
   const checkoutId='cs_test_'+randomUUID(),sub='sub_test_'+randomUUID();
@@ -36,6 +44,8 @@ test('isolated PostgreSQL checkout, activation, replay, renewal and cancellation
   assert.deepEqual(await bots.handleStripeEvent(webhook),{activated:true});
   assert.deepEqual(await bots.handleStripeEvent(webhook),{duplicate:true});
   assert.equal((await bots.entitlement(org)).entitled,true);
+  const activated=await db.query('SELECT current_period_start,current_period_end FROM relaywa_bot_entitlements WHERE organization_id=$1',[org]);
+  assert.ok(new Date(activated.rows[0].current_period_end)>new Date(activated.rows[0].current_period_start));
   const invoice={type:'invoice.paid',livemode:false,data:{object:{
    id:'in_test_'+randomUUID(),status:'paid',billing_reason:'subscription_cycle',
    amount_paid:500,currency:'usd',parent:{subscription_details:{subscription:sub}},
