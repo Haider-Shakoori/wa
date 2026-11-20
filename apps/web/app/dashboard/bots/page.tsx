@@ -51,6 +51,19 @@ export default function BotsPage() {
      .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:'Unable to load FAQs');});
    return ()=>{cancelled=true;};
  },[selected,token]);
+ async function purchase(planCode:'starter'|'pro'|'business'){
+   if(!token||busy)return;
+   setBusy(true);setError('');
+   try{
+     const result=await api<{checkoutUrl:string;orderId:string}>('/bots/checkout',token,{
+       method:'POST',body:JSON.stringify({planCode})
+     });
+     const url=new URL(result.checkoutUrl);
+     if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')
+       throw new Error('Unexpected Stripe Checkout destination');
+     window.location.assign(url.toString());
+   }catch(e){setError(e instanceof Error?e.message:'Unable to start Bot Builder checkout');setBusy(false);}
+ }
  async function create(e:FormEvent) {
    e.preventDefault();if(!entitlement?.entitled)return;setBusy(true);setError('');
    try {
@@ -96,8 +109,20 @@ export default function BotsPage() {
    {error&&<p role="alert" style={{color:'#b91c1c'}}>{error}</p>}
    {loading?<p role="status">Loading bot workspace…</p>:entitlement&&!entitlement.entitled?<section style={{border:'1px solid #cbd5e1',borderRadius:12,padding:24}}>
      <h2>Unlock Bot Builder</h2><p>Bot Builder requires a separate paid add-on. Your existing WhatsApp sessions are unaffected.</p>
-     <ul><li>Starter — $5/month · 1 bot · 1,000 replies</li><li>Pro — $12/month · 3 bots · 5,000 replies</li><li>Business — $25/month · 10 bots · 20,000 replies</li></ul>
-     <p>Subscriptions are not available for purchase yet. Stripe checkout will be enabled after billing integration is tested.</p>
+     <div style={{display:'grid',gap:12}}>
+       {([
+         {code:'starter',label:'Starter',price:5,bots:1,replies:'1,000'},
+         {code:'pro',label:'Pro',price:12,bots:3,replies:'5,000'},
+         {code:'business',label:'Business',price:25,bots:10,replies:'20,000'},
+       ] as const).map(plan=><div key={plan.code} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',border:'1px solid #cbd5e1',borderRadius:8,padding:12}}>
+         <span><strong>{plan.label} — ${plan.price}/month</strong><br/>{plan.bots} bot{plan.bots>1?'s':''} · {plan.replies} replies/month</span>
+         <button type="button" disabled={busy||!token} onClick={()=>purchase(plan.code)}
+           style={{padding:'10px 16px',borderRadius:8,cursor:busy?'wait':'pointer'}}>
+           {busy?'Please wait…':'Subscribe'}
+         </button>
+       </div>)}
+     </div>
+     <p>Bot Builder is a separate monthly subscription. Checkout uses Stripe; no WhatsApp messages are sent by this page.</p>
      <Link href="/subscription">View current RelayWA subscription</Link>
    </section>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:24}}>
      <section style={{display:'grid',gap:16,alignContent:'start'}}>
