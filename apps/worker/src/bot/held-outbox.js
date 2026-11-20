@@ -50,7 +50,8 @@ export async function holdTestReply({ db, bot, event, allowedSessionIds = [] }) 
       // Lock the tenant entitlement to serialize reservations across all bots.
       // Held replies reserve monthly capacity; no WhatsApp send is performed.
       const access = await client.query(
-        `SELECT monthly_reply_limit FROM relaywa_bot_entitlements
+        `SELECT monthly_reply_limit,current_period_start,
+          COALESCE(current_period_end,trial_ends_at) AS period_end FROM relaywa_bot_entitlements
          WHERE organization_id=$1 AND (
           (status='active' AND current_period_end>now()) OR
           (status='trialing' AND trial_ends_at>now())
@@ -59,12 +60,23 @@ export async function holdTestReply({ db, bot, event, allowedSessionIds = [] }) 
         await client.query('ROLLBACK');
         return {action:'ignore',reason:'subscription_required'};
       }
+      // Stripe billing periods are not calendar months. Anchor the quota to the
+      // active entitlement period, and fail closed if its end is unavailable.
+      const periodEnd = access.rows[0].period_end;
+      const periodStart = access.rows[0].current_period_start;
+      if (!periodEnd || !periodStart ||
+          !Number.isFinite(new Date(periodEnd).getTime()) ||
+          !Number.isFinite(new Date(periodStart).getTime()) ||
+          new Date(periodStart)>=new Date(periodEnd)) {
+        await client.query('ROLLBACK');
+        return {action:'ignore',reason:'invalid_billing_period'};
+      }
       const usage = await client.query(
         `SELECT count(*)::int AS used FROM relaywa_bot_outbox
          WHERE organization_id=$1
-         AND created_at>=date_trunc('month',now())
-         AND created_at<date_trunc('month',now())+interval '1 month'`,
-        [bot.tenantId]);
+         AND created_at>=$2::timestamptz
+         AND created_at<$3::timestamptz`,
+        [bot.tenantId,periodStart,periodEnd]);
       if (Number(usage.rows[0]?.used ?? 0) >= Number(access.rows[0].monthly_reply_limit)) {
         await client.query('ROLLBACK');
         return {action:'ignore',reason:'monthly_reply_limit_reached'};
