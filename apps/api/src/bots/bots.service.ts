@@ -65,12 +65,18 @@ export class BotsService {
         if (existing.rows[0]?.stripe_subscription_id &&
             existing.rows[0].stripe_subscription_id!==ref)
           throw new ConflictException('Another Bot Builder subscription already exists');
+        // Stripe's subscription item is authoritative for the initial period.
+        // Do not grant paid access based on an approximate local month.
+        const period = await this.stripe.getBotSubscriptionPeriod(ref);
+        if (!Number.isSafeInteger(period.start) || !Number.isSafeInteger(period.end) ||
+            period.start<=0 || period.end<=period.start)
+          throw new BadRequestException('Missing verified Stripe billing period');
         const plan=botAddonPlan(order.plan_code);
         await client.query(
           `INSERT INTO relaywa_bot_entitlements
            (organization_id,plan_code,status,max_bots,monthly_reply_limit,stripe_subscription_id,
             stripe_livemode,current_period_start,current_period_end)
-           VALUES($1,$2,'active',$3,$4,$5,$6,now(),now()+interval '1 month')
+           VALUES($1,$2,'active',$3,$4,$5,$6,to_timestamp($7),to_timestamp($8))
            ON CONFLICT (organization_id) DO UPDATE SET
            plan_code=EXCLUDED.plan_code,status='active',max_bots=EXCLUDED.max_bots,
            monthly_reply_limit=EXCLUDED.monthly_reply_limit,
@@ -78,7 +84,7 @@ export class BotsService {
            stripe_livemode=EXCLUDED.stripe_livemode,
            current_period_start=EXCLUDED.current_period_start,
            current_period_end=EXCLUDED.current_period_end,updated_at=now()`,
-          [org,order.plan_code,plan.maxBots,plan.monthlyReplyLimit,ref,event.livemode]);
+          [org,order.plan_code,plan.maxBots,plan.monthlyReplyLimit,ref,event.livemode,period.start,period.end]);
         await client.query(
           "UPDATE relaywa_bot_checkout_orders SET status='paid' WHERE id=$1 AND status='pending'",[orderId]);
         return {activated:true};
