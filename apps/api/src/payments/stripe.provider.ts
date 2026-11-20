@@ -90,6 +90,17 @@ export class StripeProvider implements PaymentProvider {
     return {checkoutId:session.id,url:session.url};
   }
 
+  async getBotSubscriptionPeriod(subscriptionId: string) {
+    const subscription = await this.client().subscriptions.retrieve(subscriptionId);
+    const periods = subscription.items.data
+      .map(item=>({start:item.current_period_start,end:item.current_period_end}))
+      .filter(period=>Number.isSafeInteger(period.start)&&Number.isSafeInteger(period.end)&&
+        period.start>0&&period.end>period.start);
+    if (periods.length!==1 || subscription.status!=='active')
+      throw new Error('Bot subscription does not have one active billing period');
+    return periods[0];
+  }
+
   async createBillingPortal(customerId: string) {
     const returnUrl = process.env.STRIPE_PORTAL_RETURN_URL || process.env.STRIPE_SUCCESS_URL;
     if (!returnUrl || !/^https:\/\//.test(returnUrl)) {
