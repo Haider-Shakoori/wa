@@ -12,7 +12,7 @@ test('unpaid users see locked upgrade screen and no bot data requests',()=>{
   assert.match(page,/if\(!access.entitled\)\{setBots\(\[\]\);setSessions\(\[\]\);return;\}/);
   assert.match(page,/Unlock Bot Builder/);
 });
-test('checkout is not advertised as available before integration',()=>{
-  assert.match(page,/Subscriptions are not available for purchase yet/);
+test('paid lock exposes Stripe checkout only through authorized API',()=>{
+  assert.match(page,/purchase\(plan.code\)/);
   assert.match(page,/if\(!entitlement\?\.entitled\)return/);
 });
