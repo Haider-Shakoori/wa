@@ -69,13 +69,14 @@ export class BotsService {
         await client.query(
           `INSERT INTO relaywa_bot_entitlements
            (organization_id,plan_code,status,max_bots,monthly_reply_limit,stripe_subscription_id,
-            stripe_livemode,current_period_end)
-           VALUES($1,$2,'active',$3,$4,$5,$6,now()+interval '1 month')
+            stripe_livemode,current_period_start,current_period_end)
+           VALUES($1,$2,'active',$3,$4,$5,$6,now(),now()+interval '1 month')
            ON CONFLICT (organization_id) DO UPDATE SET
            plan_code=EXCLUDED.plan_code,status='active',max_bots=EXCLUDED.max_bots,
            monthly_reply_limit=EXCLUDED.monthly_reply_limit,
            stripe_subscription_id=EXCLUDED.stripe_subscription_id,
            stripe_livemode=EXCLUDED.stripe_livemode,
+           current_period_start=EXCLUDED.current_period_start,
            current_period_end=EXCLUDED.current_period_end,updated_at=now()`,
           [org,order.plan_code,plan.maxBots,plan.monthlyReplyLimit,ref,event.livemode]);
         await client.query(
@@ -113,7 +114,15 @@ export class BotsService {
           .map((line:any)=>Number(line.period?.end))
           .filter((end:number)=>Number.isSafeInteger(end)&&end>0);
         const latestPeriodEnd=periodEnds.length?Math.max(...periodEnds):null;
-        if (!latestPeriodEnd) return {ignored:true,reason:'missing_billing_period'};
+        const periodStarts=(object.lines?.data??[])
+          .filter((line:any)=>line.parent?.subscription_item_details?.subscription===subscriptionId ||
+            line.subscription===subscriptionId)
+          .filter((line:any)=>Number(line.period?.end)===latestPeriodEnd)
+          .map((line:any)=>Number(line.period?.start))
+          .filter((start:number)=>Number.isSafeInteger(start)&&start>0);
+        const latestPeriodStart=periodStarts.length?Math.min(...periodStarts):null;
+        if (!latestPeriodEnd || !latestPeriodStart || latestPeriodStart>=latestPeriodEnd)
+          return {ignored:true,reason:'missing_billing_period'};
         const inserted=await client.query(
           `INSERT INTO relaywa_bot_renewal_events(stripe_invoice_id,stripe_livemode,organization_id)
            VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING stripe_invoice_id`,
@@ -121,10 +130,12 @@ export class BotsService {
         if (!inserted.rowCount) return {duplicate:true};
         await client.query(
           `UPDATE relaywa_bot_entitlements SET status='active',
+           current_period_start=CASE WHEN current_period_end IS NULL OR current_period_end<to_timestamp($4)
+             THEN to_timestamp($5) ELSE current_period_start END,
            current_period_end=GREATEST(COALESCE(current_period_end,to_timestamp(0)),to_timestamp($4)),
            updated_at=now() WHERE organization_id=$1 AND stripe_subscription_id=$2 AND stripe_livemode=$3
            AND status<>'canceled'`,
-          [org,subscriptionId,event.livemode,latestPeriodEnd]);
+          [org,subscriptionId,event.livemode,latestPeriodEnd,latestPeriodStart]);
         return {renewed:true};
       });
       return result;
