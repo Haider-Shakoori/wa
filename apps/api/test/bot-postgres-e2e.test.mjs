@@ -39,7 +39,7 @@ test('isolated PostgreSQL checkout, activation, replay, renewal and cancellation
    id:'in_test_'+randomUUID(),status:'paid',billing_reason:'subscription_cycle',
    amount_paid:500,currency:'usd',parent:{subscription_details:{subscription:sub}},
    lines:{data:[{parent:{subscription_item_details:{subscription:sub}},
-    period:{end:Math.floor(Date.now()/1000)+65*86400}}]}}}};
+    period:{start:Math.floor(Date.now()/1000)+35*86400,end:Math.floor(Date.now()/1000)+65*86400}}]}}}};
   assert.deepEqual(await bots.handleStripeEvent(invoice),{renewed:true});
   assert.deepEqual(await bots.handleStripeEvent(invoice),{duplicate:true});
   assert.deepEqual(await bots.handleStripeEvent({type:'customer.subscription.deleted',livemode:false,
