@@ -16,7 +16,7 @@ Do not interpret this waiver as a successful payment test. Before public launch:
 3. Use an authenticated staging organization to POST /bots/checkout with {"planCode":"starter"}.
 4. Complete a test-card payment on Stripe-hosted Checkout. Verify the signed checkout.session.completed event reaches the staging webhook and activates exactly one entitlement.
 5. Replay the same event and confirm no duplicate entitlement; test invoice.paid renewal, invoice.payment_failed restriction, and customer.subscription.deleted cancellation.
-6. Verify the exact Stripe subscription start/end at initial checkout (currently checkout initializes an approximate month from activation), then validate billing-cycle quota and ensure the live outbound bot sender remains disabled until separately approved.
+6. Verify actual Stripe subscription item start/end during a paid sandbox checkout (code now retrieves the authoritative period), validate billing-cycle quota, and ensure the live outbound bot sender remains disabled until separately approved.
 7. Check API and web CI, production migration backups, rollback, monitoring and release approval before merging/deploying.
 
 No production migration, deployment, worker restart or live Stripe changes are authorized by this document.
