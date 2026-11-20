@@ -16,7 +16,8 @@ const db=process.env.BOT_E2E_DATABASE_URL?new DatabaseService():null;
 test('isolated PostgreSQL checkout, activation, replay, renewal and cancellation', {skip:!db}, async()=>{
  try{
   const checkoutId='cs_test_'+randomUUID(),sub='sub_test_'+randomUUID();
-  const stripe={isLiveMode:()=>false,createBotAddonCheckout:async()=>({checkoutId,url:'https://checkout.stripe.com/test'})};
+  const stripe={isLiveMode:()=>false,createBotAddonCheckout:async()=>({checkoutId,url:'https://checkout.stripe.com/test'}),
+   getBotSubscriptionPeriod:async()=>({start:Math.floor(Date.now()/1000),end:Math.floor(Date.now()/1000)+30*86400})};
   const bots=new BotsService(db,stripe);
   await db.query('DELETE FROM relaywa_bot_renewal_events WHERE organization_id=$1',[org]);
   await db.query('DELETE FROM relaywa_bot_entitlements WHERE organization_id=$1',[org]);
