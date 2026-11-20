@@ -79,9 +79,12 @@ export class PaymentsController {
     if ((event.data?.object as {metadata?:Record<string,string>})?.metadata?.relaywa_product === 'bot_addon')
       return this.bots.handleStripeEvent(event);
     // Subscription and invoice events may not contain bot metadata.
+    const invoice = event.data?.object as any;
     const ref = event.type.startsWith('invoice.') ?
-      (event.data?.object as any)?.parent?.subscription_details?.subscription :
-      (event.data?.object as any)?.id;
+      (invoice?.parent?.subscription_details?.subscription ??
+       invoice?.subscription ??
+       invoice?.lines?.data?.[0]?.parent?.subscription_item_details?.subscription) :
+      invoice?.id;
     const subscriptionId = typeof ref === 'string' ? ref : ref?.id;
     if (subscriptionId && await this.bots.ownsStripeSubscription(subscriptionId,event.livemode))
       return this.bots.handleStripeEvent(event);
