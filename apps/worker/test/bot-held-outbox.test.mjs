@@ -6,13 +6,13 @@ const bot={id:'bot_1',tenantId:'tenant_1',sessionId:'test_1',enabled:true,mode:'
  faqs:[{id:'faq_1',question:'hours',answer:'9 to 5'}]};
 const event={tenantId:'tenant_1',sessionId:'test_1',chatId:'chat_1',
  messageId:'msg_1',direction:'inbound',type:'text',text:'hours'};
-function mockDb({ duplicate=false, takeover=false, owned=true, entitled=true, used=0, limit=1000 }={}) {
+function mockDb({ duplicate=false, takeover=false, owned=true, entitled=true, used=0, limit=1000, invalidPeriod=false }={}) {
  const queries=[];
  const client={
   async query(sql) {
    queries.push(sql);
    if(sql.includes('SELECT id FROM relaywa_bots'))return {rowCount:owned?1:0,rows:owned?[{id:'bot_1'}]:[]};
-   if(sql.includes('SELECT monthly_reply_limit'))return {rowCount:entitled?1:0,rows:entitled?[{monthly_reply_limit:limit}]:[]};
+   if(sql.includes('SELECT monthly_reply_limit'))return {rowCount:entitled?1:0,rows:entitled?[{monthly_reply_limit:limit,current_period_start:invalidPeriod?null:new Date(Date.now()-20*86400000).toISOString(),period_end:new Date(Date.now()+10*86400000).toISOString()}]:[]};
    if(sql.includes('SELECT count(*)::int AS used'))return {rowCount:1,rows:[{used}]};
    if(sql.includes('SELECT human_takeover'))return {rowCount:1,rows:[{human_takeover:takeover}]};
    if(sql.includes('INSERT INTO relaywa_bot_outbox'))return {rowCount:duplicate?0:1,rows:duplicate?[]:[{id:'held_1'}]};
@@ -69,9 +69,18 @@ test('monthly allowance blocks extra reply without sending',async()=>{
  assert.equal((await holdTestReply({db,bot,event,allowedSessionIds:['test_1']})).reason,'monthly_reply_limit_reached');
  assert.ok(!queries.some(q=>q.includes('INSERT INTO relaywa_bot_outbox')));
 });
-test('quota reservations lock entitlement and count current calendar month',async()=>{
+test('quota reservations lock entitlement and count active billing period',async()=>{
  const {db,queries}=mockDb({used:999,limit:1000});
  assert.equal((await holdTestReply({db,bot,event,allowedSessionIds:['test_1']})).action,'held');
  assert.ok(queries.some(q=>q.includes('relaywa_bot_entitlements')&&q.includes('FOR UPDATE')));
- assert.ok(queries.some(q=>q.includes("date_trunc('month',now())")));
+ assert.ok(queries.some(q=>q.includes("period_end") && q.includes("FOR UPDATE")));
+ assert.ok(queries.some(q=>q.includes("created_at>=$2::timestamptz") && q.includes("created_at<$3::timestamptz")));
+});
+
+test('missing authoritative billing period fails closed before counting quota',async()=>{
+ const {db,queries}=mockDb({invalidPeriod:true});
+ const result=await holdTestReply({db,bot,event,allowedSessionIds:['test_1']});
+ assert.deepEqual(result,{action:'ignore',reason:'invalid_billing_period'});
+ assert.ok(!queries.some(q=>q.includes('SELECT count(*)::int AS used')));
+ assert.ok(queries.includes('ROLLBACK'));
 });
