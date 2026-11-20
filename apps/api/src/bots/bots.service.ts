@@ -147,6 +147,11 @@ export class BotsService {
     const plan = botAddonPlan(planCode);
     const access = await this.entitlement(org);
     if (access.entitled) throw new ConflictException('Manage your existing Bot Builder subscription');
+    // Reuse the same Stripe provider enablement used by core RelayWA billing.
+    const provider = await this.db.query(
+      "SELECT enabled FROM payment_provider_settings WHERE provider='stripe' LIMIT 1");
+    if (provider.rows[0]?.enabled !== true)
+      throw new ForbiddenException('Stripe payments are currently disabled');
     const livemode = this.stripe.isLiveMode();
     const successUrl = process.env.STRIPE_SUCCESS_URL;
     const cancelUrl = process.env.STRIPE_CANCEL_URL;
