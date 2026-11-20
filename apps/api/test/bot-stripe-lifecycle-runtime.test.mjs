@@ -40,7 +40,7 @@ function harness({status='pending',checkoutId=session}={}){
   try{const result=await fn(client);committed=true;return result;}
   catch(error){rolledBack=true;throw error;}
  },query:client.query};
- return {service:new BotsService(db,{}),statements,
+ return {service:new BotsService(db,{getBotSubscriptionPeriod:async()=>({start:1700000000,end:1702592000})}),statements,
   get committed(){return committed;},get rolledBack(){return rolledBack;},
   get entitlement(){return entitlement;}};
 }
@@ -65,4 +65,10 @@ test('replayed paid checkout is idempotent',async()=>{
 test('expired checkout cannot activate',async()=>{
  const h=harness({status:'expired'});assert.deepEqual(await h.service.handleStripeEvent(event()),{ignored:true});
  assert.equal(h.entitlement,false);
+});
+
+test('Stripe subscription period lookup failure prevents entitlement activation',async()=>{
+ const h=harness();h.service.stripe.getBotSubscriptionPeriod=async()=>{throw new Error('Stripe subscription unavailable');};
+ await assert.rejects(h.service.handleStripeEvent(event()),/Stripe subscription unavailable/);
+ assert.equal(h.entitlement,false);assert.equal(h.rolledBack,true);
 });
