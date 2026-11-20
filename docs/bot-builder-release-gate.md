@@ -20,3 +20,12 @@ Do not interpret this waiver as a successful payment test. Before public launch:
 7. Check API and web CI, production migration backups, rollback, monitoring and release approval before merging/deploying.
 
 No production migration, deployment, worker restart or live Stripe changes are authorized by this document.
+
+## Final isolated verification (2026-11-20)
+- Web TypeScript and Next.js optimized production build: passed (including /dashboard/bots).
+- Worker build and syntax/type checks: passed.
+- API TypeScript: passed.
+- Isolated PostgreSQL migrations 056–061 and checkout/activation/replay/renewal/cancellation lifecycle: passed with mocked Stripe network, using disposable PostgreSQL; test now refuses non-isolated DB targets.
+- GitHub Actions: latest feature-branch commit returned no PR-triggered runs at time checked; CI approval remains pending.
+- Real Stripe sandbox Checkout and signed webhook delivery: deliberately deferred by owner; not represented as tested.
+- No production deployment, migration, Stripe setting change, or worker restart.
